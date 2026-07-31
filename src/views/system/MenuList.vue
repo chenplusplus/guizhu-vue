@@ -1,0 +1,228 @@
+<template>
+  <div class="page-container">
+    <div class="page-header">
+      <h2>菜单管理</h2>
+      <el-button type="primary" @click="showDialog = true">
+        <el-icon><Plus /></el-icon> 新增菜单
+      </el-button>
+    </div>
+
+    <!-- 表格 -->
+    <el-table
+      :data="tableData"
+      border
+      stripe
+      v-loading="loading"
+      row-key="menuId"
+      default-expand-all
+    >
+      <el-table-column prop="menuId" label="ID" width="80" />
+      <el-table-column prop="menuName" label="菜单名称" min-width="150" />
+      <el-table-column prop="menuPath" label="路由路径" width="180" />
+      <el-table-column prop="menuIcon" label="图标" width="120">
+        <template #default="{ row }">
+          <span v-if="row.menuIcon">
+            <el-icon><component :is="row.menuIcon" /></el-icon>
+            {{ row.menuIcon }}
+          </span>
+          <span v-else style="color:#ccc;">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="menuType" label="类型" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.menuType === 1 ? 'primary' : 'success'" size="small">
+            {{ row.menuType === 1 ? '菜单' : '按钮' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="permissionCode" label="权限编码" width="180">
+        <template #default="{ row }">
+          <span v-if="row.permissionCode" style="font-family: monospace; font-size: 12px;">
+            {{ row.permissionCode }}
+          </span>
+          <span v-else style="color:#ccc;">-</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
+      <el-table-column prop="isActive" label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.isActive ? 'success' : 'danger'" size="small">
+            {{ row.isActive ? '启用' : '禁用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="200" fixed="right">
+        <template #default="{ row }">
+          <el-button size="small" @click="edit(row)">编辑</el-button>
+          <el-button size="small" type="danger" @click="del(row)">删除</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <!-- ===== 新增/编辑弹窗 ===== -->
+    <el-dialog v-model="showDialog" :title="editId ? '编辑菜单' : '新增菜单'" width="550px" @close="resetForm">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+        <el-form-item label="上级菜单">
+          <el-select v-model="form.parentId" placeholder="请选择上级菜单" clearable>
+            <el-option label="顶级菜单" :value="0" />
+            <el-option
+              v-for="item in menuOptions"
+              :key="item.menuId"
+              :label="item.menuName"
+              :value="item.menuId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="菜单名称" prop="menuName">
+          <el-input v-model="form.menuName" placeholder="请输入菜单名称" />
+        </el-form-item>
+        <el-form-item label="路由路径">
+          <el-input v-model="form.menuPath" placeholder="如 /order" />
+        </el-form-item>
+        <el-form-item label="图标名称">
+          <el-input v-model="form.menuIcon" placeholder="如 Document" />
+          <div style="font-size:12px;color:#909399;margin-top:4px;">
+            使用 Element Plus 图标名称，如 DataAnalysis、User、Document
+          </div>
+        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="类型">
+              <el-select v-model="form.menuType" style="width:100%;">
+                <el-option label="菜单" :value="1" />
+                <el-option label="按钮" :value="2" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="排序">
+              <el-input-number v-model="form.sortOrder" :min="0" style="width:100%;" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="权限编码">
+          <el-input v-model="form.permissionCode" placeholder="如 order:view" />
+          <div style="font-size:12px;color:#909399;margin-top:4px;">
+            按钮权限编码格式：模块:操作，如 order:audit
+          </div>
+        </el-form-item>
+        <el-form-item label="状态" v-if="editId">
+          <el-switch v-model="form.isActive" active-text="启用" inactive-text="禁用" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showDialog = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submit">确定</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted, computed } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import { menuApi } from '@/api/menu'
+
+const loading = ref(false)
+const submitting = ref(false)
+const tableData = ref([])
+const showDialog = ref(false)
+const editId = ref(null)
+const formRef = ref()
+
+const form = reactive({
+  parentId: 0,
+  menuName: '',
+  menuPath: '',
+  menuIcon: '',
+  menuType: 1,
+  permissionCode: '',
+  sortOrder: 0,
+  isActive: true
+})
+
+const rules = {
+  menuName: [{ required: true, message: '请输入菜单名称' }]
+}
+
+// 所有菜单（用于上级菜单下拉）
+const menuOptions = computed(() => {
+  const flat = []
+  const flatten = (list, prefix = '') => {
+    for (const item of list) {
+      flat.push({ ...item, menuName: prefix + item.menuName })
+      if (item.children && item.children.length) {
+        flatten(item.children, prefix + '　')
+      }
+    }
+  }
+  flatten(tableData.value)
+  return flat
+})
+
+// ===== 加载数据 =====
+const loadData = async () => {
+  loading.value = true
+  try {
+    tableData.value = await menuApi.tree()
+  } finally {
+    loading.value = false
+  }
+}
+
+// ===== 新增/编辑 =====
+const resetForm = () => {
+  editId.value = null
+  formRef.value?.resetFields()
+  Object.assign(form, {
+    parentId: 0,
+    menuName: '',
+    menuPath: '',
+    menuIcon: '',
+    menuType: 1,
+    permissionCode: '',
+    sortOrder: 0,
+    isActive: true
+  })
+}
+
+const edit = async (row) => {
+  editId.value = row.menuId
+  const data = await menuApi.get(row.menuId)
+  Object.assign(form, data)
+  showDialog.value = true
+}
+
+const submit = async () => {
+  await formRef.value?.validate()
+  submitting.value = true
+  try {
+    if (editId.value) {
+      await menuApi.update({ ...form, menuId: editId.value })
+      ElMessage.success('更新成功')
+    } else {
+      await menuApi.create(form)
+      ElMessage.success('创建成功')
+    }
+    showDialog.value = false
+    loadData()
+  } finally {
+    submitting.value = false
+  }
+}
+
+const del = async (row) => {
+  await ElMessageBox.confirm(`确认删除菜单 "${row.menuName}"？`, '提示', { type: 'warning' })
+  await menuApi.delete(row.menuId)
+  ElMessage.success('删除成功')
+  loadData()
+}
+
+onMounted(loadData)
+</script>
+
+<style scoped>
+.page-container { padding: 20px; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+</style>
