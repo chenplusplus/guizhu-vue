@@ -1,105 +1,79 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
-import Layout from '@/components/Layout.vue'
+// src/router/index.js
+import { createRouter, createWebHistory } from 'vue-router';
+import { useUserStore } from '@/stores/user';
+import { ElMessage } from 'element-plus';
 
 const routes = [
   {
     path: '/login',
     name: 'Login',
     component: () => import('@/views/login/index.vue'),
-    meta: { title: '登录' }
+    meta: { title: '登录', requiresAuth: false },
   },
   {
     path: '/',
-    component: Layout,
+    component: () => import('@/components/Layout.vue'),
+    meta: { requiresAuth: true },
     redirect: '/dashboard',
     children: [
-      {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views/dashboard/Index.vue'),
-        meta: { title: '工作台', icon: 'DataAnalysis' }
-      },
-      {
-        path: 'user',
-        name: 'UserList',
-        component: () => import('@/views/system/UserList.vue'),
-        meta: { title: '用户管理', icon: 'User' }
-      },
-      {
-        path: 'role',
-        name: 'RoleList',
-        component: () => import('@/views/system/RoleList.vue'),
-        meta: { title: '角色管理', icon: 'UserRole' }
-      },
-     {
-        path: 'menu',
-        name: 'MenuList',
-        component: () => import('@/views/system/MenuList.vue'),
-        meta: { title: '菜单管理', icon: 'Menu' }
-      },
-      {
-        path: 'customer',
-        name: 'Customer',
-        component: () => import('@/views/customer/CustomerList.vue'),
-        meta: { title: '客户管理', icon: 'User' }
-      },
-      {
-        path: 'order',
-        name: 'OrderList',
-        component: () => import('@/views/order/OrderList.vue'),
-        meta: { title: '订单列表', icon: 'List' }
-      },
-      {
-        path: 'order/create',
-        name: 'OrderCreate',
-        component: () => import('@/views/order/OrderCreate.vue'),
-        meta: { title: '新建订单', icon: 'Edit' }
-      },
-      {
-        path: 'order/detail/:id',
-        name: 'OrderDetail',
-        component: () => import('@/views/order/OrderDetail.vue'),
-        meta: { title: '订单详情' }
-      },
-      {
-        path: 'production',
-        name: 'Production',
-        component: () => import('@/views/production/ProductionManage.vue'),
-        meta: { title: '制作管理', icon: 'Setting' }
-      },
-      {
-        path: 'bill',
-        name: 'BillList',
-        component: () => import('@/views/bill/BillList.vue'),
-        meta: { title: '账单管理', icon: 'Document' }
-      },
-      {
-        path: 'dict',
-        name: 'DictManage',
-        component: () => import('@/views/dict/DictManage.vue'),
-        meta: { title: '基础资料', icon: 'Tools' }
-      }
-    ]
+      // ===== 工作台 =====
+      { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/dashboard/index.vue'), meta: { title: '工作台' } },
+
+      // ===== 订单模块 =====
+      { path: 'order/create', name: 'OrderCreate', component: () => import('@/views/order/create.vue'), meta: { title: '下单' } },
+      { path: 'order/my-list', name: 'MyOrders', component: () => import('@/views/order/list.vue'), meta: { title: '我的订单' } },
+      { path: 'order/audit', name: 'OrderAudit', component: () => import('@/views/order/audit.vue'), meta: { title: '订单审核' } },
+      { path: 'order/factory-audit', name: 'FactoryAudit', component: () => import('@/views/order/factory-audit.vue'), meta: { title: '工厂审核' } },
+      { path: 'order/production', name: 'Production', component: () => import('@/views/order/production.vue'), meta: { title: '制作管理' } },
+      { path: 'order/factory-list', name: 'FactoryList', component: () => import('@/views/order/factory-list.vue'), meta: { title: '工厂订单' } },
+      { path: 'order/list', name: 'OrderList', component: () => import('@/views/order/list.vue'), meta: { title: '订单管理' } },
+      { path: 'order/detail/:id', name: 'OrderDetail', component: () => import('@/views/order/detail.vue'), meta: { title: '订单详情' } },
+
+      // ===== 账单模块 =====
+      { path: 'order/bill/create', name: 'BillCreate', component: () => import('@/views/order/bill-create.vue'), meta: { title: '生成账单' } },
+      { path: 'order/bill/edit/:id', name: 'BillEdit', component: () => import('@/views/order/bill-edit.vue'), meta: { title: '编辑账单' } },
+      { path: 'order/bill/audit', name: 'BillAudit', component: () => import('@/views/order/bill-audit.vue'), meta: { title: '账单审核' } },
+      { path: 'order/bill/my-list', name: 'BillMyList', component: () => import('@/views/order/bill-my-list.vue'), meta: { title: '我的账单' } },
+
+      // ===== 客户模块 =====
+      { path: 'customer/list', name: 'CustomerList', component: () => import('@/views/customer/list.vue'), meta: { title: '客户管理' } },
+
+      // ===== 系统模块 =====
+      { path: 'system/user', name: 'UserManage', component: () => import('@/views/system/user.vue'), meta: { title: '用户管理' } },
+      { path: 'system/menu', name: 'MenuList', component: () => import('@/views/system/MenuList.vue'), meta: { title: '菜单管理' } },
+      { path: 'system/role', name: 'RoleList', component: () => import('@/views/system/RoleList.vue'), meta: { title: '角色管理' } },
+    ],
   },
-  {
-    path: '/:pathMatch(.*)*',
-    redirect: '/dashboard'
-  }
-]
+];
 
 const router = createRouter({
-  history: createWebHashHistory(),
-  routes
-})
+  history: createWebHistory(),
+  routes,
+});
 
 // 路由守卫
-router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
-  if (to.path !== '/login' && !token) {
-    next('/login')
-  } else {
-    next()
-  }
-})
+router.beforeEach(async (to, from, next) => {
+  const userStore = useUserStore();
 
-export default router
+  if (!to.meta.requiresAuth) {
+    next();
+    return;
+  }
+
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录');
+    next('/login');
+    return;
+  }
+
+  // 角色权限检查
+  if (to.meta.roles && !to.meta.roles.includes(userStore.userType)) {
+    ElMessage.warning('您没有访问该页面的权限');
+    next('/dashboard');
+    return;
+  }
+
+  next();
+});
+
+export default router;

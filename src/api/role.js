@@ -1,18 +1,39 @@
-import request from '@/utils/request'
+// src/api/role.js
+import api from './index';
 
 export const roleApi = {
-  // 角色 CRUD
-  list: (params) => request.get('/api/role/list', { params }),
-  get: (id) => request.get(`/api/role/${id}`),
-  create: (data) => request.post('/api/role', data),
-  update: (data) => request.put('/api/role', data),
-  delete: (id) => request.delete(`/api/role/${id}`),
+  // 获取角色列表
+  list: (params) => {
+    return api.get('/role/list', { params });
+  },
 
-  // 角色-菜单
-  getRoleMenus: (roleId) => request.get(`/api/role/${roleId}/menus`),
-  saveRoleMenus: (data) => request.post('/api/role/menus', data),
+  // 获取角色详情
+  get: (id) => {
+    return api.get(`/role/${id}`);
+  },
 
-  // 用户-角色
-  getUserRoles: (userId) => request.get(`/api/role/user/${userId}`),
-  saveUserRoles: (data) => request.post('/api/role/user', data)
-}
+  // 创建角色
+  create: (data) => {
+    return api.post('/role', data);
+  },
+
+  // 更新角色
+  update: (data) => {
+    return api.put('/role', data);
+  },
+
+  // 删除角色
+  delete: (id) => {
+    return api.delete(`/role/${id}`);
+  },
+
+  // 获取角色的菜单权限
+  getRoleMenus: (roleId) => {
+    return api.get(`/role/${roleId}/menus`);
+  },
+
+  // 保存角色菜单权限
+  saveRoleMenus: (data) => {
+    return api.post('/role/menus', data);
+  }
+};

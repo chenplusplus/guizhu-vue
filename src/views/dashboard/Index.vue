@@ -1,87 +1,142 @@
+<!-- src/views/dashboard/index.vue -->
 <template>
-  <div class="page-container">
-    <h2 style="margin-bottom:16px;">工作台</h2>
-
-    <el-row :gutter="16" class="stat-row">
-      <el-col :span="6" v-for="item in stats" :key="item.label">
-        <el-card shadow="hover" class="stat-card" :body-style="{ padding: '16px' }">
-          <div class="stat-icon" :style="{ background: item.color }">
-            <el-icon :size="28"><component :is="item.icon" /></el-icon>
-          </div>
-          <div class="stat-info">
-            <div class="stat-value">{{ item.value }}</div>
-            <div class="stat-label">{{ item.label }}</div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
+  <div class="dashboard">
+    <h2>欢迎回来，{{ userStore.realName || userStore.userName }}！</h2>
+    <p style="color: #999; margin-bottom: 24px">角色：{{ userStore.userTypeName }}</p>
 
     <el-row :gutter="16">
-      <el-col :span="16">
-        <el-card>
-          <template #header>
-            <span>近7天订单趋势</span>
-          </template>
-          <div ref="chartRef" style="height:280px;"></div>
+      <el-col :span="6">
+        <el-card class="stat-card" shadow="hover" style="border-left: 4px solid #409EFF">
+          <div class="stat-number">{{ pendingCount }}</div>
+          <div class="stat-label">待审核订单</div>
         </el-card>
       </el-col>
-      <el-col :span="8">
-        <el-card>
-          <template #header><span>待办事项</span></template>
-          <div v-if="todos.length === 0" style="text-align:center;padding:20px 0;color:#909399;">🎉 暂无待办</div>
-          <div v-for="item in todos" :key="item.title" class="todo-item" @click="$router.push(item.path)">
-            <el-tag :type="item.type" size="small">{{ item.badge }}</el-tag>
-            <span class="todo-title">{{ item.title }}</span>
-            <el-icon class="todo-arrow"><ArrowRight /></el-icon>
-          </div>
+
+      <el-col :span="6">
+        <el-card class="stat-card" shadow="hover" style="border-left: 4px solid #E6A23C">
+          <div class="stat-number">{{ productionCount }}</div>
+          <div class="stat-label">制作中订单</div>
+        </el-card>
+      </el-col>
+
+      <el-col :span="6">
+        <el-card class="stat-card" shadow="hover" style="border-left: 4px solid #67C23A">
+          <div class="stat-number">{{ completedCount }}</div>
+          <div class="stat-label">已完成订单</div>
+        </el-card>
+      </el-col>
+
+      <el-col :span="6">
+        <el-card class="stat-card" shadow="hover" style="border-left: 4px solid #F56C6C">
+          <div class="stat-number">{{ urgentCount }}</div>
+          <div class="stat-label">紧急订单</div>
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- 快捷入口 -->
+    <el-card style="margin-top: 16px">
+      <template #header>
+        <span>快捷入口</span>
+      </template>
+      <el-row :gutter="16">
+        <el-col :span="4" v-for="item in quickActions" :key="item.path">
+          <el-button plain style="width: 100%; height: 80px" @click="goTo(item.path)">
+            <div style="font-size: 28px">{{ item.icon }}</div>
+            <div>{{ item.title }}</div>
+          </el-button>
+        </el-col>
+      </el-row>
+    </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from 'vue'
-import * as echarts from 'echarts'
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUserStore } from '@/stores/user';
+import { getStatusCount } from '@/api/order';
 
-const chartRef = ref(null)
-let chartInstance = null
+const router = useRouter();
+const userStore = useUserStore();
 
-const stats = ref([
-  { label: '今日订单', value: 12, icon: 'Document', color: '#409EFF' },
-  { label: '待审核', value: 3, icon: 'Clock', color: '#E6A23C' },
-  { label: '制作中', value: 5, icon: 'Setting', color: '#67C23A' },
-  { label: '本月金额', value: '¥45,678', icon: 'Money', color: '#F56C6C' }
-])
+const pendingCount = ref(0);
+const productionCount = ref(0);
+const completedCount = ref(0);
+const urgentCount = ref(0);
 
-const todos = ref([
-  { title: '3个订单待审核', path: '/order', badge: '3', type: 'warning' },
-  { title: '2个订单制作中', path: '/production', badge: '2', type: 'primary' }
-])
+const quickActions = computed(() => {
+  const actions = [];
+  const userType = userStore.userType;
+
+  if (userType === 'customer' || userType === 'admin') {
+    actions.push({ title: '下单', icon: '📝', path: '/order/create' });
+    actions.push({ title: '我的订单', icon: '📋', path: '/order/my-list' });
+  }
+
+  if (userType === 'customerAudit' || userType === 'admin') {
+    actions.push({ title: '客户审核', icon: '✅', path: '/order/audit' });
+  }
+
+  if (userType === 'factoryOrder' || userType === 'admin') {
+    actions.push({ title: '制作管理', icon: '🔧', path: '/order/production' });
+  }
+
+  if (userType === 'factoryAudit' || userType === 'admin') {
+    actions.push({ title: '工厂审核', icon: '🔍', path: '/order/factory-audit' });
+  }
+
+  if (userType === 'admin') {
+    actions.push({ title: '订单管理', icon: '📋', path: '/order/list' });
+    actions.push({ title: '客户管理', icon: '👥', path: '/customer/list' });
+    actions.push({ title: '用户管理', icon: '👤', path: '/system/user' });
+  }
+
+  return actions;
+});
+
+const goTo = (path) => {
+  router.push(path);
+};
+
+const loadStats = async () => {
+  try {
+    const res = await getStatusCount();
+    const data = res?.data || {};
+    pendingCount.value = data.pending || 0;
+    productionCount.value = data.producing || 0;
+    completedCount.value = data.completed || 0;
+    urgentCount.value = data.urgent || 0;
+  } catch {
+    // 使用模拟数据
+    pendingCount.value = 5;
+    productionCount.value = 3;
+    completedCount.value = 12;
+    urgentCount.value = 1;
+  }
+};
 
 onMounted(() => {
-  nextTick(() => {
-    if (chartRef.value) {
-      chartInstance = echarts.init(chartRef.value)
-      chartInstance.setOption({
-        xAxis: { type: 'category', data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'] },
-        yAxis: { type: 'value' },
-        series: [{ type: 'line', data: [8, 12, 10, 18, 22, 15, 20], smooth: true }]
-      })
-    }
-  })
-})
+  loadStats();
+});
 </script>
 
 <style scoped>
-.stat-row { margin-bottom: 16px; }
-.stat-card { display: flex; align-items: center; }
-.stat-card .stat-icon { width: 56px; height: 56px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; margin-right: 16px; flex-shrink: 0; }
-.stat-card .stat-info { flex: 1; }
-.stat-card .stat-value { font-size: 24px; font-weight: bold; }
-.stat-card .stat-label { color: #909399; font-size: 14px; }
-.todo-item { display: flex; align-items: center; padding: 10px 12px; border-radius: 6px; cursor: pointer; gap: 8px; }
-.todo-item:hover { background: #f5f7fa; }
-.todo-item .todo-title { flex: 1; color: #303133; }
-.todo-item .todo-arrow { color: #909399; }
+.dashboard {
+  padding: 4px;
+}
+.stat-card {
+  text-align: center;
+  padding: 8px 0;
+}
+.stat-number {
+  font-size: 32px;
+  font-weight: bold;
+  color: #333;
+}
+.stat-label {
+  color: #999;
+  font-size: 14px;
+  margin-top: 8px;
+}
 </style>

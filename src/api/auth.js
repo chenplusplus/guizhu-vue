@@ -1,7 +1,17 @@
-import request from '@/utils/request'
+// src/api/auth.js
+import api from './index';
 
-export const authApi = {
-  login: (data) => request.post('/api/auth/login', data),
-  logout: () => request.post('/api/auth/logout'),
-  current: () => request.get('/api/auth/current')
-}
+// ===== 登录 =====
+export const login = (username, password) => {
+  return api.post('/auth/login', { username, password });
+};
+
+// ===== 登出 =====
+export const logout = () => {
+  return api.post('/auth/logout');
+};
+
+// ===== 获取当前用户 =====
+export const getCurrentUser = () => {
+  return api.get('/auth/current');
+};

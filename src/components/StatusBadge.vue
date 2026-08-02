@@ -1,32 +1,36 @@
+<!-- src/components/StatusBadge.vue -->
 <template>
-  <el-tag :type="tagType" size="small">{{ text }}</el-tag>
+  <a-tag :color="colorMap[status] || 'default'">
+    {{ textMap[status] || status }}
+  </a-tag>
 </template>
 
 <script setup>
 const props = defineProps({
-  status: { type: String, default: 'draft' }
-})
+  status: { type: String, required: true },
+});
 
-const statusMap = {
+const textMap = {
   draft: '草稿',
-  pending: '待审核',
-  audited: '已审核',
+  pending: '待客户审核',
+  customerAudited: '客户已审核',
+  factoryPending: '待工厂审核',
+  audited: '工厂已审核',
   producing: '制作中',
   completed: '已完成',
   rejected: '已驳回',
-  cancelled: '已取消'
-}
+  cancelled: '已取消',
+};
 
-const statusType = {
-  draft: 'info',
-  pending: 'warning',
-  audited: 'primary',
-  producing: 'warning',
-  completed: 'success',
-  rejected: 'danger',
-  cancelled: 'info'
-}
-
-const text = statusMap[props.status] || '未知'
-const tagType = statusType[props.status] || 'info'
+const colorMap = {
+  draft: 'default',
+  pending: 'orange',
+  customerAudited: 'blue',
+  factoryPending: 'orange',
+  audited: 'blue',
+  producing: 'purple',
+  completed: 'green',
+  rejected: 'red',
+  cancelled: 'default',
+};
 </script>

@@ -1,24 +1,24 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
-import path from 'path'
+// vite.config.js
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import path from 'path';
 
 export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
-    }
+      '@': path.resolve(__dirname, './src'),
+    },
   },
   server: {
-    port: 8085,
-    host: '0.0.0.0',
+    port: 8086,
     proxy: {
       '/api': {
-        target: 'https://localhost:7046',  // ← 后端地址
+        target: 'https://localhost:7046',  // 后端地址
         changeOrigin: true,
-        secure: false,
-        // rewrite: (path) => path.replace(/^\/api/, '/api')
-      }
-    }
-  }
-})
+        secure: false,  // 如果是 HTTPS 自签名证书，需要关闭验证
+        rewrite: (path) => path,  // 保持路径不变
+      },
+    },
+  },
+});

@@ -1,19 +1,39 @@
-import request from '@/utils/request'
+// src/api/menu.js
+import api from './index';
 
 export const menuApi = {
-  // 获取菜单树
-  tree: () => request.get('/api/menu/tree'),
+  // 获取当前用户菜单
+  getUserMenus: () => {
+    return api.get('/menu/user-menus');
+  },
 
-  // 菜单 CRUD
-  list: () => request.get('/api/menu/list'),
-  get: (id) => request.get(`/api/menu/${id}`),
-  create: (data) => request.post('/api/menu', data),
-  update: (data) => request.put('/api/menu', data),
-  delete: (id) => request.delete(`/api/menu/${id}`),
+  // 获取所有菜单树（管理员）
+  tree: () => {
+    return api.get('/menu/tree');
+  },
 
-  // 获取当前用户的菜单（动态菜单用）
-  userMenus: () => request.get('/api/menu/user-menus'),
+  // 获取单个菜单
+  get: (id) => {
+    return api.get(`/menu/${id}`);
+  },
 
-  // 权限校验
-  hasPermission: (code) => request.get('/api/menu/has-permission', { params: { code } })
-}
+  // 创建菜单
+  create: (data) => {
+    return api.post('/menu', data);
+  },
+
+  // 更新菜单
+  update: (data) => {
+    return api.put('/menu', data);
+  },
+
+  // 删除菜单
+  delete: (id) => {
+    return api.delete(`/menu/${id}`);
+  },
+
+  // 检查权限
+  hasPermission: (code) => {
+    return api.get('/menu/has-permission', { params: { code } });
+  }
+};

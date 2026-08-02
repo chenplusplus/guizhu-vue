@@ -1,26 +1,93 @@
-import request from '@/utils/request'
+// src/api/order.js
+import api from './index';
 
-export const orderApi = {
-  // ===== 订单 CRUD =====
-  create: (data) => request.post('/api/order', data),
-  list: (params) => request.get('/api/order/list', { params }),
-  pending: () => request.get('/api/order/pending'),
-  get: (id) => request.get(`/api/order/${id}`),
-  update: (data) => request.put('/api/order', data),
-  delete: (id) => request.delete(`/api/order/${id}`),
+// ===== 创建订单 =====
+export const createOrder = (data) => {
+  return api.post('/order', data);
+};
 
-  // ===== 审核 =====
-  audit: (id, data) => request.post(`/api/order/${id}/audit`, data),
+// ===== 获取订单列表 =====
+export const getOrderList = (params) => {
+  return api.get('/order/list', { params });
+};
 
-  // ===== 制作管理 =====
-  productionList: (params) => request.get('/api/order/production/list', { params }),
-  updateProduction: (id, data) => request.post(`/api/order/${id}/production`, data),
+// ===== 获取制作列表 =====
+export const getProductionList = (status) => {
+  return api.get('/order/production/list', { params: { status } });
+};
 
-  // ===== 其他 =====
-  cancel: (id, data) => request.post(`/api/order/${id}/cancel`, data),
-  urgent: (id, isUrgent) => request.post(`/api/order/${id}/urgent`, null, { params: { isUrgent } }),
+// ===== 获取订单详情 =====
+export const getOrderDetail = (id) => {
+  return api.get(`/order/${id}`);
+};
 
-  // ===== 统计 =====
-  pendingCount: () => request.get('/api/order/stats/pending-count'),
-  statusCount: (customerId) => request.get('/api/order/stats/status-count', { params: { customerId } })
-}
+// ===== 更新订单 =====
+export const updateOrder = (data) => {
+  return api.put('/order', data);
+};
+
+// ===== 删除订单 =====
+export const deleteOrder = (id) => {
+  return api.delete(`/order/${id}`);
+};
+
+// ===== 审核订单 =====
+export const auditOrder = (id, data) => {
+  return api.post(`/order/${id}/audit`, data);
+};
+
+// ===== 提交到工厂 =====
+export const submitToFactory = (id) => {
+  return api.post(`/order/${id}/submit-factory`);
+};
+
+// ===== 更新制作状态 =====
+export const updateProduction = (id, data) => {
+  return api.post(`/order/${id}/production`, data);
+};
+
+// ===== 取消订单 =====
+export const cancelOrder = (id, remark) => {
+  return api.post(`/order/${id}/cancel`, { remark });
+};
+
+// ===== 标记紧急 =====
+export const markUrgent = (id, isUrgent) => {
+  return api.post(`/order/${id}/urgent`, null, { params: { isUrgent } });
+};
+
+// ===== 统计 =====
+export const getPendingCount = () => {
+  return api.get('/order/stats/pending-count');
+};
+
+export const getStatusCount = (customerId) => {
+  return api.get('/order/stats/status-count', { params: { customerId } });
+};
+
+// 审核账单
+export const auditBill = (id, data) => {
+  return api.post(`/order/${id}/audit-bill`, data);
+};
+
+// 客户确认账单
+export const confirmBill = (id) => {
+  return api.post(`/order/${id}/confirm-bill`);
+};
+
+// 生成账单
+export const generateBill = (id) => {
+  return api.post(`/order/${id}/generate-bill`);
+};
+
+// src/api/order.js
+
+// 客户审核 - 待客户审核列表
+export const getPendingOrders = () => {
+  return api.get('/order/pending');
+};
+
+// 工厂审核 - 账单待审核列表
+export const getBillPendingOrders = () => {
+  return api.get('/order/bill-pending');
+};

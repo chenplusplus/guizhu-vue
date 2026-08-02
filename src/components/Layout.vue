@@ -1,17 +1,18 @@
+<!-- src/components/Layout.vue -->
 <template>
   <el-container class="layout-container">
     <!-- ===== 顶部导航 ===== -->
     <el-header class="layout-header">
       <div class="header-left">
         <div class="logo">
-          <el-icon :size="24"><Diamond /></el-icon>
-          <span>珠宝订单系统</span>
+          <span style="font-size:24px;">💎</span>
+          <span style="font-weight:600;font-size:18px;color:#1d2129;">珠宝订单系统</span>
         </div>
       </div>
       <div class="header-right">
         <span class="user-name">{{ userStore.realName || '管理员' }}</span>
         <el-dropdown @command="handleCommand">
-          <el-avatar :size="32" style="background:#409EFF;cursor:pointer;">
+          <el-avatar :size="32" style="background:#409EFF;cursor:pointer;color:#fff;display:flex;align-items:center;justify-content:center;">
             {{ userStore.realName?.charAt(0) || 'A' }}
           </el-avatar>
           <template #dropdown>
@@ -25,7 +26,7 @@
     </el-header>
 
     <el-container class="main-container">
-      <!-- ===== 左侧菜单（动态） ===== -->
+      <!-- ===== 左侧菜单 ===== -->
       <el-aside :width="isCollapse ? '64px' : '200px'" class="layout-aside">
         <div class="menu-toggle" @click="toggleCollapse">
           <el-icon><Fold v-if="!isCollapse" /><Expand v-else /></el-icon>
@@ -34,29 +35,15 @@
           :default-active="activeMenu"
           :collapse="isCollapse"
           :collapse-transition="false"
-          router
           background-color="#001529"
           text-color="#a7b1c2"
           active-text-color="#ffffff"
+          @select="handleMenuSelect"
         >
-          <!-- 动态渲染菜单 -->
-          <template v-for="item in menuData" :key="item.menuId">
-            <!-- 有子菜单 -->
-            <el-sub-menu v-if="item.children && item.children.length > 0" :index="item.menuPath || item.menuId.toString()">
-              <template #title>
-                <el-icon v-if="item.menuIcon"><component :is="item.menuIcon" /></el-icon>
-                <span>{{ item.menuName }}</span>
-              </template>
-              <el-menu-item v-for="child in item.children" :key="child.menuId" :index="child.menuPath">
-                <span>{{ child.menuName }}</span>
-              </el-menu-item>
-            </el-sub-menu>
-            <!-- 无子菜单 -->
-            <el-menu-item v-else :index="item.menuPath">
-              <el-icon v-if="item.menuIcon"><component :is="item.menuIcon" /></el-icon>
-              <template #title>{{ item.menuName }}</template>
-            </el-menu-item>
-          </template>
+          <el-menu-item v-for="item in menuData" :key="item.path" :index="item.path">
+            <span style="font-size:18px;margin-right:8px;">{{ item.icon }}</span>
+            <template #title>{{ item.title }}</template>
+          </el-menu-item>
         </el-menu>
       </el-aside>
 
@@ -108,9 +95,9 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { useUserStore } from '@/store/user'
+import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
-import { menuApi } from '@/api/menu'
+import { Fold, Expand, Close, More } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -119,25 +106,62 @@ const userStore = useUserStore()
 const isCollapse = ref(false)
 const tabs = ref([])
 const cachedViews = ref([])
-const menuData = ref([])
+
+// ===== 菜单数据 =====
+const menuData = computed(() => {
+  const userType = userStore.userType || 'admin'
+  const menus = []
+
+  // ===== 工作台 - 所有人可见 =====
+  menus.push({ path: '/dashboard', title: '工作台', icon: '📊' })
+
+  // ===== 客户下单员 =====
+  if (userType === 'customer' || userType === 'admin') {
+    menus.push({ path: '/order/create', title: '下单', icon: '📝' })
+    menus.push({ path: '/order/my-list', title: '我的订单', icon: '📋' })
+    menus.push({ path: '/order/bill/my-list', title: '我的账单', icon: '📄' })
+  }
+
+  // ===== 客户审核员 =====
+  if (userType === 'customerAudit' || userType === 'admin') {
+    menus.push({ path: '/order/audit', title: '客户审核', icon: '✅' })
+    menus.push({ path: '/order/my-list', title: '订单列表', icon: '📋' })
+    menus.push({ path: '/order/bill/my-list', title: '我的账单', icon: '📄' })
+  }
+
+  // ===== 工厂业务员 =====
+  if (userType === 'factoryOrder' || userType === 'admin') {
+    menus.push({ path: '/order/factory-list', title: '工厂订单', icon: '🏭' })
+    menus.push({ path: '/order/production', title: '制作管理', icon: '🔧' })
+    menus.push({ path: '/order/my-list', title: '订单列表', icon: '📋' })
+    menus.push({ path: '/order/bill/create', title: '生成账单', icon: '📄' })
+  }
+
+  // ===== 工厂审核员 =====
+  if (userType === 'factoryAudit' || userType === 'admin') {
+    menus.push({ path: '/order/factory-audit', title: '工厂审核', icon: '🔍' })
+    menus.push({ path: '/order/my-list', title: '订单列表', icon: '📋' })
+    menus.push({ path: '/order/bill/audit', title: '账单审核', icon: '📄' })
+  }
+
+  // ===== 管理员专属 =====
+  if (userType === 'admin') {
+    menus.push({ path: '/order/list', title: '订单管理', icon: '📋' })
+    menus.push({ path: '/customer/list', title: '客户管理', icon: '👥' })
+    menus.push({ path: '/system/user', title: '用户管理', icon: '👤' })
+    menus.push({ path: '/system/menu', title: '菜单管理', icon: '📂' })
+    menus.push({ path: '/system/role', title: '角色管理', icon: '🔑' })
+  }
+
+  return menus
+})
 
 const currentPath = computed(() => route.path)
 const activeMenu = computed(() => route.path)
 
-// ===== 加载菜单 =====
-const loadMenus = async () => {
-  try {
-    menuData.value = await menuApi.userMenus()
-    // 如果菜单为空，给个默认
-    if (!menuData.value || menuData.value.length === 0) {
-      menuData.value = [
-        { menuId: 1, menuName: '工作台', menuPath: '/dashboard', menuIcon: 'DataAnalysis', children: [] }
-      ]
-    }
-  } catch {
-    menuData.value = [
-      { menuId: 1, menuName: '工作台', menuPath: '/dashboard', menuIcon: 'DataAnalysis', children: [] }
-    ]
+const handleMenuSelect = (index) => {
+  if (index && index !== currentPath.value) {
+    router.push(index)
   }
 }
 
@@ -148,7 +172,12 @@ const addTab = (to) => {
   const closable = path !== '/dashboard'
   if (tabs.value.find(t => t.path === path)) return
   tabs.value.push({ title, path, closable, name: to.name })
-  if (to.name) cachedViews.value.push(to.name)
+  if (to.name) {
+    const cachedName = Array.isArray(to.name) ? to.name[0] : to.name
+    if (!cachedViews.value.includes(cachedName)) {
+      cachedViews.value.push(cachedName)
+    }
+  }
 }
 
 const switchTab = (tab) => {
@@ -211,15 +240,12 @@ const handleCommand = (cmd) => {
   }
 }
 
-// 监听路由变化
 watch(route, (to) => {
   addTab(to)
-})
+}, { immediate: true })
 
-// 初始化
-onMounted(async () => {
-  await loadMenus()
-  if (route.path && route.path !== '/login') {
+onMounted(() => {
+  if (tabs.value.length === 0 && route.path && route.path !== '/login') {
     addTab(route)
   }
 })
@@ -230,6 +256,7 @@ onMounted(async () => {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #f0f2f5;
 }
 
 /* ===== 顶部导航 ===== */
@@ -238,10 +265,11 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
-  border-bottom: 1px solid #e8ecf1;
+  padding: 0 24px;
   height: 56px;
   flex-shrink: 0;
+  border-bottom: 1px solid #e8ecf1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
 }
 
 .header-left {
@@ -254,12 +282,6 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-  color: #1d2129;
-}
-.logo .el-icon {
-  color: #409EFF;
 }
 
 .header-right {
@@ -267,6 +289,7 @@ onMounted(async () => {
   align-items: center;
   gap: 16px;
 }
+
 .user-name {
   color: #4e5969;
   font-size: 14px;
@@ -298,6 +321,7 @@ onMounted(async () => {
   font-size: 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   flex-shrink: 0;
+  transition: color 0.3s;
 }
 .menu-toggle:hover {
   color: #fff;
@@ -306,16 +330,16 @@ onMounted(async () => {
 .el-menu {
   border-right: none;
   flex: 1;
+  overflow-y: auto;
 }
 .el-menu-item {
   height: 44px;
   line-height: 44px;
+  display: flex;
+  align-items: center;
 }
-.el-menu-item .el-icon {
-  font-size: 18px;
-}
-.el-sub-menu .el-icon {
-  font-size: 18px;
+.el-menu-item.is-active {
+  background-color: rgba(64, 158, 255, 0.2) !important;
 }
 
 /* ===== 右侧容器 ===== */
@@ -347,7 +371,6 @@ onMounted(async () => {
   overflow-x: auto;
   height: 100%;
 }
-
 .tabs-container::-webkit-scrollbar {
   height: 2px;
 }
@@ -371,12 +394,10 @@ onMounted(async () => {
   transition: all 0.2s;
   flex-shrink: 0;
 }
-
 .tab-item:hover {
   background: #f5f7fa;
   color: #1d2129;
 }
-
 .tab-item.active {
   color: #409EFF;
   border-bottom-color: #409EFF;
@@ -389,6 +410,7 @@ onMounted(async () => {
   border-radius: 50%;
   padding: 2px;
   transition: all 0.2s;
+  cursor: pointer;
 }
 .tab-close:hover {
   background: #d0d5dd;
@@ -412,34 +434,5 @@ onMounted(async () => {
   padding: 16px 20px;
   overflow-y: auto;
   min-height: 0;
-}
-
-.page-container {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  min-height: 100%;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.page-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1d2129;
-  margin: 0;
-}
-
-.search-form {
-  background: #f5f7fa;
-  padding: 16px 20px;
-  border-radius: 6px;
-  margin-bottom: 16px;
 }
 </style>
