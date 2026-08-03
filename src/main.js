@@ -8,12 +8,19 @@ import App from './App.vue';
 import router from './router';
 import { useUserStore } from './stores/user';
 
-// 引入全局样式
-import './styles/global.css';
+// ⭐ 引入 jQuery
+import $ from 'jquery';
+window.$ = window.jQuery = $;
+
+// ⭐ 引入 jQuery Mousewheel 插件（必须在 jQuery 之后）
+import 'jquery-mousewheel';
+
+// ⭐ 引入 Luckysheet 样式
+import 'luckysheet/dist/css/luckysheet.css';
 
 const app = createApp(App);
 
-// 注册所有图标
+// 注册所有 Element Plus 图标
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component);
 }

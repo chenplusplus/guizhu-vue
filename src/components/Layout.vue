@@ -35,21 +35,36 @@
           :default-active="activeMenu"
           :collapse="isCollapse"
           :collapse-transition="false"
-          background-color="#001529"
-          text-color="#a7b1c2"
-          active-text-color="#ffffff"
+          background-color="#e8f4f8"
+          text-color="#5a7a8a"
+          active-text-color="#409EFF"
           @select="handleMenuSelect"
         >
-          <el-menu-item v-for="item in menuData" :key="item.path" :index="item.path">
-            <span style="font-size:18px;margin-right:8px;">{{ item.icon }}</span>
-            <template #title>{{ item.title }}</template>
-          </el-menu-item>
+          <template v-for="item in menuList" :key="item.menuId">
+            <el-sub-menu v-if="item.children && item.children.length > 0" :index="item.menuPath || item.menuId.toString()">
+              <template #title>
+                <span style="font-size:18px;margin-right:8px;">{{ item.menuIcon || '📄' }}</span>
+                <span>{{ item.menuName }}</span>
+              </template>
+              <el-menu-item
+                v-for="child in item.children"
+                :key="child.menuId"
+                :index="child.menuPath"
+                @click="handleMenuSelect(child.menuPath)"
+              >
+                <span style="font-size:16px;margin-right:8px;">{{ child.menuIcon || '📄' }}</span>
+                <span>{{ child.menuName }}</span>
+              </el-menu-item>
+            </el-sub-menu>
+            <el-menu-item v-else :index="item.menuPath">
+              <span style="font-size:18px;margin-right:8px;">{{ item.menuIcon || '📄' }}</span>
+              <template #title>{{ item.menuName }}</template>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-aside>
 
-      <!-- ===== 右侧内容 ===== -->
       <div class="right-container">
-        <!-- Tabs 栏 -->
         <div class="tabs-bar">
           <div class="tabs-container">
             <div
@@ -78,8 +93,6 @@
             </el-dropdown>
           </div>
         </div>
-
-        <!-- 页面内容 -->
         <div class="layout-main">
           <router-view v-slot="{ Component }">
             <keep-alive :include="cachedViews">
@@ -98,6 +111,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { ElMessage } from 'element-plus'
 import { Fold, Expand, Close, More } from '@element-plus/icons-vue'
+import { menuApi } from '@/api/menu'
 
 const route = useRoute()
 const router = useRouter()
@@ -106,55 +120,8 @@ const userStore = useUserStore()
 const isCollapse = ref(false)
 const tabs = ref([])
 const cachedViews = ref([])
-
-// ===== 菜单数据 =====
-const menuData = computed(() => {
-  const userType = userStore.userType || 'admin'
-  const menus = []
-
-  // ===== 工作台 - 所有人可见 =====
-  menus.push({ path: '/dashboard', title: '工作台', icon: '📊' })
-
-  // ===== 客户下单员 =====
-  if (userType === 'customer' || userType === 'admin') {
-    menus.push({ path: '/order/create', title: '下单', icon: '📝' })
-    menus.push({ path: '/order/my-list', title: '我的订单', icon: '📋' })
-    menus.push({ path: '/order/bill/my-list', title: '我的账单', icon: '📄' })
-  }
-
-  // ===== 客户审核员 =====
-  if (userType === 'customerAudit' || userType === 'admin') {
-    menus.push({ path: '/order/audit', title: '客户审核', icon: '✅' })
-    menus.push({ path: '/order/my-list', title: '订单列表', icon: '📋' })
-    menus.push({ path: '/order/bill/my-list', title: '我的账单', icon: '📄' })
-  }
-
-  // ===== 工厂业务员 =====
-  if (userType === 'factoryOrder' || userType === 'admin') {
-    menus.push({ path: '/order/factory-list', title: '工厂订单', icon: '🏭' })
-    menus.push({ path: '/order/production', title: '制作管理', icon: '🔧' })
-    menus.push({ path: '/order/my-list', title: '订单列表', icon: '📋' })
-    menus.push({ path: '/order/bill/create', title: '生成账单', icon: '📄' })
-  }
-
-  // ===== 工厂审核员 =====
-  if (userType === 'factoryAudit' || userType === 'admin') {
-    menus.push({ path: '/order/factory-audit', title: '工厂审核', icon: '🔍' })
-    menus.push({ path: '/order/my-list', title: '订单列表', icon: '📋' })
-    menus.push({ path: '/order/bill/audit', title: '账单审核', icon: '📄' })
-  }
-
-  // ===== 管理员专属 =====
-  if (userType === 'admin') {
-    menus.push({ path: '/order/list', title: '订单管理', icon: '📋' })
-    menus.push({ path: '/customer/list', title: '客户管理', icon: '👥' })
-    menus.push({ path: '/system/user', title: '用户管理', icon: '👤' })
-    menus.push({ path: '/system/menu', title: '菜单管理', icon: '📂' })
-    menus.push({ path: '/system/role', title: '角色管理', icon: '🔑' })
-  }
-
-  return menus
-})
+const menuList = ref([])
+const loading = ref(false)
 
 const currentPath = computed(() => route.path)
 const activeMenu = computed(() => route.path)
@@ -165,7 +132,23 @@ const handleMenuSelect = (index) => {
   }
 }
 
-// ===== Tabs 管理 =====
+const loadUserMenus = async () => {
+  loading.value = true
+  try {
+    const res = await menuApi.getUserMenus()
+    let data = res?.data || res || []
+    if (!Array.isArray(data)) {
+      data = []
+    }
+    menuList.value = data
+  } catch (error) {
+    console.error('加载菜单失败:', error)
+    menuList.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
 const addTab = (to) => {
   const title = to.meta?.title || to.name || '页面'
   const path = to.path
@@ -244,7 +227,8 @@ watch(route, (to) => {
   addTab(to)
 }, { immediate: true })
 
-onMounted(() => {
+onMounted(async () => {
+  await loadUserMenus()
   if (tabs.value.length === 0 && route.path && route.path !== '/login') {
     addTab(route)
   }
@@ -259,7 +243,6 @@ onMounted(() => {
   background: #f0f2f5;
 }
 
-/* ===== 顶部导航 ===== */
 .layout-header {
   background: #fff;
   display: flex;
@@ -295,20 +278,20 @@ onMounted(() => {
   font-size: 14px;
 }
 
-/* ===== 主体区域 ===== */
 .main-container {
   flex: 1;
   min-height: 0;
 }
 
-/* ===== 左侧菜单 ===== */
+/* ===== 左侧菜单 - 淡蓝色风格 ===== */
 .layout-aside {
-  background: #001529;
+  background: #e8f4f8;
   overflow: hidden;
   transition: width 0.3s;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  border-right: 1px solid #d4e8f0;
 }
 
 .menu-toggle {
@@ -316,15 +299,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #a7b1c2;
+  color: #5a7a8a;
   cursor: pointer;
   font-size: 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid #d4e8f0;
   flex-shrink: 0;
   transition: color 0.3s;
 }
 .menu-toggle:hover {
-  color: #fff;
+  color: #409EFF;
 }
 
 .el-menu {
@@ -332,17 +315,58 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
 }
+
+/* 菜单项样式 */
 .el-menu-item {
   height: 44px;
   line-height: 44px;
   display: flex;
   align-items: center;
-}
-.el-menu-item.is-active {
-  background-color: rgba(64, 158, 255, 0.2) !important;
+  color: #5a7a8a;
+  border-radius: 6px;
+  margin: 2px 8px;
 }
 
-/* ===== 右侧容器 ===== */
+.el-menu-item:hover {
+  background: #d4e8f0 !important;
+  color: #409EFF;
+}
+
+.el-menu-item.is-active {
+  background: #b5d9e8 !important;
+  color: #409EFF;
+  font-weight: 600;
+}
+
+/* 子菜单样式 */
+.el-sub-menu {
+  margin: 2px 8px;
+  border-radius: 6px;
+}
+
+.el-sub-menu .el-sub-menu__title {
+  height: 44px;
+  line-height: 44px;
+  color: #5a7a8a;
+  border-radius: 6px;
+}
+
+.el-sub-menu .el-sub-menu__title:hover {
+  background: #d4e8f0 !important;
+  color: #409EFF;
+}
+
+.el-sub-menu .el-menu-item {
+  padding-left: 40px !important;
+}
+
+/* 菜单选中状态背景 */
+.el-menu-item.is-active {
+  background: #b5d9e8 !important;
+  color: #409EFF;
+  font-weight: 600;
+}
+
 .right-container {
   flex: 1;
   display: flex;
@@ -351,7 +375,6 @@ onMounted(() => {
   background: #f0f2f5;
 }
 
-/* ===== Tabs 栏 ===== */
 .tabs-bar {
   display: flex;
   align-items: center;
@@ -371,6 +394,7 @@ onMounted(() => {
   overflow-x: auto;
   height: 100%;
 }
+
 .tabs-container::-webkit-scrollbar {
   height: 2px;
 }
@@ -394,10 +418,12 @@ onMounted(() => {
   transition: all 0.2s;
   flex-shrink: 0;
 }
+
 .tab-item:hover {
   background: #f5f7fa;
   color: #1d2129;
 }
+
 .tab-item.active {
   color: #409EFF;
   border-bottom-color: #409EFF;
@@ -428,7 +454,6 @@ onMounted(() => {
   color: #1d2129;
 }
 
-/* ===== 主内容 ===== */
 .layout-main {
   flex: 1;
   padding: 16px 20px;

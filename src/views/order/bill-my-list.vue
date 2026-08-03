@@ -59,10 +59,10 @@
     </el-row>
 
     <!-- 表格 -->
-    <el-table :data="tableData" v-loading="loading" border stripe>
+    <el-table :data="tableData" v-loading="loading" border stripe row-key="id">
       <el-table-column prop="billNo" label="账单编号" width="160">
         <template #default="{ row }">
-          <el-link type="primary" @click="viewDetail(row.billId)">
+          <el-link type="primary" @click="viewDetail(row.id)">
             {{ row.billNo }}
           </el-link>
         </template>
@@ -89,7 +89,7 @@
       </el-table-column>
       <el-table-column label="操作" width="180" align="center">
         <template #default="{ row }">
-          <el-button size="small" type="primary" @click="viewDetail(row.billId)">
+          <el-button size="small" type="primary" @click="viewDetail(row.id)">
             查看
           </el-button>
           <el-button
@@ -126,9 +126,8 @@
     </div>
 
     <!-- 账单详情弹窗 -->
-    <el-dialog v-model="detailVisible" :title="`账单详情 - ${detailData?.billNo || ''}`" width="92%" top="5vh">
+    <el-dialog v-model="detailVisible" :title="`账单详情 - ${detailData?.billNo || ''}`" width="92%" top="5vh" destroy-on-close>
       <div v-loading="detailLoading">
-        <!-- 基本信息 -->
         <el-descriptions :column="4" border>
           <el-descriptions-item label="账单编号">{{ detailData?.billNo }}</el-descriptions-item>
           <el-descriptions-item label="客户">{{ detailData?.customerName }}</el-descriptions-item>
@@ -266,8 +265,6 @@ const loadData = async () => {
   try {
     const params = {
       status: search.status || undefined,
-      page: pagination.current,
-      pageSize: pagination.pageSize,
     };
     const res = await getBillList(params);
     const data = res?.data || [];
@@ -296,6 +293,11 @@ const resetSearch = () => {
 
 // ===== 查看详情 =====
 const viewDetail = async (id) => {
+  if (!id) {
+    ElMessage.warning('账单ID无效');
+    return;
+  }
+  
   detailVisible.value = true;
   detailLoading.value = true;
   try {
@@ -328,6 +330,10 @@ const viewDetail = async (id) => {
 
 // ===== 确认账单 =====
 const handleConfirm = async (row) => {
+  if (!row || !row.billId) {
+    ElMessage.warning('账单信息无效');
+    return;
+  }
   try {
     await ElMessageBox.confirm('确认账单无误吗？确认后订单将完成。', '确认账单', { type: 'info' });
     await confirmBill(row.billId);
@@ -339,6 +345,10 @@ const handleConfirm = async (row) => {
 
 // ===== 退回账单 =====
 const handleReject = async (row) => {
+  if (!row || !row.billId) {
+    ElMessage.warning('账单信息无效');
+    return;
+  }
   try {
     const { value } = await ElMessageBox.prompt('请输入退回原因', '退回账单', {
       inputType: 'textarea',

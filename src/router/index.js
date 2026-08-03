@@ -34,7 +34,18 @@ const routes = [
       { path: 'order/bill/edit/:id', name: 'BillEdit', component: () => import('@/views/order/bill-edit.vue'), meta: { title: '编辑账单' } },
       { path: 'order/bill/audit', name: 'BillAudit', component: () => import('@/views/order/bill-audit.vue'), meta: { title: '账单审核' } },
       { path: 'order/bill/my-list', name: 'BillMyList', component: () => import('@/views/order/bill-my-list.vue'), meta: { title: '我的账单' } },
-
+      {
+        path: 'order/lr/edit/:billId',
+        name: 'LrEditor',
+        component: () => import('@/views/order/lr-editor.vue'),
+        meta: { title: 'LR表编辑', icon: '📊', roles: ['factoryOrder', 'admin'] },
+      },
+      {
+        path: 'order/lr/list',
+        name: 'LrList',
+        component: () => import('@/views/order/lr-list.vue'),
+        meta: { title: 'LR表管理', icon: '📊' },
+      },
       // ===== 客户模块 =====
       { path: 'customer/list', name: 'CustomerList', component: () => import('@/views/customer/list.vue'), meta: { title: '客户管理' } },
 

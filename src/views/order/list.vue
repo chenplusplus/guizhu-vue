@@ -4,7 +4,7 @@
     <div class="page-header">
       <h2>📋 订单列表</h2>
       <div style="display: flex; gap: 8px;">
-        <el-button type="primary" @click="handleRefresh">
+        <el-button type="primary" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
         <el-button v-if="userStore.isAdmin" type="success" @click="exportData">
@@ -12,20 +12,6 @@
         </el-button>
       </div>
     </div>
-
-    <!-- ===== 统计卡片 ===== -->
-    <el-row :gutter="12" style="margin-bottom: 16px;">
-      <el-col :span="4" v-for="item in statusStats" :key="item.key">
-        <div 
-          class="stat-card" 
-          :class="{ active: query.status === item.key }"
-          @click="query.status = item.key; loadData()"
-        >
-          <div class="stat-number">{{ item.count }}</div>
-          <div class="stat-label">{{ item.label }}</div>
-        </div>
-      </el-col>
-    </el-row>
 
     <!-- ===== 搜索栏 ===== -->
     <div class="search-bar">
@@ -43,9 +29,20 @@
           <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px;">
             <el-option label="待客户审核" value="pending" />
             <el-option label="客户已审核" value="customerAudited" />
-            <el-option label="待工厂审核" value="factoryPending" />
-            <el-option label="工厂已审核" value="audited" />
-            <el-option label="制作中" value="producing" />
+            <el-option label="已接单" value="accepted" />
+            <el-option label="数据确认" value="dataConfirm" />
+            <el-option label="出蜡" value="waxing" />
+            <el-option label="倒模" value="molded" />
+            <el-option label="CNC" value="cnc" />
+            <el-option label="配件缺失" value="partsMissing" />
+            <el-option label="配石完成" value="stoneReady" />
+            <el-option label="执模" value="setting" />
+            <el-option label="滴胶/磨石" value="glue" />
+            <el-option label="镶嵌" value="inlay" />
+            <el-option label="组装" value="assembly" />
+            <el-option label="抛光" value="polishing" />
+            <el-option label="账单待审核" value="billPending" />
+            <el-option label="客户已确认" value="billConfirmed" />
             <el-option label="已完成" value="completed" />
             <el-option label="已驳回" value="rejected" />
             <el-option label="已取消" value="cancelled" />
@@ -83,10 +80,11 @@
       stripe 
       style="width: 100%"
       @sort-change="handleSortChange"
+      @row-click="handleRowClick"
     >
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click="viewDetail(row.orderId)">
+          <el-link type="primary" @click.stop="viewDetail(row.orderId)">
             {{ row.orderNo }}
           </el-link>
         </template>
@@ -129,7 +127,7 @@
 
       <el-table-column label="操作" width="180" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button type="primary" size="small" link @click="viewDetail(row.orderId)">
+          <el-button type="primary" size="small" link @click.stop="viewDetail(row.orderId)">
             查看
           </el-button>
 
@@ -138,7 +136,7 @@
             type="warning" 
             size="small" 
             link 
-            @click="viewDetail(row.orderId)"
+            @click.stop="viewDetail(row.orderId)"
           >
             编辑
           </el-button>
@@ -148,7 +146,7 @@
             type="danger" 
             size="small" 
             link 
-            @click="handleDelete(row)"
+            @click.stop="handleDelete(row)"
           >
             删除
           </el-button>
@@ -158,7 +156,7 @@
             type="success" 
             size="small" 
             link 
-            @click="handleQuickAudit(row)"
+            @click.stop="handleQuickAudit(row)"
           >
             审核
           </el-button>
@@ -168,7 +166,7 @@
             type="primary" 
             size="small" 
             link 
-            @click="handleSubmitToFactory(row)"
+            @click.stop="handleSubmitToFactory(row)"
           >
             提交工厂
           </el-button>
@@ -213,28 +211,55 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- ===== 流程抽屉 ===== -->
+    <FlowDrawer
+      v-model="flowDrawerVisible"
+      :order-id="currentFlowOrderId"
+      :order-no="currentFlowOrderNo"
+      :current-status="currentFlowStatus"
+      @refresh="loadData"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Download, Search, RefreshRight } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, deleteOrder, auditOrder, submitToFactory } from '@/api/order';
+import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
 
-// ===== 状态映射 =====
+// ===== 流程抽屉 =====
+const flowDrawerVisible = ref(false);
+const currentFlowOrderId = ref(0);
+const currentFlowOrderNo = ref('');
+const currentFlowStatus = ref('');
+
+// ===== 状态映射（中文） =====
 const statusMap = {
   draft: { text: '草稿', type: 'info' },
   pending: { text: '待客户审核', type: 'warning' },
-  customerAudited: { text: '客户已审核', type: 'primary' },
-  factoryPending: { text: '待工厂审核', type: 'warning' },
-  audited: { text: '工厂已审核', type: 'primary' },
-  producing: { text: '制作中', type: 'warning' },
+  customerAudited: { text: '客户已审核', type: 'success' },
+  accepted: { text: '已接单', type: 'primary' },
+  dataConfirm: { text: '数据确认', type: 'primary' },
+  waxing: { text: '出蜡', type: 'primary' },
+  molded: { text: '倒模', type: 'primary' },
+  cnc: { text: 'CNC', type: 'primary' },
+  partsMissing: { text: '配件缺失', type: 'warning' },
+  stoneReady: { text: '配石完成', type: 'primary' },
+  setting: { text: '执模', type: 'primary' },
+  glue: { text: '滴胶/磨石', type: 'primary' },
+  inlay: { text: '镶嵌', type: 'primary' },
+  assembly: { text: '组装', type: 'primary' },
+  polishing: { text: '抛光', type: 'primary' },
+  billPending: { text: '账单待审核', type: 'warning' },
+  billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -242,19 +267,6 @@ const statusMap = {
 
 const getStatusText = (status) => statusMap[status]?.text || status || '-';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
-
-// ===== 状态统计 =====
-const statusStats = ref([
-  { key: '', label: '全部', count: 0 },
-  { key: 'pending', label: '待客户审核', count: 0 },
-  { key: 'customerAudited', label: '客户已审核', count: 0 },
-  { key: 'factoryPending', label: '待工厂审核', count: 0 },
-  { key: 'audited', label: '工厂已审核', count: 0 },
-  { key: 'producing', label: '制作中', count: 0 },
-  { key: 'completed', label: '已完成', count: 0 },
-  { key: 'rejected', label: '已驳回', count: 0 },
-  { key: 'cancelled', label: '已取消', count: 0 },
-]);
 
 // ===== 查询参数 =====
 const query = reactive({
@@ -278,6 +290,14 @@ const auditLoading = ref(false);
 const currentOrder = ref(null);
 const auditRemark = ref('');
 
+// ===== 点击行查看流程 =====
+const handleRowClick = (row) => {
+  currentFlowOrderId.value = row.orderId;
+  currentFlowOrderNo.value = row.orderNo;
+  currentFlowStatus.value = row.flowStatus;
+  flowDrawerVisible.value = true;
+};
+
 // ===== 权限判断 =====
 const canEdit = (row) => {
   const userType = userStore.userType;
@@ -299,7 +319,7 @@ const canAudit = (row) => {
   const userType = userStore.userType;
   const status = row.flowStatus;
   if (userType === 'customerAudit' && status === 'pending') return true;
-  if (userType === 'factoryAudit' && status === 'factoryPending') return true;
+  if (userType === 'factoryAudit' && status === 'billPending') return true;
   return false;
 };
 
@@ -322,7 +342,6 @@ const loadData = async () => {
       descending: query.descending,
     };
 
-    // 日期范围
     if (query.dateRange && query.dateRange.length === 2) {
       params.startDate = query.dateRange[0];
       params.endDate = query.dateRange[1];
@@ -332,9 +351,6 @@ const loadData = async () => {
     const data = res?.data || res || {};
     tableData.value = data.items || data || [];
     pagination.total = data.total || tableData.value.length;
-
-    // 更新统计
-    updateStats();
   } catch (error) {
     ElMessage.error(error.message || '加载数据失败');
     tableData.value = [];
@@ -343,20 +359,6 @@ const loadData = async () => {
   }
 };
 
-// ===== 更新统计 =====
-const updateStats = () => {
-  const stats = { '': 0 };
-  tableData.value.forEach(row => {
-    const key = row.flowStatus || '';
-    stats[key] = (stats[key] || 0) + 1;
-    stats[''] = (stats[''] || 0) + 1;
-  });
-  statusStats.value.forEach(item => {
-    item.count = stats[item.key] || 0;
-  });
-};
-
-// ===== 重置查询 =====
 const resetQuery = () => {
   query.keyword = '';
   query.status = '';
@@ -367,41 +369,26 @@ const resetQuery = () => {
   loadData();
 };
 
-// ===== 排序 =====
 const handleSortChange = ({ prop, order }) => {
   query.orderBy = prop || 'createdAt';
   query.descending = order !== 'ascending';
   loadData();
 };
 
-// ===== 刷新 =====
-const handleRefresh = () => {
-  loadData();
-};
-
-// ===== 查看详情 =====
 const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
 };
 
-// ===== 删除 =====
 const handleDelete = (row) => {
-  ElMessageBox.confirm(
-    `确定要删除订单 ${row.orderNo} 吗？`,
-    '提示',
-    { type: 'warning' }
-  ).then(async () => {
-    try {
+  ElMessageBox.confirm(`确定要删除订单 ${row.orderNo} 吗？`, '提示', { type: 'warning' })
+    .then(async () => {
       await deleteOrder(row.orderId);
       ElMessage.success('删除成功');
       loadData();
-    } catch (error) {
-      ElMessage.error(error.message || '删除失败');
-    }
-  }).catch(() => {});
+    })
+    .catch(() => {});
 };
 
-// ===== 快速审核弹窗 =====
 const handleQuickAudit = (row) => {
   currentOrder.value = row;
   auditRemark.value = '';
@@ -430,14 +417,9 @@ const confirmAudit = async (approved) => {
   }
 };
 
-// ===== 提交到工厂 =====
 const handleSubmitToFactory = async (row) => {
   try {
-    await ElMessageBox.confirm(
-      `确定要将订单 ${row.orderNo} 提交到工厂审核吗？`,
-      '提示',
-      { type: 'info' }
-    );
+    await ElMessageBox.confirm(`确定要将订单 ${row.orderNo} 提交到工厂审核吗？`, '提示', { type: 'info' });
     await submitToFactory(row.orderId);
     ElMessage.success('已提交到工厂');
     loadData();
@@ -448,19 +430,16 @@ const handleSubmitToFactory = async (row) => {
   }
 };
 
-// ===== 导出 =====
 const exportData = () => {
   ElMessage.info('导出功能开发中...');
 };
 
-// ===== 时间格式化 =====
 const formatDate = (date) => {
   if (!date) return '-';
   const d = new Date(date);
   return d.toLocaleString('zh-CN', { hour12: false });
 };
 
-// ===== 初始化 =====
 onMounted(() => {
   loadData();
 });
@@ -486,36 +465,6 @@ onMounted(() => {
   margin: 0;
 }
 
-/* ===== 统计卡片 ===== */
-.stat-card {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 12px 16px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  border: 2px solid transparent;
-}
-.stat-card:hover {
-  background: #e6f0ff;
-  transform: translateY(-2px);
-}
-.stat-card.active {
-  border-color: #409EFF;
-  background: #ecf5ff;
-}
-.stat-card .stat-number {
-  font-size: 22px;
-  font-weight: bold;
-  color: #303133;
-}
-.stat-card .stat-label {
-  font-size: 13px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-/* ===== 搜索栏 ===== */
 .search-bar {
   background: #f5f7fa;
   padding: 16px 20px;
@@ -529,12 +478,12 @@ onMounted(() => {
   margin-left: 8px;
 }
 
-/* ===== 表格 ===== */
 :deep(.el-table .cell) {
   padding: 6px 8px;
 }
-
-/* ===== 操作按钮 ===== */
+:deep(.el-table .el-table__row) {
+  cursor: pointer;
+}
 :deep(.el-button.is-link) {
   padding: 0 4px;
 }

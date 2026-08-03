@@ -4,19 +4,19 @@
     <div class="page-header">
       <h2>✏️ 编辑出货明细</h2>
       <div>
-        <el-button type="primary" @click="saveData" :loading="saving">
+        <el-button type="primary" @click="handleSave" :loading="saving">
           <el-icon><Check /></el-icon> 保存
         </el-button>
-        <el-button type="success" @click="generateLr" :loading="lrGenerating">
+        <el-button type="success" @click="handleGenerateLr" :loading="lrGenerating">
           <el-icon><Document /></el-icon> 生成LR表
         </el-button>
-        <el-button type="warning" @click="submitAudit">
+        <el-button type="warning" @click="handleSubmitAudit">
           <el-icon><Select /></el-icon> 提交审核
         </el-button>
       </div>
     </div>
 
-    <!-- 出货明细表格（可编辑） -->
+    <!-- 出货明细表格 -->
     <el-card>
       <template #header>
         <span style="font-weight:600;">📋 出货明细</span>
@@ -37,7 +37,7 @@
           </el-table-column>
           <el-table-column label="颜色" width="80">
             <template #default="{ row }">
-              <el-select v-model="row.color" size="small">
+              <el-select v-model="row.color" size="small" style="width:100%;">
                 <el-option label="K黄" value="K黄" />
                 <el-option label="K白" value="K白" />
                 <el-option label="K红" value="K红" />
@@ -83,7 +83,7 @@
           </el-table-column>
           <el-table-column label="应收金额" width="110">
             <template #default="{ row }">
-              <span style="color:#E6A23C;font-weight:bold;">{{ row.totalAmount || 0 }}</span>
+              <span style="color:#E6A23C;font-weight:bold;">{{ (row.totalAmount || 0).toFixed(2) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -138,17 +138,17 @@
           <tfoot>
             <tr>
               <td colspan="10" style="text-align:right;font-weight:600;">销售总额：</td>
-              <td style="font-weight:600;color:#67C23A;">¥{{ lrSummary.totalSale?.toFixed(2) || 0 }}</td>
+              <td style="font-weight:600;color:#67C23A;">¥{{ (lrSummary.totalSale || 0).toFixed(2) }}</td>
               <td></td>
             </tr>
             <tr>
               <td colspan="10" style="text-align:right;font-weight:600;">成本总额：</td>
-              <td style="font-weight:600;color:#E6A23C;">¥{{ lrSummary.totalCost?.toFixed(2) || 0 }}</td>
+              <td style="font-weight:600;color:#E6A23C;">¥{{ (lrSummary.totalCost || 0).toFixed(2) }}</td>
               <td></td>
             </tr>
             <tr style="background:#fff7e6;">
               <td colspan="10" style="text-align:right;font-weight:600;font-size:16px;">利润：</td>
-              <td style="font-weight:600;font-size:16px;color:#F56C6C;">¥{{ lrSummary.profit?.toFixed(2) || 0 }}</td>
+              <td style="font-weight:600;font-size:16px;color:#F56C6C;">¥{{ (lrSummary.profit || 0).toFixed(2) }}</td>
               <td></td>
             </tr>
           </tfoot>
@@ -163,7 +163,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Check, Document, Select } from '@element-plus/icons-vue';
-import { getBillDetail, saveBillData, submitBillAudit, generateLr } from '@/api/bill';
+import { getBillDetail, saveBillData, submitBillAudit, generateLr as generateLrApi } from '@/api/bill';
 
 const route = useRoute();
 const router = useRouter();
@@ -187,14 +187,14 @@ const lrSummary = computed(() => {
   return lrData.value.summary || {};
 });
 
-// 计算单行
+// ===== 计算单行 =====
 const calcRow = (row) => {
   const netWeight = row.netWeight || 0;
   const goldPrice = row.goldPrice || 0;
   const lossRate = row.lossRate || 1.1;
 
-  row.addLossWeight = netWeight * lossRate;
-  row.goldMaterialFee = row.addLossWeight * goldPrice;
+  row.addLossWeight = parseFloat((netWeight * lossRate).toFixed(3));
+  row.goldMaterialFee = parseFloat((row.addLossWeight * goldPrice).toFixed(2));
 
   const mainStone = row.mainStoneAmount || 0;
   const subStone = row.subStoneAmount || 0;
@@ -204,10 +204,12 @@ const calcRow = (row) => {
   const postage = row.postageFee || 0;
   const mold = row.moldFee || 0;
 
-  row.totalAmount = row.goldMaterialFee + mainStone + subStone + labor + packing + certificate + postage + mold;
+  row.totalAmount = parseFloat((
+    row.goldMaterialFee + mainStone + subStone + labor + packing + certificate + postage + mold
+  ).toFixed(2));
 };
 
-// 加载数据
+// ===== 加载数据 =====
 const loadData = async () => {
   loading.value = true;
   try {
@@ -222,7 +224,6 @@ const loadData = async () => {
     billNo.value = data.billNo || '';
     customerName.value = data.customerName || '';
 
-    // 解析billData
     if (data.billData) {
       try {
         details.value = JSON.parse(data.billData);
@@ -232,7 +233,6 @@ const loadData = async () => {
       }
     }
 
-    // 解析lrData
     if (data.lrData) {
       try {
         lrData.value = JSON.parse(data.lrData);
@@ -247,8 +247,8 @@ const loadData = async () => {
   }
 };
 
-// 保存
-const saveData = async () => {
+// ===== 保存 =====
+const handleSave = async () => {
   saving.value = true;
   try {
     await saveBillData({
@@ -264,11 +264,11 @@ const saveData = async () => {
   }
 };
 
-// 生成LR表
-const generateLr = async () => {
+// ===== 生成LR表 =====
+const handleGenerateLr = async () => {
   lrGenerating.value = true;
   try {
-    const res = await generateLr(billId.value);
+    const res = await generateLrApi(billId.value);
     if (res.success) {
       lrData.value = res.data;
       ElMessage.success('LR表生成成功');
@@ -280,8 +280,8 @@ const generateLr = async () => {
   }
 };
 
-// 提交审核
-const submitAudit = async () => {
+// ===== 提交审核 =====
+const handleSubmitAudit = async () => {
   try {
     await ElMessageBox.confirm('确认提交审核吗？提交后工厂审核员将进行审核。', '提交审核', { type: 'info' });
     await submitBillAudit(billId.value);
@@ -297,7 +297,6 @@ onMounted(loadData);
 .page-container { background: #f5f7fa; padding: 16px; min-height: 100%; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; background: #fff; padding: 16px 20px; border-radius: 8px; flex-wrap: wrap; gap: 8px; }
 .page-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
-.page-header .header-right { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .edit-table-wrapper { overflow-x: auto; }
 :deep(.el-table .cell) { padding: 2px 4px; }
@@ -310,4 +309,6 @@ onMounted(loadData);
 .lr-table tfoot td { background: #fafafa; font-weight: 600; }
 .lr-table .sale { background: #ffffff; }
 .lr-table .cost { background: #f5f7fa; }
+
+:deep(.el-card__body) { padding: 16px; }
 </style>
