@@ -42,6 +42,23 @@ const routes = [
         component: () => import('@/views/order/import.vue'),
         meta: { title: '导入Excel' },
       },
+      // src/router/index.js 添加
+
+      // 退货记录
+      {
+        path: 'order/returns',
+        name: 'ReturnList',
+        component: () => import('@/views/order/return-list.vue'),
+        meta: { title: '退货记录', icon: '↩️' },
+      },
+
+      // 账单统计
+      {
+        path: 'bill/stats',
+        name: 'BillStats',
+        component: () => import('@/views/order/bill-stats.vue'),
+        meta: { title: '账单统计', icon: '📊' },
+      },
       // ===== 账单模块 =====
       { path: 'order/bill/create', name: 'BillCreate', component: () => import('@/views/order/bill-create.vue'), meta: { title: '生成账单' } },
       { path: 'order/bill/edit/:id', name: 'BillEdit', component: () => import('@/views/order/bill-edit.vue'), meta: { title: '编辑账单' } },

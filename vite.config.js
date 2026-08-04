@@ -19,6 +19,12 @@ export default defineConfig({
         secure: false,  // 如果是 HTTPS 自签名证书，需要关闭验证
         rewrite: (path) => path,  // 保持路径不变
       },
+      // ⭐ 添加静态文件代理
+      '/uploads': {
+        target: 'https://localhost:7046',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
 });

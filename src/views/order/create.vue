@@ -171,26 +171,20 @@
         </el-form-item>
 
         <!-- 图片区域 -->
-        <div style="margin-top:16px;">
+          <div style="margin-top:16px;">
           <div style="font-weight:600;color:#303133;margin-bottom:12px;">📷 图片附件</div>
           <el-row :gutter="16">
             <!-- 产品图片 -->
             <el-col :span="8">
               <div class="upload-section">
                 <div class="upload-label">产品图片</div>
-                <el-upload
-                  v-model:file-list="form.imageList"
-                  action="#"
-                  list-type="picture-card"
-                  :auto-upload="false"
-                  :on-change="(file) => handleImageChange(file, 'imageList')"
-                  :on-remove="(file) => handleImageRemove(file, 'imageList')"
-                  :limit="5"
-                  multiple
-                >
-                  <el-icon><Plus /></el-icon>
-                </el-upload>
-                <div class="upload-tip">最多5张</div>
+                <ImageUpload 
+                  v-model="form.imageUrl" 
+                  :limit="5" 
+                  :multiple="true"
+                  type="product"
+                  tip="最多5张，每张最大5MB"
+                />
               </div>
             </el-col>
 
@@ -198,19 +192,13 @@
             <el-col :span="8">
               <div class="upload-section">
                 <div class="upload-label">数据图</div>
-                <el-upload
-                  v-model:file-list="form.dataImageList"
-                  action="#"
-                  list-type="picture-card"
-                  :auto-upload="false"
-                  :on-change="(file) => handleImageChange(file, 'dataImageList')"
-                  :on-remove="(file) => handleImageRemove(file, 'dataImageList')"
-                  :limit="5"
-                  multiple
-                >
-                  <el-icon><Plus /></el-icon>
-                </el-upload>
-                <div class="upload-tip">最多5张</div>
+                <ImageUpload 
+                  v-model="form.dataImageUrl" 
+                  :limit="5" 
+                  :multiple="true"
+                  type="data"
+                  tip="最多5张，每张最大5MB"
+                />
               </div>
             </el-col>
 
@@ -218,19 +206,13 @@
             <el-col :span="8">
               <div class="upload-section">
                 <div class="upload-label">字印要求图</div>
-                <el-upload
-                  v-model:file-list="form.letterImageList"
-                  action="#"
-                  list-type="picture-card"
-                  :auto-upload="false"
-                  :on-change="(file) => handleImageChange(file, 'letterImageList')"
-                  :on-remove="(file) => handleImageRemove(file, 'letterImageList')"
-                  :limit="5"
-                  multiple
-                >
-                  <el-icon><Plus /></el-icon>
-                </el-upload>
-                <div class="upload-tip">最多5张</div>
+                <ImageUpload 
+                  v-model="form.letterImageUrl" 
+                  :limit="5" 
+                  :multiple="true"
+                  type="letter"
+                  tip="最多5张，每张最大5MB"
+                />
               </div>
             </el-col>
           </el-row>
@@ -250,6 +232,7 @@ import { useUserStore } from '@/stores/user';
 import { createOrder, updateOrder, getOrderDetail } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
 import { uploadImage } from '@/api/upload';
+import ImageUpload from '@/components/ImageUpload.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -440,17 +423,7 @@ const handleSubmit = async () => {
 
     submitting.value = true;
     try {
-      // ⭐ 先上传图片
-      const [imageUrls, dataImageUrls, letterImageUrls] = await Promise.all([
-        uploadImagesToServer(form.imageList, 'product'),
-        uploadImagesToServer(form.dataImageList, 'data'),
-        uploadImagesToServer(form.letterImageList, 'letter'),
-      ]);
-
-      form.imageUrl = imageUrls.join(',');
-      form.dataImageUrl = dataImageUrls.join(',');
-      form.letterImageUrl = letterImageUrls.join(',');
-
+     
       const payload = buildPayload('pending');
       if (isEdit.value) {
         await updateOrder({ ...payload, orderId: route.params.id });

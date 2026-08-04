@@ -88,7 +88,6 @@ import '@univerjs/presets/lib/styles/preset-sheets-filter.css';
 import '@univerjs/presets/lib/styles/preset-sheets-drawing.css';
 import '@univerjs/presets/lib/styles/preset-sheets-data-validation.css';
 
-import LuckyExcel from '@zwight/luckyexcel';
 
 const route = useRoute();
 const router = useRouter();
