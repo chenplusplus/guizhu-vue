@@ -1,55 +1,40 @@
 <!-- src/views/order/factory-edit.vue -->
 <template>
   <div class="page-container" v-loading="loading">
-    <!-- 页面头部 -->
     <div class="page-header">
       <div class="header-left">
-        <el-button @click="$router.back()"><el-icon><ArrowLeft /></el-icon> 返回</el-button>
+        <el-button @click="$router.back()">
+          <el-icon><ArrowLeft /></el-icon> 返回
+        </el-button>
         <h2>✏️ 编辑订单</h2>
-        <el-tag :type="statusTagType" size="large">{{ statusText }}</el-tag>
-        <el-tag v-if="orderData?.warnFlag" type="danger" size="large">⚠️ 紧急</el-tag>
+        <el-tag type="primary" size="large">{{ orderData?.orderNo || '' }}</el-tag>
+        <el-tag v-if="orderData?.flowStatus" :type="getStatusType(orderData.flowStatus)" size="large">
+          {{ getStatusText(orderData.flowStatus) }}
+        </el-tag>
       </div>
       <div class="header-right">
-        <el-button type="primary" @click="saveOrder" :loading="saving">
+        <el-button type="primary" @click="handleSave" :loading="saving">
           <el-icon><Check /></el-icon> 保存
         </el-button>
-        <el-button 
-          v-if="canGenerateBill" 
-          type="warning" 
-          @click="handleGenerateBill"
-          :loading="billLoading"
-        >
+        <el-button v-if="canGenerateBill" type="warning" @click="handleGenerateBill" :loading="billLoading">
           <el-icon><Document /></el-icon> 生成账单
         </el-button>
       </div>
     </div>
 
-    <!-- 基本信息 -->
+    <!-- 基本信息（只读） -->
     <el-card class="info-card">
       <el-row :gutter="16">
         <el-col :span="4"><span class="label">订单号：</span><span class="value">{{ orderData?.orderNo }}</span></el-col>
         <el-col :span="4"><span class="label">客户：</span><span class="value">{{ orderData?.customerName }}</span></el-col>
         <el-col :span="4"><span class="label">品名：</span><span class="value">{{ orderData?.productName }}</span></el-col>
         <el-col :span="4"><span class="label">颜色：</span><span class="value">{{ orderData?.color }}</span></el-col>
-        <el-col :span="4"><span class="label">件数：</span><span class="value">{{ orderData?.quantity }}</span></el-col>
+        <el-col :span="4"><span class="label">数量：</span><span class="value">{{ orderData?.quantity }}</span></el-col>
         <el-col :span="4"><span class="label">手寸：</span><span class="value">{{ orderData?.size || '-' }}</span></el-col>
       </el-row>
-      <!-- 产品图片 -->
-      <div class="image-area">
-        <span class="label">产品图片：</span>
-        <el-image
-          v-if="orderData?.imageUrl"
-          :src="orderData.imageUrl"
-          :preview-src-list="[orderData.imageUrl]"
-          fit="cover"
-          class="product-image"
-          preview-teleported
-        />
-        <span v-else style="color:#ccc;">暂无图片</span>
-      </div>
     </el-card>
 
-    <!-- 工厂数据 -->
+    <!-- 工厂数据（可编辑） -->
     <el-card class="form-card">
       <template #header><span style="font-weight:600;">📊 工厂数据</span></template>
       <el-row :gutter="16">
@@ -197,21 +182,19 @@
       <template #header><span style="font-weight:600;">🔄 制作状态</span></template>
       <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
         <span style="color:#666;">当前状态：</span>
-        <el-tag :type="statusTagType" size="large">{{ statusText }}</el-tag>
-        
+        <el-tag :type="getStatusType(orderData?.flowStatus)" size="large">
+          {{ getStatusText(orderData?.flowStatus) }}
+        </el-tag>
+
         <span style="color:#666; margin-left:16px;">更新为：</span>
-      <el-select v-model="selectedStatus" placeholder="选择下一个状态" style="width:200px;">
-    <el-option label="出蜡" value="waxing" />
-    <el-option label="倒模" value="molded" />
-    <el-option label="执模" value="setting" />
-    <el-option label="CNC" value="cnc" />
-    <el-option label="扫镶口" value="sweeping" />
-    <el-option label="车石" value="stoneCutting" />
-    <el-option label="微镶" value="microInlay" />
-    <el-option label="手镶" value="handInlay" />
-    <el-option label="抛光" value="polishing" />
-    <el-option label="完成" value="completed" />
-  </el-select>
+        <el-select v-model="selectedStatus" placeholder="选择下一个状态" style="width:200px;">
+          <el-option
+            v-for="item in availableStatuses"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
         <el-button type="primary" @click="updateStatus" :loading="statusLoading" :disabled="!selectedStatus">
           更新状态
         </el-button>
@@ -227,18 +210,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Document } from '@element-plus/icons-vue';
 import { getOrderDetail, updateOrder, updateProduction, generateBill } from '@/api/order';
-import { useUserStore } from '@/stores/user';
 
 const route = useRoute();
 const router = useRouter();
-const userStore = useUserStore();
 
+// ⭐ 从路由参数获取 orderId
 const orderId = computed(() => Number(route.params.id));
+
 const orderData = ref({});
 const loading = ref(false);
 const saving = ref(false);
@@ -246,22 +229,28 @@ const statusLoading = ref(false);
 const billLoading = ref(false);
 const selectedStatus = ref('');
 
-// 状态映射
+// ===== 状态映射 =====
 const statusMap = {
-  waxing: { text: '出蜡', type: 'primary', step: 1 },
-  molded: { text: '倒模', type: 'primary', step: 2 },
-  setting: { text: '执模', type: 'primary', step: 3 },
-  cnc: { text: 'CNC', type: 'primary', step: 4 },
-  sweeping: { text: '扫镶口', type: 'primary', step: 5 },
-  stoneCutting: { text: '车石', type: 'primary', step: 6 },
-  microInlay: { text: '微镶', type: 'primary', step: 7 },
-  handInlay: { text: '手镶', type: 'primary', step: 8 },
-  polishing: { text: '抛光', type: 'warning', step: 9 },
-  completed: { text: '已完成', type: 'success', step: 10 },
+  customerAudited: { text: '待接单', type: 'success', step: 0 },
+  accepted: { text: '已接单', type: 'primary', step: 1 },
+  waxing: { text: '出蜡', type: 'primary', step: 2 },
+  molded: { text: '倒模', type: 'primary', step: 3 },
+  setting: { text: '执模', type: 'primary', step: 4 },
+  cnc: { text: 'CNC', type: 'primary', step: 5 },
+  sweeping: { text: '扫镶口', type: 'primary', step: 6 },
+  stoneCutting: { text: '车石', type: 'primary', step: 7 },
+  microInlay: { text: '微镶', type: 'primary', step: 8 },
+  handInlay: { text: '手镶', type: 'primary', step: 9 },
+  polishing: { text: '抛光', type: 'warning', step: 10 },
+  completed: { text: '已完成', type: 'success', step: 11 },
 };
 
-// 状态步骤（用于进度条）
+const getStatusText = (status) => statusMap[status]?.text || status || '-';
+const getStatusType = (status) => statusMap[status]?.type || 'info';
+
+// ===== 进度步骤 =====
 const statusSteps = [
+  { key: 'customerAudited', label: '待接单' },
   { key: 'accepted', label: '已接单' },
   { key: 'waxing', label: '出蜡' },
   { key: 'molded', label: '倒模' },
@@ -275,43 +264,28 @@ const statusSteps = [
   { key: 'completed', label: '完成' },
 ];
 
-// 状态转换规则
-const transitions = {
-  accepted: ['waxing'],
-  waxing: ['molded'],
-  molded: ['setting'],
-  setting: ['cnc'],
-  cnc: ['sweeping'],
-  sweeping: ['stoneCutting'],
-  stoneCutting: ['microInlay'],
-  microInlay: ['handInlay'],
-  handInlay: ['polishing'],
-  polishing: ['completed'],
-  completed: [],
-};
-
-const statusText = computed(() => {
-  const s = orderData.value?.flowStatus;
-  return statusMap[s]?.text || s || '-';
-});
-
-const statusTagType = computed(() => {
-  const s = orderData.value?.flowStatus;
-  return statusMap[s]?.type || 'info';
-});
-
 const currentStep = computed(() => {
   const s = orderData.value?.flowStatus;
   return statusMap[s]?.step ?? 0;
 });
 
+// ===== 可用状态 =====
 const availableStatuses = computed(() => {
   const current = orderData.value?.flowStatus;
-  const targets = transitions[current] || [];
-  return targets.map(key => ({
-    value: key,
-    label: statusMap[key]?.text || key,
-  }));
+  const flowMap = {
+    'customerAudited': [{ value: 'accepted', label: '已接单' }],
+    'accepted': [{ value: 'waxing', label: '出蜡' }],
+    'waxing': [{ value: 'molded', label: '倒模' }],
+    'molded': [{ value: 'setting', label: '执模' }],
+    'setting': [{ value: 'cnc', label: 'CNC' }],
+    'cnc': [{ value: 'sweeping', label: '扫镶口' }],
+    'sweeping': [{ value: 'stoneCutting', label: '车石' }],
+    'stoneCutting': [{ value: 'microInlay', label: '微镶' }],
+    'microInlay': [{ value: 'handInlay', label: '手镶' }],
+    'handInlay': [{ value: 'polishing', label: '抛光' }],
+    'polishing': [{ value: 'completed', label: '完成' }],
+  };
+  return flowMap[current] || [];
 });
 
 const canGenerateBill = computed(() => {
@@ -359,102 +333,47 @@ const calcTotal = () => {
   orderData.value.totalAmount = goldMaterial + mainStone + subStone + mainSetting + subSetting + packing + certificate + postage + mold + labor;
 };
 
-// ===== 加载数据 =====
+// ===== ⭐ 加载数据（从路由获取 id） =====
 const loadData = async () => {
+    console.log('orderId:', orderId.value);  // 看是不是 undefined
+  console.log('route.params:', route.params); // 看路由参数
+  if (!orderId.value) {
+    ElMessage.error('订单ID不存在');
+    router.back();
+    return;
+  }
+
   loading.value = true;
   try {
     const res = await getOrderDetail(orderId.value);
-    orderData.value = res?.data || {};
-    // 计算默认值
-    calcFactory();
-    calcMainStone();
-    calcSubStone();
-    calcTotal();
+    if (res?.data) {
+      orderData.value = res.data;
+      // 计算默认值
+      calcFactory();
+      calcMainStone();
+      calcSubStone();
+      calcTotal();
+    } else {
+      ElMessage.error('订单不存在');
+      router.back();
+    }
   } catch {
     ElMessage.error('加载数据失败');
+    router.back();
   } finally {
     loading.value = false;
   }
 };
-// 判断是否可编辑
-const isEditable = computed(() => {
-  const userType = userStore.userType;
-  const status = orderData.value?.flowStatus;
-  
-  // 管理员可编辑
-  if (userType === 'admin') return true;
-  
-  // 工厂业务员：客户已审核及之后状态可编辑
-  if (userType === 'factoryOrder') {
-    const editableStatuses = [
-      'customerAudited', 'accepted', 'dataConfirm', 'waxing',
-      'molded', 'cnc', 'partsMissing', 'stoneReady',
-      'setting', 'glue', 'inlay', 'assembly', 'polishing'
-    ];
-    return editableStatuses.includes(status);
-  }
-  
-  return false;
-});
 
-// 所有字段禁用状态
-const allDisabled = computed(() => !isEditable.value);
 // ===== 保存 =====
-const saveOrder = async () => {
+const handleSave = async () => {
   saving.value = true;
   try {
-    // 深拷贝数据，避免修改原对象
-    const payload = JSON.parse(JSON.stringify(orderData.value));
-    
-    // 确保 OrderId 存在
-    payload.OrderId = orderData.value.orderId;
-    
-    // 格式化数字字段：将字符串转为数字，null/undefined 转为 0 或删除
-    const numberFields = [
-      'quantity', 'amount',
-      'totalWeight', 'netWeight', 'lossRate', 'addLossWeight', 'goldPrice', 'goldMaterialFee',
-      'mainStoneQty', 'mainStoneWeight', 'mainStonePrice', 'mainStoneAmount', 'mainStoneSettingFee',
-      'subStoneQty', 'subStoneWeight', 'subStonePrice', 'subStoneAmount', 'subStoneSettingFee',
-      'packingFee', 'certificateFee', 'postageFee', 'moldFee', 'laborFee', 'totalAmount',
-      'costPrice', 'profit', 'deliveryDays'
-    ];
-    
-    numberFields.forEach(field => {
-      if (payload[field] !== undefined && payload[field] !== null && payload[field] !== '') {
-        const num = Number(payload[field]);
-        if (!isNaN(num)) {
-          payload[field] = num;
-        } else {
-          // 如果是无效数字，删除该字段（让后端使用默认值）
-          delete payload[field];
-        }
-      } else {
-        // 如果值为空，删除该字段
-        delete payload[field];
-      }
-    });
-
-    // 字符串字段：空字符串删除或转为 null
-    const stringFields = ['productName', 'imageUrl', 'diamondLevel', 'params', 'color', 'logoUrl', 'url', 'remark', 'factoryRemark'];
-    stringFields.forEach(field => {
-      if (payload[field] === '' || payload[field] === null || payload[field] === undefined) {
-        delete payload[field];
-      }
-    });
-
-    // 确保必要的字段存在
-    if (!payload.productName) {
-      payload.productName = orderData.value.productName || '';
-    }
-
-    console.log('提交数据:', payload);
-    
-    await updateOrder(payload);
+    await updateOrder(orderData.value);
     ElMessage.success('保存成功');
     loadData();
   } catch (error) {
-    console.error('保存失败:', error);
-    ElMessage.error(error.response?.data?.message || error.message || '保存失败');
+    ElMessage.error(error.message || '保存失败');
   } finally {
     saving.value = false;
   }
@@ -466,10 +385,15 @@ const updateStatus = async () => {
     ElMessage.warning('请选择状态');
     return;
   }
+
   const label = statusMap[selectedStatus.value]?.text || selectedStatus.value;
   statusLoading.value = true;
   try {
-    await updateProduction(orderId.value, { status: selectedStatus.value, step: currentStep.value + 1 });
+    await updateProduction(orderId.value, {
+      status: selectedStatus.value,
+      step: currentStep.value + 1,
+      remark: '',
+    });
     ElMessage.success(`状态已更新为：${label}`);
     selectedStatus.value = '';
     loadData();
@@ -494,29 +418,38 @@ const handleGenerateBill = async () => {
   }
 };
 
-onMounted(loadData);
+onMounted(() => {
+  loadData();
+});
 </script>
 
 <style scoped>
-.page-container { background: #f5f7fa; padding: 16px; min-height: 100%; }
-.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; background: #fff; padding: 16px 20px; border-radius: 8px; }
+.page-container { background: #f5f7fa; padding: 16px; min-height: 100vh; }
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  padding: 16px 24px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
 .header-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .header-left h2 { font-size: 18px; font-weight: 600; margin: 0; }
 .header-right { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .info-card { margin-bottom: 16px; background: #fff; }
-.info-card .el-row { padding: 4px 0; }
+.info-card .el-card__body { padding: 16px 20px; }
 .info-card .label { color: #999; font-size: 14px; }
 .info-card .value { color: #333; font-size: 14px; font-weight: 500; }
-
-.image-area { margin-top: 12px; display: flex; align-items: center; gap: 12px; }
-.product-image { width: 80px; height: 80px; border-radius: 4px; object-fit: cover; cursor: pointer; transition: transform 0.3s; }
-.product-image:hover { transform: scale(1.2); z-index: 10; }
 
 .form-card { margin-bottom: 16px; background: #fff; }
 .form-card :deep(.el-form-item) { margin-bottom: 8px; }
 .form-card :deep(.el-form-item__label) { font-size: 13px; color: #666; padding-right: 4px; }
-
 :deep(.el-card__body) { padding: 16px 20px; }
 :deep(.el-card__header) { padding: 12px 20px; border-bottom: 1px solid #f0f0f0; }
+:deep(.el-input-number) { width: 100%; }
 </style>

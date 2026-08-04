@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <!-- 表单 - 整页一体，无分隔 -->
+    <!-- 表单 -->
     <div class="form-wrapper">
       <el-form
         ref="formRef"
@@ -32,7 +32,7 @@
         label-position="right"
         size="default"
       >
-        <!-- 第一行：订单日期 + 客户 -->
+        <!-- 第一行：订单日期 + 客户（只读） -->
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="订单日期" prop="orderDate">
@@ -46,46 +46,62 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="客户" prop="customerId">
-              <el-select
-                v-model="form.customerId"
-                placeholder="请选择客户"
+            <el-form-item label="客户">
+              <el-input
+                :value="userStore.customerName || '未关联客户'"
+                disabled
                 style="width:100%;"
-                filterable
-              >
-                <el-option
-                  v-for="item in customerList"
-                  :key="item.customerId"
-                  :label="item.customerName"
-                  :value="item.customerId"
-                />
-              </el-select>
+              />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <!-- 第二行：品名 + 数量 + 工期 -->
+        <!-- 第二行：品名（带自动匹配） + 手寸 + 宽厚 -->
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="品名" prop="productName">
-              <el-input v-model="form.productName" placeholder="请输入品名" />
+              <el-input
+                v-model="form.productName"
+                placeholder="输入品名自动匹配"
+                @input="handleProductSearch"
+                @focus="handleProductSearch"
+              />
+              <!-- 匹配结果下拉 -->
+              <div v-if="showMatchList && matchResults.length > 0" class="match-dropdown">
+                <div
+                  v-for="item in matchResults"
+                  :key="item.productId"
+                  class="match-item"
+                  @click="selectProduct(item)"
+                >
+                  <div class="match-name">{{ item.productName }}</div>
+                  <div class="match-info">
+                    最近下单：{{ formatDate(item.lastOrderDate) }} ｜ 使用 {{ item.usageCount }} 次
+                  </div>
+                </div>
+              </div>
             </el-form-item>
           </el-col>
+          <el-col :span="8">
+            <el-form-item label="手寸/长度" prop="size">
+              <el-input v-model="form.size" placeholder="请输入手寸或长度" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="宽/厚度" prop="widthThick">
+              <el-input v-model="form.widthThick" placeholder="请输入宽度/厚度" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- 第三行：数量 + 成色 + 金价 -->
+        <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="数量" prop="quantity">
               <el-input-number v-model="form.quantity" :min="1" style="width:100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="工期(天)" prop="deliveryDays">
-              <el-input-number v-model="form.deliveryDays" :min="1" style="width:100%;" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 第三行：成色 + 金价 -->
-        <el-row :gutter="16">
-          <el-col :span="12">
             <el-form-item label="成色" prop="color">
               <el-select v-model="form.color" placeholder="请选择成色" style="width:100%;">
                 <el-option label="K黄" value="K黄" />
@@ -98,7 +114,7 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="金价(元/克)" prop="goldPrice">
               <el-input-number
                 v-model="form.goldPrice"
@@ -111,23 +127,9 @@
           </el-col>
         </el-row>
 
-        <!-- 第四行：手寸/长度 + 宽/厚度 -->
+        <!-- 第四行：钻石级别 + 克重要求 + 工期 -->
         <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="手寸/长度" prop="size">
-              <el-input v-model="form.size" placeholder="请输入手寸或长度" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="宽/厚度" prop="widthThick">
-              <el-input v-model="form.widthThick" placeholder="请输入宽度/厚度" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <!-- 第五行：钻石级别 + 克重要求 -->
-        <el-row :gutter="16">
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="钻石级别" prop="diamondLevel">
               <el-select v-model="form.diamondLevel" placeholder="请选择钻石级别" style="width:100%;" clearable>
                 <el-option label="VS" value="VS" />
@@ -137,14 +139,19 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <el-col :span="8">
             <el-form-item label="克重要求" prop="weightRequirement">
               <el-input v-model="form.weightRequirement" placeholder="如 2.5-3.0g" />
             </el-form-item>
           </el-col>
+          <el-col :span="8">
+            <el-form-item label="工期(天)" prop="deliveryDays">
+              <el-input-number v-model="form.deliveryDays" :min="1" style="width:100%;" />
+            </el-form-item>
+          </el-col>
         </el-row>
 
-        <!-- 第六行：LOGO + 网址 -->
+        <!-- 第五行：LOGO + 网址 -->
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="LOGO" prop="logoText">
@@ -163,7 +170,7 @@
           <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入备注信息" />
         </el-form-item>
 
-        <!-- 图片区域 - 三列并排 -->
+        <!-- 图片区域 -->
         <div style="margin-top:16px;">
           <div style="font-weight:600;color:#303133;margin-bottom:12px;">📷 图片附件</div>
           <el-row :gutter="16">
@@ -233,6 +240,7 @@
   </div>
 </template>
 
+<!-- src/views/order/create.vue -->
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -241,6 +249,7 @@ import { ArrowLeft, Document, Check, Plus } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { createOrder, updateOrder, getOrderDetail } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
+import { uploadImage } from '@/api/upload';
 
 const route = useRoute();
 const router = useRouter();
@@ -253,6 +262,7 @@ const formRef = ref();
 const isEdit = ref(false);
 const orderStatus = ref('');
 const customerList = ref([]);
+const uploading = ref(false);
 
 // ===== 表单数据 =====
 const form = reactive({
@@ -270,6 +280,7 @@ const form = reactive({
   logoText: '',
   url: '',
   remark: '',
+  // 图片相关
   imageList: [],
   dataImageList: [],
   letterImageList: [],
@@ -301,8 +312,11 @@ const statusMap = {
 const getStatusText = (status) => statusMap[status]?.text || status;
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
-// ===== 图片处理 =====
+// ============================================================
+// 图片处理
+// ============================================================
 const handleImageChange = (file, listKey) => {
+  // 预览
   const reader = new FileReader();
   reader.onload = (e) => {
     file.url = e.target.result;
@@ -314,7 +328,176 @@ const handleImageRemove = (file, listKey) => {
   // 移除时清理
 };
 
-// ===== 加载客户列表 =====
+// ============================================================
+// ⭐ 上传图片到服务器
+// ============================================================
+const uploadImagesToServer = async (fileList, type) => {
+  const urls = [];
+  for (const item of fileList) {
+    // 如果已经有URL（编辑时回显的），直接使用
+    if (item.url && item.url.startsWith('/uploads/')) {
+      urls.push(item.url);
+      continue;
+    }
+    // 新图片需要上传
+    if (item.raw) {
+      try {
+        const res = await uploadImage(item.raw, type);
+        if (res.success) {
+          urls.push(res.url);
+        }
+      } catch (error) {
+        console.error(`${type}图片上传失败:`, error);
+        throw new Error(`图片上传失败: ${item.name}`);
+      }
+    }
+  }
+  return urls;
+};
+
+// ============================================================
+// 构建提交数据
+// ============================================================
+const buildPayload = (status) => {
+  const payload = {
+    orderDate: form.orderDate,
+    customerId: form.customerId,
+    customerName: userStore.customerName || '客户',
+    productName: form.productName,
+    quantity: form.quantity,
+    deliveryDays: form.deliveryDays,
+    color: form.color,
+    goldPrice: form.goldPrice,
+    size: form.size,
+    widthThick: form.widthThick,
+    diamondLevel: form.diamondLevel,
+    weightRequirement: form.weightRequirement,
+    logoText: form.logoText,
+    url: form.url,
+    remark: form.remark,
+    flowStatus: status,
+    imageUrl: form.imageUrl,
+    dataImageUrl: form.dataImageUrl,
+    letterImageUrl: form.letterImageUrl,
+  };
+  if (isEdit.value) {
+    payload.orderId = parseInt(route.params.id);
+  }
+  return payload;
+};
+
+// ============================================================
+// 保存草稿
+// ============================================================
+const handleSaveDraft = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return;
+
+    saving.value = true;
+    try {
+      // ⭐ 先上传图片
+      const [imageUrls, dataImageUrls, letterImageUrls] = await Promise.all([
+        uploadImagesToServer(form.imageList, 'product'),
+        uploadImagesToServer(form.dataImageList, 'data'),
+        uploadImagesToServer(form.letterImageList, 'letter'),
+      ]);
+
+      form.imageUrl = imageUrls.join(',');
+      form.dataImageUrl = dataImageUrls.join(',');
+      form.letterImageUrl = letterImageUrls.join(',');
+
+      const payload = buildPayload('draft');
+      if (isEdit.value) {
+        await updateOrder({ ...payload, orderId: route.params.id });
+        ElMessage.success('保存成功');
+      } else {
+        await createOrder(payload);
+        ElMessage.success('保存成功');
+        resetForm();
+      }
+    } catch (error) {
+      ElMessage.error(error.message || '保存失败');
+    } finally {
+      saving.value = false;
+    }
+  });
+};
+
+// ============================================================
+// 提交审核
+// ============================================================
+const handleSubmit = async () => {
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return;
+
+    try {
+      await ElMessageBox.confirm('确认提交审核吗？提交后不可再修改。', '提示', { type: 'info' });
+    } catch {
+      return;
+    }
+
+    submitting.value = true;
+    try {
+      // ⭐ 先上传图片
+      const [imageUrls, dataImageUrls, letterImageUrls] = await Promise.all([
+        uploadImagesToServer(form.imageList, 'product'),
+        uploadImagesToServer(form.dataImageList, 'data'),
+        uploadImagesToServer(form.letterImageList, 'letter'),
+      ]);
+
+      form.imageUrl = imageUrls.join(',');
+      form.dataImageUrl = dataImageUrls.join(',');
+      form.letterImageUrl = letterImageUrls.join(',');
+
+      const payload = buildPayload('pending');
+      if (isEdit.value) {
+        await updateOrder({ ...payload, orderId: route.params.id });
+        ElMessage.success('提交成功');
+      } else {
+        await createOrder(payload);
+        ElMessage.success('提交成功');
+        resetForm();
+      }
+      router.push('/order/my-list');
+    } catch (error) {
+      ElMessage.error(error.message || '提交失败');
+    } finally {
+      submitting.value = false;
+    }
+  });
+};
+
+// ============================================================
+// 重置表单
+// ============================================================
+const resetForm = () => {
+  form.orderDate = new Date().toISOString().split('T')[0];
+  form.productName = '';
+  form.quantity = 1;
+  form.deliveryDays = 7;
+  form.color = 'K黄';
+  form.goldPrice = 0;
+  form.size = '';
+  form.widthThick = '';
+  form.diamondLevel = '';
+  form.weightRequirement = '';
+  form.logoText = '';
+  form.url = '';
+  form.remark = '';
+  form.imageList = [];
+  form.dataImageList = [];
+  form.letterImageList = [];
+  form.imageUrl = '';
+  form.dataImageUrl = '';
+  form.letterImageUrl = '';
+  formRef.value?.resetFields();
+};
+
+// ============================================================
+// 加载客户列表
+// ============================================================
 const loadCustomers = async () => {
   try {
     const res = await getCustomerList({ includeInactive: false });
@@ -327,7 +510,9 @@ const loadCustomers = async () => {
   }
 };
 
-// ===== 加载订单数据（编辑时） =====
+// ============================================================
+// 加载订单数据（编辑时）
+// ============================================================
 const loadOrderData = async () => {
   const id = route.params.id;
   if (!id) return;
@@ -353,7 +538,37 @@ const loadOrderData = async () => {
         logoText: data.logoText || '',
         url: data.url || '',
         remark: data.remark || '',
+        imageUrl: data.imageUrl || '',
+        dataImageUrl: data.dataImageUrl || '',
+        letterImageUrl: data.letterImageUrl || '',
       });
+
+      // 图片回显
+      if (data.imageUrl) {
+        const urls = data.imageUrl.split(',').filter(u => u);
+        form.imageList = urls.map((url, index) => ({
+          id: index,
+          url: url,
+          name: `产品图片${index + 1}`,
+        }));
+      }
+      if (data.dataImageUrl) {
+        const urls = data.dataImageUrl.split(',').filter(u => u);
+        form.dataImageList = urls.map((url, index) => ({
+          id: index,
+          url: url,
+          name: `数据图${index + 1}`,
+        }));
+      }
+      if (data.letterImageUrl) {
+        const urls = data.letterImageUrl.split(',').filter(u => u);
+        form.letterImageList = urls.map((url, index) => ({
+          id: index,
+          url: url,
+          name: `字印图${index + 1}`,
+        }));
+      }
+
       orderStatus.value = data.flowStatus;
     }
   } catch {
@@ -363,115 +578,13 @@ const loadOrderData = async () => {
   }
 };
 
-// ===== 构建提交数据 =====
-const buildPayload = (status) => {
-  const payload = {
-    orderDate: form.orderDate,
-    customerId: form.customerId,
-    productName: form.productName,
-    quantity: form.quantity,
-    deliveryDays: form.deliveryDays,
-    color: form.color,
-    goldPrice: form.goldPrice,
-    size: form.size,
-    widthThick: form.widthThick,
-    diamondLevel: form.diamondLevel,
-    weightRequirement: form.weightRequirement,
-    logoText: form.logoText,
-    url: form.url,
-    remark: form.remark,
-    flowStatus: status,
-    imageUrl: form.imageUrl,
-    dataImageUrl: form.dataImageUrl,
-    letterImageUrl: form.letterImageUrl,
-  };
-  if (isEdit.value) {
-    payload.orderId = parseInt(route.params.id);
-  }
-  return payload;
-};
-
-// ===== 保存草稿 =====
-const handleSaveDraft = async () => {
-  if (!formRef.value) return;
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return;
-    saving.value = true;
-    try {
-      const payload = buildPayload('draft');
-      if (isEdit.value) {
-        await updateOrder({ ...payload, orderId: route.params.id });
-        ElMessage.success('保存成功');
-      } else {
-        await createOrder(payload);
-        ElMessage.success('保存成功');
-        resetForm();
-      }
-    } catch {
-      ElMessage.error('保存失败');
-    } finally {
-      saving.value = false;
-    }
-  });
-};
-
-// ===== 提交审核 =====
-const handleSubmit = async () => {
-  if (!formRef.value) return;
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return;
-    try {
-      await ElMessageBox.confirm('确认提交审核吗？提交后不可再修改。', '提示', { type: 'info' });
-    } catch {
-      return;
-    }
-
-    submitting.value = true;
-    try {
-      const payload = buildPayload('pending');
-      if (isEdit.value) {
-        await updateOrder({ ...payload, orderId: route.params.id });
-        ElMessage.success('提交成功');
-      } else {
-        await createOrder(payload);
-        ElMessage.success('提交成功');
-        resetForm();
-      }
-      router.push('/order/my-list');
-    } catch {
-      ElMessage.error('提交失败');
-    } finally {
-      submitting.value = false;
-    }
-  });
-};
-
-// ===== 重置表单 =====
-const resetForm = () => {
-  form.orderDate = new Date().toISOString().split('T')[0];
-  form.productName = '';
-  form.quantity = 1;
-  form.deliveryDays = 7;
-  form.color = 'K黄';
-  form.goldPrice = 0;
-  form.size = '';
-  form.widthThick = '';
-  form.diamondLevel = '';
-  form.weightRequirement = '';
-  form.logoText = '';
-  form.url = '';
-  form.remark = '';
-  form.imageList = [];
-  form.dataImageList = [];
-  form.letterImageList = [];
-  form.imageUrl = '';
-  form.dataImageUrl = '';
-  form.letterImageUrl = '';
-  formRef.value?.resetFields();
-};
-
-// ===== 初始化 =====
+// ============================================================
+// 初始化
+// ============================================================
 onMounted(() => {
+  if (!userStore.customerId) {
+    ElMessage.warning('当前用户未关联客户，无法下单');
+  }
   loadCustomers();
   loadOrderData();
 });
@@ -515,7 +628,6 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-/* ===== 表单 - 整页一体 ===== */
 .form-wrapper {
   background: #fff;
   border-radius: 8px;
@@ -529,6 +641,45 @@ onMounted(() => {
 :deep(.el-form-item__label) {
   font-weight: 500;
   color: #333;
+}
+
+/* ===== 产品匹配下拉 ===== */
+.match-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  z-index: 1000;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 2px;
+}
+
+.match-item {
+  padding: 10px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.2s;
+}
+
+.match-item:hover {
+  background: #f0f7ff;
+}
+
+.match-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+}
+
+.match-info {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 2px;
 }
 
 /* ===== 图片上传 ===== */
@@ -558,5 +709,10 @@ onMounted(() => {
 :deep(.el-upload-list--picture-card .el-upload-list__item) {
   width: 80px;
   height: 80px;
+}
+
+/* 品名输入框相对定位，用于下拉 */
+:deep(.el-form-item__content) {
+  position: relative;
 }
 </style>

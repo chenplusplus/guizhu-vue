@@ -4,22 +4,28 @@
     <div class="page-header">
       <h2>📋 订单列表</h2>
       <div style="display: flex; gap: 8px;">
-        <el-button type="primary" @click="loadData">
+        <el-button type="primary" @click="goCreate">
+          <el-icon><Plus /></el-icon> 新增
+        </el-button>
+        <el-button type="success" @click="goImport">
+          <el-icon><Upload /></el-icon> 导入Excel
+        </el-button>
+        <el-button @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
-        <el-button v-if="userStore.isAdmin" type="success" @click="exportData">
+        <el-button v-if="userStore.isAdmin" type="info" @click="exportData">
           <el-icon><Download /></el-icon> 导出
         </el-button>
       </div>
     </div>
 
-    <!-- ===== 搜索栏 ===== -->
+    <!-- 搜索栏 -->
     <div class="search-bar">
       <el-form :inline="true" :model="query" size="default">
         <el-form-item label="关键词">
-          <el-input 
-            v-model="query.keyword" 
-            placeholder="订单号/品名/客户" 
+          <el-input
+            v-model="query.keyword"
+            placeholder="订单号/品名/客户"
             clearable
             style="width: 200px;"
           />
@@ -72,12 +78,12 @@
       </el-form>
     </div>
 
-    <!-- ===== 表格 ===== -->
-    <el-table 
-      :data="tableData" 
+    <!-- 表格 -->
+    <el-table
+      :data="tableData"
       v-loading="loading"
-      border 
-      stripe 
+      border
+      stripe
       style="width: 100%"
       @sort-change="handleSortChange"
       @row-click="handleRowClick"
@@ -90,17 +96,80 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="customerName" label="客户" width="120" />
-      
-      <el-table-column prop="productName" label="品名" min-width="120" />
-      
-      <el-table-column prop="quantity" label="件数" width="70" align="center" />
-      
-      <el-table-column prop="amount" label="金额(元)" width="120" align="right">
+      <el-table-column prop="orderDate" label="订单日期" width="110" align="center">
         <template #default="{ row }">
-          <span style="color: #E6A23C; font-weight: bold;">
-            ¥{{ (row.amount || 0).toFixed(2) }}
-          </span>
+          {{ formatDate(row.orderDate) }}
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="productName" label="品名" min-width="120" />
+
+      <el-table-column prop="customerName" label="客户" width="120" />
+
+      <!-- 产品图片 -->
+      <el-table-column label="产品图片" width="80" align="center">
+        <template #default="{ row }">
+          <el-image
+            v-if="row.imageUrl"
+            :src="row.imageUrl"
+            fit="cover"
+            style="width:50px;height:50px;border-radius:4px;cursor:pointer;"
+            :preview-src-list="[row.imageUrl]"
+            preview-teleported
+          />
+          <span v-else style="color:#ccc;font-size:12px;">无图</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="dataImageUrl" label="数据图" width="80" align="center">
+        <template #default="{ row }">
+          <el-image
+            v-if="row.dataImageUrl"
+            :src="row.dataImageUrl"
+            fit="cover"
+            style="width:50px;height:50px;border-radius:4px;cursor:pointer;"
+            :preview-src-list="[row.dataImageUrl]"
+            preview-teleported
+          />
+          <span v-else style="color:#ccc;font-size:12px;">无图</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="size" label="手寸/长度" width="100" align="center" />
+
+      <el-table-column prop="widthThick" label="宽/厚度" width="100" align="center" />
+
+      <el-table-column prop="quantity" label="数量" width="70" align="center" />
+
+      <el-table-column prop="color" label="成色" width="80" align="center" />
+
+      <el-table-column prop="goldPrice" label="金价" width="90" align="right">
+        <template #default="{ row }">
+          {{ row.goldPrice || '-' }}
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="logoText" label="LOGO" width="100" align="center" />
+
+      <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center" />
+
+      <el-table-column prop="weightRequirement" label="克重要求" width="110" align="center" />
+
+      <el-table-column prop="deliveryDays" label="工期" width="70" align="center" />
+
+      <el-table-column prop="url" label="网址" min-width="120">
+        <template #default="{ row }">
+          <a v-if="row.url" :href="row.url" target="_blank" style="color:#409EFF;text-decoration:none;">
+            查看链接
+          </a>
+          <span v-else style="color:#ccc;">-</span>
+        </template>
+      </el-table-column>
+
+      <el-table-column prop="remark" label="备注" min-width="100">
+        <template #default="{ row }">
+          <span v-if="row.remark">{{ row.remark }}</span>
+          <span v-else style="color:#ccc;">-</span>
         </template>
       </el-table-column>
 
@@ -115,66 +184,56 @@
       <el-table-column prop="warnFlag" label="紧急" width="70" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.warnFlag" type="danger" size="small">⚠️</el-tag>
-          <span v-else style="color: #ccc;">-</span>
+          <span v-else style="color:#ccc;">-</span>
         </template>
       </el-table-column>
 
       <el-table-column prop="createdAt" label="创建时间" width="160" sortable="custom">
         <template #default="{ row }">
-          {{ formatDate(row.createdAt) }}
+          {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column label="操作" width="200" fixed="right" align="center">
         <template #default="{ row }">
           <el-button type="primary" size="small" link @click.stop="viewDetail(row.orderId)">
             查看
           </el-button>
 
-          <el-button 
+          <el-button
             v-if="canEdit(row)"
-            type="warning" 
-            size="small" 
-            link 
+            type="warning"
+            size="small"
+            link
             @click.stop="viewDetail(row.orderId)"
           >
             编辑
           </el-button>
 
-          <el-button 
+          <el-button
             v-if="canDelete(row)"
-            type="danger" 
-            size="small" 
-            link 
+            type="danger"
+            size="small"
+            link
             @click.stop="handleDelete(row)"
           >
             删除
           </el-button>
 
-          <el-button 
+          <el-button
             v-if="canAudit(row)"
-            type="success" 
-            size="small" 
-            link 
+            type="success"
+            size="small"
+            link
             @click.stop="handleQuickAudit(row)"
           >
             审核
-          </el-button>
-
-          <el-button 
-            v-if="canSubmit(row)"
-            type="primary" 
-            size="small" 
-            link 
-            @click.stop="handleSubmitToFactory(row)"
-          >
-            提交工厂
           </el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <!-- ===== 分页 ===== -->
+    <!-- 分页 -->
     <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
       <el-pagination
         v-model:current-page="pagination.current"
@@ -187,7 +246,7 @@
       />
     </div>
 
-    <!-- ===== 审核弹窗 ===== -->
+    <!-- 审核弹窗 -->
     <el-dialog v-model="auditDialogVisible" title="订单审核" width="450px">
       <div style="margin-bottom: 16px;">
         <p><strong>订单号：</strong>{{ currentOrder?.orderNo }}</p>
@@ -212,7 +271,7 @@
       </template>
     </el-dialog>
 
-    <!-- ===== 流程抽屉 ===== -->
+    <!-- 流程抽屉 -->
     <FlowDrawer
       v-model="flowDrawerVisible"
       :order-id="currentFlowOrderId"
@@ -227,9 +286,9 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh, Download, Search, RefreshRight } from '@element-plus/icons-vue';
+import { Plus, Upload, Refresh, Download, Search, RefreshRight } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, deleteOrder, auditOrder, submitToFactory } from '@/api/order';
+import { getOrderList, deleteOrder, auditOrder } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -323,12 +382,6 @@ const canAudit = (row) => {
   return false;
 };
 
-const canSubmit = (row) => {
-  const userType = userStore.userType;
-  const status = row.flowStatus;
-  return userType === 'factoryOrder' && status === 'customerAudited';
-};
-
 // ===== 加载数据 =====
 const loadData = async () => {
   loading.value = true;
@@ -375,10 +428,20 @@ const handleSortChange = ({ prop, order }) => {
   loadData();
 };
 
+// ===== 跳转 =====
+const goCreate = () => {
+  router.push('/order/create');
+};
+
+const goImport = () => {
+  router.push('/order/import');
+};
+
 const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
 };
 
+// ===== 删除 =====
 const handleDelete = (row) => {
   ElMessageBox.confirm(`确定要删除订单 ${row.orderNo} 吗？`, '提示', { type: 'warning' })
     .then(async () => {
@@ -389,6 +452,7 @@ const handleDelete = (row) => {
     .catch(() => {});
 };
 
+// ===== 审核 =====
 const handleQuickAudit = (row) => {
   currentOrder.value = row;
   auditRemark.value = '';
@@ -417,29 +481,24 @@ const confirmAudit = async (approved) => {
   }
 };
 
-const handleSubmitToFactory = async (row) => {
-  try {
-    await ElMessageBox.confirm(`确定要将订单 ${row.orderNo} 提交到工厂审核吗？`, '提示', { type: 'info' });
-    await submitToFactory(row.orderId);
-    ElMessage.success('已提交到工厂');
-    loadData();
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '操作失败');
-    }
-  }
-};
-
 const exportData = () => {
   ElMessage.info('导出功能开发中...');
 };
 
+// ===== 时间格式化 =====
 const formatDate = (date) => {
+  if (!date) return '-';
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+const formatDateTime = (date) => {
   if (!date) return '-';
   const d = new Date(date);
   return d.toLocaleString('zh-CN', { hour12: false });
 };
 
+// ===== 初始化 =====
 onMounted(() => {
   loadData();
 });
@@ -486,5 +545,15 @@ onMounted(() => {
 }
 :deep(.el-button.is-link) {
   padding: 0 4px;
+}
+
+/* 图片悬停放大效果 */
+:deep(.el-image) {
+  transition: transform 0.3s;
+}
+:deep(.el-image:hover) {
+  transform: scale(2.5);
+  z-index: 10;
+  position: relative;
 }
 </style>

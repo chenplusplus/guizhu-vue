@@ -26,14 +26,33 @@ const routes = [
       { path: 'order/factory-audit', name: 'FactoryAudit', component: () => import('@/views/order/factory-audit.vue'), meta: { title: '工厂审核' } },
       { path: 'order/production', name: 'Production', component: () => import('@/views/order/production.vue'), meta: { title: '制作管理' } },
       { path: 'order/factory-list', name: 'FactoryList', component: () => import('@/views/order/factory-list.vue'), meta: { title: '工厂订单' } },
+
+      {
+        path: 'order/factory-edit/:id',
+        name: 'FactoryEdit',
+        component: () => import('@/views/order/factory-edit.vue'),
+        meta: { title: '编辑订单' },
+      },
       { path: 'order/list', name: 'OrderList', component: () => import('@/views/order/list.vue'), meta: { title: '订单管理' } },
       { path: 'order/detail/:id', name: 'OrderDetail', component: () => import('@/views/order/detail.vue'), meta: { title: '订单详情' } },
-
+      // src/router/index.js
+      {
+        path: 'order/import',
+        name: 'OrderImport',
+        component: () => import('@/views/order/import.vue'),
+        meta: { title: '导入Excel' },
+      },
       // ===== 账单模块 =====
       { path: 'order/bill/create', name: 'BillCreate', component: () => import('@/views/order/bill-create.vue'), meta: { title: '生成账单' } },
       { path: 'order/bill/edit/:id', name: 'BillEdit', component: () => import('@/views/order/bill-edit.vue'), meta: { title: '编辑账单' } },
       { path: 'order/bill/audit', name: 'BillAudit', component: () => import('@/views/order/bill-audit.vue'), meta: { title: '账单审核' } },
       { path: 'order/bill/my-list', name: 'BillMyList', component: () => import('@/views/order/bill-my-list.vue'), meta: { title: '我的账单' } },
+      {
+        path: 'order/bill/detail/:id',
+        name: 'BillDetail',
+        component: () => import('@/views/order/bill-detail.vue'),
+        meta: { title: '账单详情' },
+      },
       {
         path: 'order/lr/edit/:billId',
         name: 'LrEditor',
