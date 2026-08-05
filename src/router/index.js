@@ -89,6 +89,27 @@ const routes = [
       { path: 'system/user', name: 'UserManage', component: () => import('@/views/system/user.vue'), meta: { title: '用户管理' } },
       { path: 'system/menu', name: 'MenuList', component: () => import('@/views/system/MenuList.vue'), meta: { title: '菜单管理' } },
       { path: 'system/role', name: 'RoleList', component: () => import('@/views/system/RoleList.vue'), meta: { title: '角色管理' } },
+      // 基础数据
+      {
+        path: 'system/gold-price',
+        name: 'GoldPrice',
+        component: () => import('@/views/system/gold-price.vue'),
+        meta: { title: '金价管理', roles: ['admin'] },
+      },
+      {
+        path: 'system/diamond-price',
+        name: 'DiamondPrice',
+        component: () => import('@/views/system/diamond-price.vue'),
+        meta: { title: '钻石价格', roles: ['admin'] },
+      },
+
+      // 操作日志
+      {
+        path: 'system/operation-log',
+        name: 'OperationLog',
+        component: () => import('@/views/system/operation-log.vue'),
+        meta: { title: '操作日志', roles: ['admin'] },
+      },
     ],
   },
 ];
