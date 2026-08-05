@@ -1,22 +1,32 @@
 // src/api/product.js
-import api from './index';
+import request from '@/utils/request';
 
-// 搜索产品（当前客户）
+// 搜索产品
 export const searchProducts = (params) => {
-  return api.get('/product/search', { params });
+  return request.get('/product/search', { params });
 };
 
-// 保存产品
-export const saveProduct = (data) => {
-  return api.post('/product/save', data);
+// 获取产品列表
+export const getProductList = (params) => {
+  return request.get('/product/list', { params });
+};
+
+// 创建产品
+export const createProduct = (data) => {
+  return request.post('/product', data);
 };
 
 // 获取产品详情
-export const getProduct = (id) => {
-  return api.get(`/product/${id}`);
+export const getProductDetail = (id) => {
+  return request.get(`/product/${id}`);
 };
 
-// 获取历史订单（用于复制）
-export const getHistoryOrders = (params) => {
-  return api.get('/order/history', { params });
+// 更新产品
+export const updateProduct = (data) => {
+  return request.put('/product', data);
+};
+
+// 删除产品
+export const deleteProduct = (id) => {
+  return request.delete(`/product/${id}`);
 };

@@ -3,7 +3,7 @@
   <div class="page-container">
     <div class="page-header">
       <h2>🏭 工厂订单</h2>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <el-button
           v-if="selectedOrders.length > 0"
           type="success"
@@ -24,7 +24,7 @@
       </div>
     </div>
 
-    <!-- ⭐ 精简状态筛选：全部、待接单、制作中、可出账单 -->
+    <!-- ⭐ 筛选栏：状态 + 关键词 + 客户 -->
     <div class="filter-bar">
       <el-radio-group v-model="filterStatus" @change="loadData">
         <el-radio-button value="">全部</el-radio-button>
@@ -36,43 +36,47 @@
       <el-input
         v-model="keyword"
         placeholder="搜索订单号/品名"
-        style="width: 200px; margin-left: 16px;"
+        style="width: 180px; margin-left: 12px;"
         clearable
         @clear="loadData"
         @keyup.enter="loadData"
       />
+
+      <!-- ⭐ 客户筛选 -->
+      <el-select
+        v-model="filterCustomerId"
+        placeholder="全部客户"
+        clearable
+        filterable
+        style="width: 180px; margin-left: 8px;"
+        @change="loadData"
+      >
+        <el-option
+          v-for="item in customerList"
+          :key="item.customerId"
+          :label="item.customerName"
+          :value="item.customerId"
+        />
+      </el-select>
+
       <el-button type="primary" @click="loadData" style="margin-left: 8px;">
         <el-icon><Search /></el-icon> 搜索
       </el-button>
+      <el-button @click="resetSearch">
+        <el-icon><RefreshRight /></el-icon> 重置
+      </el-button>
     </div>
 
-    <!-- 统计 -->
-    <el-row :gutter="12" style="margin-bottom: 16px;">
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #409EFF;">
-          <div class="stat-number">{{ statusCount.total || 0 }}</div>
-          <div class="stat-label">全部</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #E6A23C;">
-          <div class="stat-number">{{ statusCount.customerAudited || 0 }}</div>
-          <div class="stat-label">待接单</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #409EFF;">
-          <div class="stat-number">{{ statusCount.producing || 0 }}</div>
-          <div class="stat-label">制作中</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #67C23A;">
-          <div class="stat-number">{{ statusCount.polishing || 0 }}</div>
-          <div class="stat-label">可出账单</div>
-        </div>
-      </el-col>
-    </el-row>
+    <!-- ⭐ 去掉统计卡片，改为简洁的一行汇总 -->
+    <div class="summary-bar" v-if="tableData.length > 0">
+      <span>共 <b>{{ tableData.length }}</b> 个订单</span>
+      <span v-if="selectedOrders.length > 0" style="color:#409EFF;">
+        已选 <b>{{ selectedOrders.length }}</b> 个
+      </span>
+      <span v-if="selectedOrders.length > 0" style="color:#E6A23C;">
+        金额 ¥{{ selectedTotal.toFixed(2) }}
+      </span>
+    </div>
 
     <!-- 表格 -->
     <el-table
@@ -95,13 +99,13 @@
         </template>
       </el-table-column>
 
+      <el-table-column prop="customerName" label="客户" width="120" />
+
       <el-table-column prop="orderDate" label="订单日期" width="110" align="center">
         <template #default="{ row }">
           {{ formatDate(row.orderDate) }}
         </template>
       </el-table-column>
-
-      <el-table-column prop="customerName" label="客户" width="120" />
 
       <el-table-column prop="productName" label="品名" min-width="120" />
 
@@ -121,31 +125,22 @@
       </el-table-column>
 
       <el-table-column prop="size" label="手寸" width="80" align="center" />
-
       <el-table-column prop="quantity" label="数量" width="70" align="center" />
-
       <el-table-column prop="color" label="成色" width="80" align="center" />
-
       <el-table-column prop="goldPrice" label="金价" width="90" align="right">
         <template #default="{ row }">{{ row.goldPrice || '-' }}</template>
       </el-table-column>
-
       <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center" />
-
       <el-table-column prop="deliveryDays" label="工期" width="70" align="center" />
-
       <el-table-column prop="totalWeight" label="总重" width="85" align="right">
         <template #default="{ row }">{{ row.totalWeight || '-' }}</template>
       </el-table-column>
-
       <el-table-column prop="netWeight" label="净重" width="85" align="right">
         <template #default="{ row }">{{ row.netWeight || '-' }}</template>
       </el-table-column>
-
       <el-table-column prop="lossRate" label="损耗" width="70" align="center">
         <template #default="{ row }">{{ row.lossRate || '-' }}</template>
       </el-table-column>
-
       <el-table-column prop="laborFee" label="工费" width="85" align="right">
         <template #default="{ row }">{{ row.laborFee || '-' }}</template>
       </el-table-column>
@@ -166,9 +161,9 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="220" fixed="right" align="center">
+      <el-table-column label="操作" width="260" fixed="right" align="center">
         <template #default="{ row }">
-          <!-- 待接单 → 接单 -->
+          <!-- ⭐ 待接单 → 接单 -->
           <el-button
             v-if="row.flowStatus === 'customerAudited'"
             size="small"
@@ -178,7 +173,7 @@
             接单
           </el-button>
 
-          <!-- 制作中 → 快捷更新状态 -->
+          <!-- ⭐ 所有工厂状态都可以更新状态（跳着选） -->
           <el-button
             v-if="isInProduction(row.flowStatus)"
             size="small"
@@ -235,8 +230,8 @@
       />
     </div>
 
-    <!-- ===== 快捷更新状态弹窗 ===== -->
-    <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="420px" destroy-on-close>
+    <!-- ===== 快捷更新状态弹窗（跳着选） ===== -->
+    <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="450px" destroy-on-close>
       <div style="margin-bottom: 16px;">
         <p><strong>订单号：</strong>{{ currentOrder?.orderNo }}</p>
         <p><strong>品名：</strong>{{ currentOrder?.productName }}</p>
@@ -249,9 +244,10 @@
 
       <el-form label-width="80px">
         <el-form-item label="更新为">
-          <el-select v-model="selectedStatus" placeholder="请选择状态" style="width: 100%;">
+          <!-- ⭐ 下拉显示所有可跳转的状态，不做顺序限制 -->
+          <el-select v-model="selectedStatus" placeholder="请选择目标状态" style="width: 100%;">
             <el-option
-              v-for="item in availableStatuses"
+              v-for="item in allAvailableStatuses"
               :key="item.value"
               :label="item.label"
               :value="item.value"
@@ -282,8 +278,10 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh, Search } from '@element-plus/icons-vue';
+import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
 import { getOrderList, acceptOrder, updateProduction, generateBill } from '@/api/order';
+import { getCustomerList } from '@/api/customer';
+import { createBill } from '@/api/bill';
 
 const router = useRouter();
 const tableRef = ref();
@@ -292,7 +290,10 @@ const loading = ref(false);
 const tableData = ref([]);
 const keyword = ref('');
 const filterStatus = ref('');
+const filterCustomerId = ref('');  // ⭐ 客户筛选
 const selectedOrders = ref([]);
+const customerList = ref([]);      // ⭐ 客户列表
+
 const statusDialogVisible = ref(false);
 const statusLoading = ref(false);
 const currentOrder = ref(null);
@@ -305,12 +306,9 @@ const pagination = reactive({
   total: 0,
 });
 
-// ===== 状态统计 =====
-const statusCount = reactive({
-  total: 0,
-  customerAudited: 0,
-  producing: 0,
-  polishing: 0,
+// ===== 选中合计 =====
+const selectedTotal = computed(() => {
+  return selectedOrders.value.reduce((sum, o) => sum + (o.amount || 0), 0);
 });
 
 // ===== 状态映射 =====
@@ -340,23 +338,33 @@ const productionStatuses = [
 
 const isInProduction = (status) => productionStatuses.includes(status);
 
-// ===== 可用状态列表（用于快捷更新） =====
-const availableStatuses = computed(() => {
+// ===== ⭐ 所有可跳转的状态（不做顺序限制，可以跳着选） =====
+const allAvailableStatuses = computed(() => {
   const current = currentOrder.value?.flowStatus;
-  const flowMap = {
-    'customerAudited': [{ value: 'accepted', label: '已接单' }],
-    'accepted': [{ value: 'waxing', label: '出蜡' }],
-    'waxing': [{ value: 'molded', label: '倒模' }],
-    'molded': [{ value: 'setting', label: '执模' }],
-    'setting': [{ value: 'cnc', label: 'CNC' }],
-    'cnc': [{ value: 'sweeping', label: '扫镶口' }],
-    'sweeping': [{ value: 'stoneCutting', label: '车石' }],
-    'stoneCutting': [{ value: 'microInlay', label: '微镶' }],
-    'microInlay': [{ value: 'handInlay', label: '手镶' }],
-    'handInlay': [{ value: 'polishing', label: '抛光' }],
-    'polishing': [{ value: 'completed', label: '完成' }],
-  };
-  return flowMap[current] || [];
+  
+  // 所有工厂状态列表（排除当前状态和终态）
+  const allStatuses = [
+    { value: 'accepted', label: '已接单' },
+    { value: 'waxing', label: '出蜡' },
+    { value: 'molded', label: '倒模' },
+    { value: 'setting', label: '执模' },
+    { value: 'cnc', label: 'CNC' },
+    { value: 'sweeping', label: '扫镶口' },
+    { value: 'stoneCutting', label: '车石' },
+    { value: 'microInlay', label: '微镶' },
+    { value: 'handInlay', label: '手镶' },
+    { value: 'polishing', label: '可出账单' },
+    { value: 'completed', label: '已完成' },
+  ];
+  
+  // ⭐ 如果是待接单，只能转到已接单
+  if (current === 'customerAudited') {
+    return allStatuses.filter(s => s.value === 'accepted');
+  }
+  
+  // ⭐ 如果是制作中状态，可以跳转到任何其他制作状态（包括已完成）
+  // 但排除当前状态
+  return allStatuses.filter(s => s.value !== current);
 });
 
 // ===== 权限 =====
@@ -365,22 +373,24 @@ const canEdit = (row) => {
 };
 
 // ============================================================
+// 加载客户列表
+// ============================================================
+const loadCustomers = async () => {
+  try {
+    const res = await getCustomerList({ includeInactive: false });
+    customerList.value = res?.data || [];
+  } catch {
+    customerList.value = [];
+  }
+};
+
+// ============================================================
 // 加载数据
 // ============================================================
 const loadData = async () => {
   loading.value = true;
   try {
-    // 根据筛选状态构建查询参数
-    let statusParam = filterStatus.value || undefined;
-    
-    // "制作中" 包含多个状态：accepted, waxing, molded, setting, cnc, sweeping, stoneCutting, microInlay, handInlay
-    if (filterStatus.value === 'producing') {
-      // 这里后端需要支持多个状态查询，或者前端过滤
-      statusParam = undefined;
-    }
-
     const params = {
-      status: statusParam,
       keyword: keyword.value || undefined,
       page: pagination.current,
       pageSize: pagination.pageSize,
@@ -389,12 +399,11 @@ const loadData = async () => {
     const res = await getOrderList(params);
     let data = res?.data || res || [];
     
-    // 如果数据是数组，直接使用；如果是对象包含 items，取 items
     if (data.items) {
       data = data.items;
     }
     
-    // ⭐ 前端过滤：只显示工厂相关状态，排除已完成和已取消
+    // ⭐ 前端过滤：只显示工厂相关状态
     const factoryStatuses = [
       'customerAudited', 'accepted', 'waxing', 'molded', 'setting',
       'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay',
@@ -403,30 +412,27 @@ const loadData = async () => {
     
     let filteredData = data.filter(item => factoryStatuses.includes(item.flowStatus));
     
-    // ⭐ 如果选择「制作中」，过滤出制作中的状态
+    // ⭐ 客户筛选
+    if (filterCustomerId.value) {
+      filteredData = filteredData.filter(item => item.customerId === filterCustomerId.value);
+    }
+    
+    // ⭐ 状态筛选
     if (filterStatus.value === 'producing') {
       const producingStatuses = [
         'accepted', 'waxing', 'molded', 'setting',
         'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
       ];
       filteredData = filteredData.filter(item => producingStatuses.includes(item.flowStatus));
-    }
-    
-    // ⭐ 如果选择「可出账单」
-    if (filterStatus.value === 'polishing') {
+    } else if (filterStatus.value === 'polishing') {
       filteredData = filteredData.filter(item => item.flowStatus === 'polishing');
-    }
-    
-    // ⭐ 如果选择「待接单」
-    if (filterStatus.value === 'customerAudited') {
+    } else if (filterStatus.value === 'customerAudited') {
       filteredData = filteredData.filter(item => item.flowStatus === 'customerAudited');
     }
+    // filterStatus.value === '' 显示全部
     
     tableData.value = filteredData;
     pagination.total = filteredData.length;
-
-    // 更新统计
-    updateStats(filteredData);
     
   } catch (error) {
     console.error('加载数据失败:', error);
@@ -437,17 +443,13 @@ const loadData = async () => {
   }
 };
 
-// ===== 更新统计 =====
-const updateStats = (data) => {
-  statusCount.total = data.length;
-  statusCount.customerAudited = data.filter(item => item.flowStatus === 'customerAudited').length;
-  statusCount.polishing = data.filter(item => item.flowStatus === 'polishing').length;
-  
-  const producingStatuses = [
-    'accepted', 'waxing', 'molded', 'setting',
-    'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
-  ];
-  statusCount.producing = data.filter(item => producingStatuses.includes(item.flowStatus)).length;
+// ===== 重置搜索 =====
+const resetSearch = () => {
+  keyword.value = '';
+  filterStatus.value = '';
+  filterCustomerId.value = '';
+  pagination.current = 1;
+  loadData();
 };
 
 // ============================================================
@@ -509,7 +511,7 @@ const handleAccept = async (row) => {
 };
 
 // ============================================================
-// 快捷更新状态
+// ⭐ 快捷更新状态（跳着选）
 // ============================================================
 const openStatusDialog = (row) => {
   currentOrder.value = row;
@@ -520,7 +522,7 @@ const openStatusDialog = (row) => {
 
 const confirmStatusUpdate = async () => {
   if (!selectedStatus.value) {
-    ElMessage.warning('请选择状态');
+    ElMessage.warning('请选择目标状态');
     return;
   }
 
@@ -543,57 +545,66 @@ const confirmStatusUpdate = async () => {
 };
 
 // ============================================================
-// 生成账单（单个）
+// 生成账单（跳转到 bill-create）
 // ============================================================
-const handleGenerateBill = async (row) => {
-  try {
-    await ElMessageBox.confirm(`确定要为 ${row.orderNo} 生成账单吗？`, '生成账单', { type: 'info' });
-    await generateBill(row.orderId);
-    ElMessage.success('账单已生成');
-    loadData();
-  } catch {}
+const handleGenerateBill = (row) => {
+  router.push(`/order/bill/create?orderIds=${row.orderId}`);
 };
 
 // ============================================================
-// 批量生成账单
+// 批量生成账单（跳转到 bill-create）
 // ============================================================
 const handleBatchGenerateBill = async () => {
-  if (selectedOrders.value.length === 0) return;
+  if (selectedOrders.value.length === 0) {
+    ElMessage.warning('请先选择订单');
+    return;
+  }
+  
+  // 只允许选择 polishing 状态的订单
+  const validOrders = selectedOrders.value.filter(o => o.flowStatus === 'polishing');
+  if (validOrders.length === 0) {
+    ElMessage.warning('请选择状态为"可出账单"的订单');
+    return;
+  }
+  
+  // 检查是否有金额为空的订单
+  const emptyAmount = validOrders.filter(o => !o.totalAmount || o.totalAmount <= 0);
+  if (emptyAmount.length > 0) {
+    ElMessage.warning(`以下订单没有金额：${emptyAmount.map(o => o.orderNo).join(', ')}，请先编辑完善`);
+    return;
+  }
 
   try {
     await ElMessageBox.confirm(
-      `确定为 ${selectedOrders.value.length} 个订单生成账单吗？`,
-      '批量生成账单',
+      `确定为 ${validOrders.length} 个订单生成账单吗？\n` +
+      `合计金额：¥${validOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0).toFixed(2)}`,
+      '生成账单',
       { type: 'info' }
     );
-    let successCount = 0;
-    let failCount = 0;
+  } catch {
+    return;
+  }
 
-    for (const order of selectedOrders.value) {
-      try {
-        await generateBill(order.orderId);
-        successCount++;
-      } catch {
-        failCount++;
-      }
+  batchCreating.value = true;
+  try {
+    const orderIds = validOrders.map(o => o.orderId);
+    const res = await createBill({ orderIds });
+    if (res.success) {
+      ElMessage.success(`账单 ${res.billNo} 创建成功`);
+      // ⭐ 直接跳转到编辑页
+      router.push(`/order/bill/edit/${res.billId}`);
     }
-
-    if (successCount > 0 && failCount === 0) {
-      ElMessage.success(`${successCount} 个订单账单已生成`);
-    } else if (successCount > 0 && failCount > 0) {
-      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
-    } else {
-      ElMessage.error('全部失败');
-    }
-    loadData();
-  } catch {}
+  } catch (error) {
+    ElMessage.error(error.message || '生成账单失败');
+  } finally {
+    batchCreating.value = false;
+  }
 };
 
 // ============================================================
 // 跳转工厂编辑
 // ============================================================
 const goFactoryEdit = (orderId) => {
-  console.log('跳转工厂编辑, orderId:', orderId);
   router.push(`/order/factory-edit/${orderId}`);
 };
 
@@ -617,6 +628,7 @@ const formatDate = (date) => {
 // 初始化
 // ============================================================
 onMounted(() => {
+  loadCustomers();
   loadData();
 });
 </script>
@@ -629,31 +641,42 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .page-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
 
 .filter-bar {
   display: flex;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
+  background: #f5f7fa;
+  padding: 10px 16px;
+  border-radius: 6px;
 }
 
-.stat-card {
+/* ⭐ 汇总栏 */
+.summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 16px;
   background: #fafafa;
-  padding: 12px 16px;
   border-radius: 6px;
-  border-left: 4px solid #ddd;
+  margin-bottom: 12px;
+  border: 1px solid #e8ecf1;
+  font-size: 14px;
+  color: #606266;
 }
-.stat-card .stat-number { font-size: 22px; font-weight: bold; color: #303133; }
-.stat-card .stat-label { font-size: 13px; color: #909399; margin-top: 4px; }
+.summary-bar b { color: #303133; }
 
 :deep(.el-table .cell) { padding: 6px 8px; }
 :deep(.el-table .el-table__row) { cursor: pointer; }
 :deep(.el-button.is-link) { padding: 0 4px; }
 
-/* 图片悬停放大 */
+/* 图片悬停放大 - 使用预览 */
 :deep(.el-image) { transition: transform 0.3s; }
 :deep(.el-image:hover) { transform: scale(2.5); z-index: 10; position: relative; }
 </style>

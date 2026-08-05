@@ -1,13 +1,15 @@
 <!-- src/views/order/create.vue -->
 <template>
   <div class="page-container" v-loading="loading">
+    <!-- ===== 页面头部 ===== -->
     <div class="page-header">
       <div class="header-left">
         <el-button @click="$router.back()">
           <el-icon><ArrowLeft /></el-icon> 返回
         </el-button>
-        <h2>📝 下单</h2>
+        <h2>{{ isEdit ? '✏️ 编辑订单' : '📝 下单' }}</h2>
         <el-tag v-if="isEdit" type="warning" size="large">编辑中</el-tag>
+        <el-tag v-if="isCopy" type="info" size="large">📋 复刻订单</el-tag>
         <el-tag v-if="orderStatus" :type="getStatusType(orderStatus)" size="large">
           {{ getStatusText(orderStatus) }}
         </el-tag>
@@ -22,19 +24,12 @@
       </div>
     </div>
 
-    <!-- 表单 -->
     <div class="form-wrapper">
-      <el-form
-        ref="formRef"
-        :model="form"
-        :rules="rules"
-        label-width="110px"
-        label-position="right"
-        size="default"
-      >
-        <!-- 第一行：订单日期 + 客户（只读） -->
-        <el-row :gutter="16">
-          <el-col :span="12">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="120px" label-position="right" size="default">
+        
+        <!-- ===== 第一行：订单日期 + 业务员 ===== -->
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="12">
             <el-form-item label="订单日期" prop="orderDate">
               <el-date-picker
                 v-model="form.orderDate"
@@ -45,10 +40,10 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="客户">
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="业务员">
               <el-input
-                :value="userStore.customerName || '未关联客户'"
+                :value="userStore.realName || userStore.username || '当前用户'"
                 disabled
                 style="width:100%;"
               />
@@ -56,52 +51,65 @@
           </el-col>
         </el-row>
 
-        <!-- 第二行：品名（带自动匹配） + 手寸 + 宽厚 -->
-        <el-row :gutter="16">
-          <el-col :span="8">
+        <!-- ===== 第二行：品名（带搜索和新增） ===== -->
+        <el-row :gutter="20">
+          <el-col :span="24">
             <el-form-item label="品名" prop="productName">
-              <el-input
-                v-model="form.productName"
-                placeholder="输入品名自动匹配"
-                @input="handleProductSearch"
-                @focus="handleProductSearch"
-              />
-              <!-- 匹配结果下拉 -->
-              <div v-if="showMatchList && matchResults.length > 0" class="match-dropdown">
-                <div
-                  v-for="item in matchResults"
-                  :key="item.productId"
-                  class="match-item"
-                  @click="selectProduct(item)"
+              <div class="product-input-wrapper">
+                <el-autocomplete
+                  v-model="form.productName"
+                  :fetch-suggestions="querySearch"
+                  placeholder="输入品名搜索，不存在则自动新增"
+                  style="flex:1;"
+                  clearable
+                  @select="handleSelectProduct"
+                  @focus="handleFocus"
                 >
-                  <div class="match-name">{{ item.productName }}</div>
-                  <div class="match-info">
-                    最近下单：{{ formatDate(item.lastOrderDate) }} ｜ 使用 {{ item.usageCount }} 次
-                  </div>
-                </div>
+                  <template #default="{ item }">
+                    <div class="product-suggestion">
+                      <div class="suggestion-name">{{ item.productName }}</div>
+                      <div class="suggestion-info">
+                        手寸: {{ item.size || '-' }} ｜ 成色: {{ item.color || '-' }}
+                        <span v-if="item.lastOrderDate" class="suggestion-date">
+                          最近: {{ formatDate(item.lastOrderDate) }}
+                        </span>
+                      </div>
+                    </div>
+                  </template>
+                </el-autocomplete>
+                <el-button type="primary" @click="openProductDialog">
+                  <el-icon><Search /></el-icon> 浏览
+                </el-button>
               </div>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="手寸/长度" prop="size">
-              <el-input v-model="form.size" placeholder="请输入手寸或长度" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="宽/厚度" prop="widthThick">
-              <el-input v-model="form.widthThick" placeholder="请输入宽度/厚度" />
+              <div v-if="isNewProduct" class="new-product-tip">
+                <el-tag type="success" size="small">✨ 将自动创建新产品</el-tag>
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
 
-        <!-- 第三行：数量 + 成色 + 金价 -->
-        <el-row :gutter="16">
-          <el-col :span="8">
+        <!-- ===== 第三行：规格参数 ===== -->
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="8">
+            <el-form-item label="手寸/长度">
+              <el-input v-model="form.size" placeholder="如 17# 或 45cm" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="8">
+            <el-form-item label="宽/厚度">
+              <el-input v-model="form.widthThick" placeholder="如 2.5mm" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="8">
             <el-form-item label="数量" prop="quantity">
               <el-input-number v-model="form.quantity" :min="1" style="width:100%;" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+        </el-row>
+
+        <!-- ===== 第四行：材质相关 ===== -->
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="8">
             <el-form-item label="成色" prop="color">
               <el-select v-model="form.color" placeholder="请选择成色" style="width:100%;">
                 <el-option label="K黄" value="K黄" />
@@ -114,24 +122,14 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
-            <el-form-item label="金价(元/克)" prop="goldPrice">
-              <el-input-number
-                v-model="form.goldPrice"
-                :precision="2"
-                :min="0"
-                placeholder="请输入金价"
-                style="width:100%;"
-              />
+          <el-col :xs="24" :sm="8">
+            <el-form-item label="金价(元/克)">
+              <el-input-number v-model="form.goldPrice" :precision="2" :min="0" placeholder="金价" style="width:100%;" />
             </el-form-item>
           </el-col>
-        </el-row>
-
-        <!-- 第四行：钻石级别 + 克重要求 + 工期 -->
-        <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="钻石级别" prop="diamondLevel">
-              <el-select v-model="form.diamondLevel" placeholder="请选择钻石级别" style="width:100%;" clearable>
+          <el-col :xs="24" :sm="8">
+            <el-form-item label="钻石级别">
+              <el-select v-model="form.diamondLevel" placeholder="请选择" style="width:100%;" clearable>
                 <el-option label="VS" value="VS" />
                 <el-option label="VVS" value="VVS" />
                 <el-option label="培育钻" value="培育钻" />
@@ -139,115 +137,163 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="8">
-            <el-form-item label="克重要求" prop="weightRequirement">
+        </el-row>
+
+        <!-- ===== 第五行：克重要求 + 工期 + LOGO ===== -->
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="8">
+            <el-form-item label="克重要求">
               <el-input v-model="form.weightRequirement" placeholder="如 2.5-3.0g" />
             </el-form-item>
           </el-col>
-          <el-col :span="8">
+          <el-col :xs="24" :sm="8">
             <el-form-item label="工期(天)" prop="deliveryDays">
               <el-input-number v-model="form.deliveryDays" :min="1" style="width:100%;" />
             </el-form-item>
           </el-col>
-        </el-row>
-
-        <!-- 第五行：LOGO + 网址 -->
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="LOGO" prop="logoText">
-              <el-input v-model="form.logoText" placeholder="请输入LOGO文字" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="网址" prop="url">
-              <el-input v-model="form.url" placeholder="请输入产品链接" />
+          <el-col :xs="24" :sm="8">
+            <el-form-item label="LOGO">
+              <el-input v-model="form.logoText" placeholder="LOGO文字" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <!-- 备注 -->
-        <el-form-item label="备注" prop="remark">
-          <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入备注信息" />
-        </el-form-item>
+        <!-- ===== 第六行：网址 ===== -->
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-form-item label="网址">
+              <el-input v-model="form.url" placeholder="产品链接" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
-        <!-- 图片区域 -->
-          <div style="margin-top:16px;">
-          <div style="font-weight:600;color:#303133;margin-bottom:12px;">📷 图片附件</div>
-          <el-row :gutter="16">
-            <!-- 产品图片 -->
-            <el-col :span="8">
-              <div class="upload-section">
-                <div class="upload-label">产品图片</div>
-                <ImageUpload 
-                  v-model="form.imageUrl" 
-                  :limit="5" 
-                  :multiple="true"
-                  type="product"
-                  tip="最多5张，每张最大5MB"
-                />
+        <!-- ===== 第七行：备注 ===== -->
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-form-item label="备注">
+              <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="备注信息" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!-- ===== 图片区域 ===== -->
+        <div class="image-section">
+          <div class="image-section-title">📷 图片附件</div>
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="8">
+              <div class="upload-card">
+                <div class="upload-card-label">产品图片</div>
+                <ImageUpload v-model="form.imageUrl" :limit="5" :multiple="true" type="product" tip="最多5张" />
               </div>
             </el-col>
-
-            <!-- 数据图 -->
-            <el-col :span="8">
-              <div class="upload-section">
-                <div class="upload-label">数据图</div>
-                <ImageUpload 
-                  v-model="form.dataImageUrl" 
-                  :limit="5" 
-                  :multiple="true"
-                  type="data"
-                  tip="最多5张，每张最大5MB"
-                />
+            <el-col :xs="24" :sm="8">
+              <div class="upload-card">
+                <div class="upload-card-label">数据图</div>
+                <ImageUpload v-model="form.dataImageUrl" :limit="5" :multiple="true" type="data" tip="最多5张" />
               </div>
             </el-col>
-
-            <!-- 字印要求图 -->
-            <el-col :span="8">
-              <div class="upload-section">
-                <div class="upload-label">字印要求图</div>
-                <ImageUpload 
-                  v-model="form.letterImageUrl" 
-                  :limit="5" 
-                  :multiple="true"
-                  type="letter"
-                  tip="最多5张，每张最大5MB"
-                />
+            <el-col :xs="24" :sm="8">
+              <div class="upload-card">
+                <div class="upload-card-label">字印要求图</div>
+                <ImageUpload v-model="form.letterImageUrl" :limit="5" :multiple="true" type="letter" tip="最多5张" />
               </div>
             </el-col>
           </el-row>
         </div>
       </el-form>
     </div>
+
+    <!-- ===== 产品库弹窗 ===== -->
+    <el-dialog v-model="productDialogVisible" title="📦 产品库" width="800px" destroy-on-close>
+      <div class="dialog-search">
+        <el-input
+          v-model="productSearchKeyword"
+          placeholder="搜索品名/规格"
+          clearable
+          prefix-icon="Search"
+          style="width:280px;"
+          @input="loadProductList"
+        />
+        <el-button type="primary" @click="loadProductList">搜索</el-button>
+        <span style="margin-left:12px;color:#999;font-size:13px;">共 {{ productTotal }} 个产品</span>
+      </div>
+      <el-table 
+        :data="productList" 
+        border 
+        stripe 
+        v-loading="productLoading" 
+        max-height="400" 
+        @row-dblclick="selectProductFromDialog"
+        highlight-current-row
+      >
+        <el-table-column prop="productName" label="品名" min-width="140" />
+        <el-table-column prop="size" label="手寸" width="100" />
+        <el-table-column prop="widthThick" label="宽/厚度" width="100" />
+        <el-table-column prop="color" label="成色" width="80" />
+        <el-table-column prop="diamondLevel" label="钻石级别" width="100" />
+        <el-table-column prop="weightRequirement" label="克重要求" width="110" />
+        <el-table-column prop="lastOrderDate" label="最近下单" width="110">
+          <template #default="{ row }">{{ formatDate(row.lastOrderDate) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="80" align="center">
+          <template #default="{ row }">
+            <el-button type="primary" size="small" link @click="selectProductFromDialog(row)">选择</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!productLoading && productList.length === 0" description="暂无产品" />
+      <div class="dialog-pagination">
+        <el-pagination
+          v-model:current-page="productPage.current"
+          v-model:page-size="productPage.pageSize"
+          :page-sizes="[10, 20, 50]"
+          :total="productTotal"
+          layout="total, sizes, prev, pager, next"
+          @size-change="loadProductList"
+          @current-change="loadProductList"
+          small
+        />
+      </div>
+      <template #footer>
+        <el-button @click="productDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
-<!-- src/views/order/create.vue -->
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, nextTick, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowLeft, Document, Check, Plus } from '@element-plus/icons-vue';
+import { ArrowLeft, Document, Check, Search } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { createOrder, updateOrder, getOrderDetail } from '@/api/order';
-import { getCustomerList } from '@/api/customer';
-import { uploadImage } from '@/api/upload';
+import { searchProducts, getProductList, createProduct } from '@/api/product';
 import ImageUpload from '@/components/ImageUpload.vue';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
+// ===== 状态 =====
 const loading = ref(false);
 const saving = ref(false);
 const submitting = ref(false);
 const formRef = ref();
 const isEdit = ref(false);
+const isCopy = ref(false);
 const orderStatus = ref('');
-const customerList = ref([]);
-const uploading = ref(false);
 
-// ===== 表单数据 =====
+// ===== 产品相关 =====
+const isNewProduct = ref(false);
+const productList = ref([]);
+const productTotal = ref(0);
+const productLoading = ref(false);
+const productDialogVisible = ref(false);
+const productSearchKeyword = ref('');
+const productPage = reactive({ current: 1, pageSize: 10 });
+
+// ===== 表单 =====
 const form = reactive({
   orderDate: new Date().toISOString().split('T')[0],
   customerId: userStore.customerId || null,
@@ -263,10 +309,6 @@ const form = reactive({
   logoText: '',
   url: '',
   remark: '',
-  // 图片相关
-  imageList: [],
-  dataImageList: [],
-  letterImageList: [],
   imageUrl: '',
   dataImageUrl: '',
   letterImageUrl: '',
@@ -275,10 +317,10 @@ const form = reactive({
 // ===== 验证规则 =====
 const rules = {
   orderDate: [{ required: true, message: '请选择订单日期' }],
-  customerId: [{ required: true, message: '请选择客户' }],
   productName: [{ required: true, message: '请输入品名' }],
   quantity: [{ required: true, message: '请输入数量' }],
   color: [{ required: true, message: '请选择成色' }],
+  deliveryDays: [{ required: true, message: '请输入工期' }],
 };
 
 // ===== 状态映射 =====
@@ -296,200 +338,148 @@ const getStatusText = (status) => statusMap[status]?.text || status;
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
 // ============================================================
-// 图片处理
+// 产品搜索（自动补全）
 // ============================================================
-const handleImageChange = (file, listKey) => {
-  // 预览
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    file.url = e.target.result;
-  };
-  reader.readAsDataURL(file.raw);
-};
-
-const handleImageRemove = (file, listKey) => {
-  // 移除时清理
-};
-
-// ============================================================
-// ⭐ 上传图片到服务器
-// ============================================================
-const uploadImagesToServer = async (fileList, type) => {
-  const urls = [];
-  for (const item of fileList) {
-    // 如果已经有URL（编辑时回显的），直接使用
-    if (item.url && item.url.startsWith('/uploads/')) {
-      urls.push(item.url);
-      continue;
-    }
-    // 新图片需要上传
-    if (item.raw) {
-      try {
-        const res = await uploadImage(item.raw, type);
-        if (res.success) {
-          urls.push(res.url);
-        }
-      } catch (error) {
-        console.error(`${type}图片上传失败:`, error);
-        throw new Error(`图片上传失败: ${item.name}`);
-      }
-    }
+const querySearch = async (queryString, cb) => {
+  if (!queryString || queryString.length < 1) {
+    isNewProduct.value = false;
+    return cb([]);
   }
-  return urls;
-};
-
-// ============================================================
-// 构建提交数据
-// ============================================================
-const buildPayload = (status) => {
-  const payload = {
-    orderDate: form.orderDate,
-    customerId: form.customerId,
-    customerName: userStore.customerName || '客户',
-    productName: form.productName,
-    quantity: form.quantity,
-    deliveryDays: form.deliveryDays,
-    color: form.color,
-    goldPrice: form.goldPrice,
-    size: form.size,
-    widthThick: form.widthThick,
-    diamondLevel: form.diamondLevel,
-    weightRequirement: form.weightRequirement,
-    logoText: form.logoText,
-    url: form.url,
-    remark: form.remark,
-    flowStatus: status,
-    imageUrl: form.imageUrl,
-    dataImageUrl: form.dataImageUrl,
-    letterImageUrl: form.letterImageUrl,
-  };
-  if (isEdit.value) {
-    payload.orderId = parseInt(route.params.id);
-  }
-  return payload;
-};
-
-// ============================================================
-// 保存草稿
-// ============================================================
-const handleSaveDraft = async () => {
-  if (!formRef.value) return;
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return;
-
-    saving.value = true;
-    try {
-      // ⭐ 先上传图片
-      const [imageUrls, dataImageUrls, letterImageUrls] = await Promise.all([
-        uploadImagesToServer(form.imageList, 'product'),
-        uploadImagesToServer(form.dataImageList, 'data'),
-        uploadImagesToServer(form.letterImageList, 'letter'),
-      ]);
-
-      form.imageUrl = imageUrls.join(',');
-      form.dataImageUrl = dataImageUrls.join(',');
-      form.letterImageUrl = letterImageUrls.join(',');
-
-      const payload = buildPayload('draft');
-      if (isEdit.value) {
-        await updateOrder({ ...payload, orderId: route.params.id });
-        ElMessage.success('保存成功');
-      } else {
-        await createOrder(payload);
-        ElMessage.success('保存成功');
-        resetForm();
-      }
-    } catch (error) {
-      ElMessage.error(error.message || '保存失败');
-    } finally {
-      saving.value = false;
-    }
-  });
-};
-
-// ============================================================
-// 提交审核
-// ============================================================
-const handleSubmit = async () => {
-  if (!formRef.value) return;
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return;
-
-    try {
-      await ElMessageBox.confirm('确认提交审核吗？提交后不可再修改。', '提示', { type: 'info' });
-    } catch {
-      return;
-    }
-
-    submitting.value = true;
-    try {
-     
-      const payload = buildPayload('pending');
-      if (isEdit.value) {
-        await updateOrder({ ...payload, orderId: route.params.id });
-        ElMessage.success('提交成功');
-      } else {
-        await createOrder(payload);
-        ElMessage.success('提交成功');
-        resetForm();
-      }
-      router.push('/order/my-list');
-    } catch (error) {
-      ElMessage.error(error.message || '提交失败');
-    } finally {
-      submitting.value = false;
-    }
-  });
-};
-
-// ============================================================
-// 重置表单
-// ============================================================
-const resetForm = () => {
-  form.orderDate = new Date().toISOString().split('T')[0];
-  form.productName = '';
-  form.quantity = 1;
-  form.deliveryDays = 7;
-  form.color = 'K黄';
-  form.goldPrice = 0;
-  form.size = '';
-  form.widthThick = '';
-  form.diamondLevel = '';
-  form.weightRequirement = '';
-  form.logoText = '';
-  form.url = '';
-  form.remark = '';
-  form.imageList = [];
-  form.dataImageList = [];
-  form.letterImageList = [];
-  form.imageUrl = '';
-  form.dataImageUrl = '';
-  form.letterImageUrl = '';
-  formRef.value?.resetFields();
-};
-
-// ============================================================
-// 加载客户列表
-// ============================================================
-const loadCustomers = async () => {
+  
   try {
-    const res = await getCustomerList({ includeInactive: false });
-    customerList.value = res?.data || [];
+    const res = await searchProducts({ keyword: queryString, limit: 10 });
+    const results = res?.data || [];
+    
+    // 检查输入的品名是否已存在
+    const exists = results.some(item => item.productName === queryString.trim());
+    isNewProduct.value = !exists && queryString.trim().length > 0;
+    
+    // 格式化建议列表
+    const suggestions = results.map(item => ({
+      ...item,
+      value: item.productName,
+    }));
+    
+    cb(suggestions);
   } catch {
-    customerList.value = [
-      { customerId: 1, customerName: '周大福珠宝' },
-      { customerId: 2, customerName: '老凤祥珠宝' },
-    ];
+    isNewProduct.value = true;
+    cb([]);
+  }
+};
+
+const handleSelectProduct = (item) => {
+  if (item && item.productId) {
+    fillFormFromProduct(item);
+    isNewProduct.value = false;
+    ElMessage.success(`已加载产品「${item.productName}」`);
+  }
+};
+
+const handleFocus = () => {
+  // 聚焦时如果有内容则搜索
+  if (form.productName && form.productName.length >= 1) {
+    querySearch(form.productName, () => {});
   }
 };
 
 // ============================================================
-// 加载订单数据（编辑时）
+// 产品库弹窗
+// ============================================================
+const openProductDialog = () => {
+  productDialogVisible.value = true;
+  productSearchKeyword.value = form.productName || '';
+  loadProductList();
+};
+
+const loadProductList = async () => {
+  productLoading.value = true;
+  try {
+    const res = await getProductList({
+      keyword: productSearchKeyword.value || undefined,
+      page: productPage.current,
+      pageSize: productPage.pageSize,
+    });
+    const data = res?.data || {};
+    productList.value = data.items || data.list || data || [];
+    productTotal.value = data.total || productList.value.length;
+  } catch {
+    productList.value = [];
+    productTotal.value = 0;
+  } finally {
+    productLoading.value = false;
+  }
+};
+
+const selectProductFromDialog = (row) => {
+  fillFormFromProduct(row);
+  productDialogVisible.value = false;
+  isNewProduct.value = false;
+  ElMessage.success(`已选择产品「${row.productName}」`);
+};
+
+// ============================================================
+// 填充表单
+// ============================================================
+const fillFormFromProduct = (product) => {
+  form.productName = product.productName;
+  form.size = product.size || '';
+  form.widthThick = product.widthThick || '';
+  form.color = product.color || 'K黄';
+  form.goldPrice = product.goldPrice || 0;
+  form.diamondLevel = product.diamondLevel || '';
+  form.weightRequirement = product.weightRequirement || '';
+  form.logoText = product.logoText || '';
+  form.deliveryDays = product.deliveryDays || 7;
+  form.imageUrl = product.imageUrl || '';
+  form.dataImageUrl = product.dataImageUrl || '';
+  form.letterImageUrl = product.letterImageUrl || '';
+};
+
+// ============================================================
+// 加载订单数据（编辑/复刻）
 // ============================================================
 const loadOrderData = async () => {
   const id = route.params.id;
-  if (!id) return;
+  const copyId = route.query.copy;
 
+  // 复刻模式
+  if (copyId) {
+    isCopy.value = true;
+    loading.value = true;
+    try {
+      const res = await getOrderDetail(copyId);
+      const data = res?.data;
+      if (data) {
+        Object.assign(form, {
+          orderDate: new Date().toISOString().split('T')[0],
+          productName: data.productName || '',
+          quantity: data.quantity || 1,
+          deliveryDays: data.deliveryDays || 7,
+          color: data.color || 'K黄',
+          goldPrice: data.goldPrice || 0,
+          size: data.size || '',
+          widthThick: data.widthThick || '',
+          diamondLevel: data.diamondLevel || '',
+          weightRequirement: data.weightRequirement || '',
+          logoText: data.logoText || '',
+          url: data.url || '',
+          remark: data.remark || '',
+          imageUrl: data.imageUrl || '',
+          dataImageUrl: data.dataImageUrl || '',
+          letterImageUrl: data.letterImageUrl || '',
+        });
+        ElMessage.success('已复刻订单数据');
+      }
+    } catch {
+      ElMessage.error('加载原订单失败');
+    } finally {
+      loading.value = false;
+    }
+    return;
+  }
+
+  // 编辑模式
+  if (!id) return;
   isEdit.value = true;
   loading.value = true;
   try {
@@ -498,7 +488,6 @@ const loadOrderData = async () => {
     if (data) {
       Object.assign(form, {
         orderDate: data.orderDate?.split('T')[0] || '',
-        customerId: data.customerId,
         productName: data.productName || '',
         quantity: data.quantity || 1,
         deliveryDays: data.deliveryDays || 7,
@@ -515,33 +504,6 @@ const loadOrderData = async () => {
         dataImageUrl: data.dataImageUrl || '',
         letterImageUrl: data.letterImageUrl || '',
       });
-
-      // 图片回显
-      if (data.imageUrl) {
-        const urls = data.imageUrl.split(',').filter(u => u);
-        form.imageList = urls.map((url, index) => ({
-          id: index,
-          url: url,
-          name: `产品图片${index + 1}`,
-        }));
-      }
-      if (data.dataImageUrl) {
-        const urls = data.dataImageUrl.split(',').filter(u => u);
-        form.dataImageList = urls.map((url, index) => ({
-          id: index,
-          url: url,
-          name: `数据图${index + 1}`,
-        }));
-      }
-      if (data.letterImageUrl) {
-        const urls = data.letterImageUrl.split(',').filter(u => u);
-        form.letterImageList = urls.map((url, index) => ({
-          id: index,
-          url: url,
-          name: `字印图${index + 1}`,
-        }));
-      }
-
       orderStatus.value = data.flowStatus;
     }
   } catch {
@@ -552,34 +514,168 @@ const loadOrderData = async () => {
 };
 
 // ============================================================
+// 自动保存新产品
+// ============================================================
+const saveProductIfNew = async () => {
+  if (!isNewProduct.value || !form.productName.trim()) {
+    return null;
+  }
+  
+  try {
+    const productData = {
+      productName: form.productName.trim(),
+      size: form.size,
+      widthThick: form.widthThick,
+      color: form.color,
+      goldPrice: form.goldPrice,
+      diamondLevel: form.diamondLevel,
+      weightRequirement: form.weightRequirement,
+      logoText: form.logoText,
+      imageUrl: form.imageUrl,
+      dataImageUrl: form.dataImageUrl,
+      letterImageUrl: form.letterImageUrl,
+    };
+    
+    const res = await createProduct(productData);
+    if (res?.success !== false) {
+      ElMessage.success(`已自动创建新产品「${form.productName}」`);
+      isNewProduct.value = false;
+      return res?.data || { productId: res?.productId };
+    }
+    return null;
+  } catch (error) {
+    console.warn('创建产品失败:', error);
+    // 不影响订单提交
+    return null;
+  }
+};
+
+// ============================================================
+// 提交
+// ============================================================
+const buildPayload = (status) => {
+  return {
+    orderDate: form.orderDate,
+    customerId: userStore.customerId,
+    customerName: userStore.customerName || '客户',
+    productName: form.productName.trim(),
+    quantity: form.quantity,
+    deliveryDays: form.deliveryDays,
+    color: form.color,
+    goldPrice: form.goldPrice,
+    size: form.size,
+    widthThick: form.widthThick,
+    diamondLevel: form.diamondLevel,
+    weightRequirement: form.weightRequirement,
+    logoText: form.logoText,
+    url: form.url,
+    remark: form.remark,
+    flowStatus: status,
+    imageUrl: form.imageUrl,
+    dataImageUrl: form.dataImageUrl,
+    letterImageUrl: form.letterImageUrl,
+    sourceOrderId: route.query.copy || null,
+  };
+};
+
+const handleSaveDraft = async () => {
+  if (!formRef.value) return;
+  
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+  
+  saving.value = true;
+  try {
+    // 如果是新产品，先保存产品
+    await saveProductIfNew();
+    
+    const payload = buildPayload('draft');
+    if (isEdit.value) {
+      await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
+      ElMessage.success('保存成功');
+    } else {
+      await createOrder(payload);
+      ElMessage.success('保存成功');
+      router.push('/order/my-list');
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
+};
+
+const handleSubmit = async () => {
+  if (!formRef.value) return;
+  
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+  
+  try {
+    await ElMessageBox.confirm('确认提交审核吗？提交后不可再修改。', '提示', { type: 'info' });
+  } catch {
+    return;
+  }
+
+  submitting.value = true;
+  try {
+    // 如果是新产品，先保存产品
+    await saveProductIfNew();
+    
+    const payload = buildPayload('pending');
+    if (isEdit.value) {
+      await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
+      ElMessage.success('提交成功');
+    } else {
+      await createOrder(payload);
+      ElMessage.success('提交成功');
+    }
+    router.push('/order/my-list');
+  } catch (error) {
+    ElMessage.error(error.message || '提交失败');
+  } finally {
+    submitting.value = false;
+  }
+};
+
+// ============================================================
+// 工具
+// ============================================================
+const formatDate = (date) => {
+  if (!date) return '-';
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+
+// ============================================================
 // 初始化
 // ============================================================
 onMounted(() => {
   if (!userStore.customerId) {
     ElMessage.warning('当前用户未关联客户，无法下单');
   }
-  loadCustomers();
   loadOrderData();
 });
 </script>
 
 <style scoped>
 .page-container {
-  background: #f5f7fa;
-  padding: 16px;
-  min-height: 100vh;
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  min-height: 100%;
 }
 
+/* ===== 页面头部 ===== */
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #fff;
-  padding: 16px 24px;
-  border-radius: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e8ecf1;
 }
 
 .header-left {
@@ -590,102 +686,197 @@ onMounted(() => {
 }
 
 .header-left h2 {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   margin: 0;
+  color: #1d2129;
 }
 
 .header-right {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
+/* ===== 表单容器 ===== */
 .form-wrapper {
-  background: #fff;
-  border-radius: 8px;
-  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
 }
 
-:deep(.el-form-item) {
+.form-wrapper :deep(.el-form-item) {
+  margin-bottom: 18px;
+}
+
+.form-wrapper :deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #4e5969;
+}
+
+/* ===== 品名输入框 ===== */
+.product-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.product-input-wrapper :deep(.el-autocomplete) {
+  flex: 1;
+}
+
+.product-input-wrapper :deep(.el-button) {
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 16px;
+}
+
+/* ===== 自动补全建议 ===== */
+.product-suggestion {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.suggestion-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1d2129;
+}
+
+.suggestion-info {
+  font-size: 12px;
+  color: #86909c;
+  margin-top: 2px;
+}
+
+.suggestion-date {
+  margin-left: 12px;
+  color: #4e5969;
+}
+
+/* ===== 新产品提示 ===== */
+.new-product-tip {
+  margin-top: 6px;
+}
+
+/* ===== 图片区域 ===== */
+.image-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e8ecf1;
+}
+
+.image-section-title {
+  font-weight: 600;
+  color: #1d2129;
+  font-size: 15px;
   margin-bottom: 16px;
 }
 
-:deep(.el-form-item__label) {
-  font-weight: 500;
-  color: #333;
-}
-
-/* ===== 产品匹配下拉 ===== */
-.match-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  background: #fff;
-  border: 1px solid #d9d9d9;
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
-  z-index: 1000;
-  max-height: 200px;
-  overflow-y: auto;
-  margin-top: 2px;
-}
-
-.match-item {
-  padding: 10px 14px;
-  cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+.upload-card {
+  background: #f7f8fa;
+  border-radius: 8px;
+  padding: 16px;
+  min-height: 140px;
   transition: background 0.2s;
 }
 
-.match-item:hover {
-  background: #f0f7ff;
+.upload-card:hover {
+  background: #f0f1f3;
 }
 
-.match-name {
-  font-size: 14px;
+.upload-card-label {
+  font-size: 13px;
   font-weight: 500;
-  color: #303133;
-}
-
-.match-info {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 2px;
-}
-
-/* ===== 图片上传 ===== */
-.upload-section {
+  color: #4e5969;
+  margin-bottom: 10px;
   text-align: center;
 }
 
-.upload-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #303133;
-  margin-bottom: 8px;
+/* ===== 产品库弹窗 ===== */
+.dialog-search {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
-.upload-tip {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
+.dialog-pagination {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
 }
 
-:deep(.el-upload--picture-card) {
-  width: 80px;
-  height: 80px;
-  line-height: 80px;
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 12px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .header-left {
+    flex-wrap: wrap;
+  }
+  
+  .header-right {
+    justify-content: flex-end;
+  }
+  
+  .product-input-wrapper {
+    flex-wrap: wrap;
+  }
+  
+  .product-input-wrapper :deep(.el-autocomplete) {
+    flex: 1;
+    min-width: 150px;
+  }
+  
+  .upload-card {
+    min-height: 100px;
+    margin-bottom: 12px;
+  }
 }
 
-:deep(.el-upload-list--picture-card .el-upload-list__item) {
-  width: 80px;
-  height: 80px;
+/* ===== 全局样式优化 ===== */
+:deep(.el-input__wrapper) {
+  border-radius: 6px;
 }
 
-/* 品名输入框相对定位，用于下拉 */
-:deep(.el-form-item__content) {
-  position: relative;
+:deep(.el-select .el-input__wrapper) {
+  border-radius: 6px;
+}
+
+:deep(.el-textarea__inner) {
+  border-radius: 6px;
+}
+
+:deep(.el-button) {
+  border-radius: 6px;
+}
+
+:deep(.el-card) {
+  border-radius: 8px;
+}
+
+:deep(.el-dialog) {
+  border-radius: 12px;
+}
+
+:deep(.el-dialog__header) {
+  padding: 20px 24px 0;
+}
+
+:deep(.el-dialog__body) {
+  padding: 16px 24px 20px;
+}
+
+:deep(.el-dialog__footer) {
+  padding: 0 24px 20px;
 }
 </style>
