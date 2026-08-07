@@ -145,10 +145,10 @@
         <template #default="{ row }">{{ row.laborFee || '-' }}</template>
       </el-table-column>
 
-      <el-table-column prop="amount" label="金额" width="110" align="right">
+      <el-table-column prop="totalAmount" label="金额" width="110" align="right">
         <template #default="{ row }">
           <span style="color: #E6A23C; font-weight: bold;">
-            ¥{{ (row.amount || 0).toFixed(2) }}
+            ¥{{ (row.totalAmount || 0).toFixed(2) }}
           </span>
         </template>
       </el-table-column>
@@ -288,6 +288,7 @@ const tableRef = ref();
 
 const loading = ref(false);
 const tableData = ref([]);
+const batchCreating = ref(false);
 const keyword = ref('');
 const filterStatus = ref('');
 const filterCustomerId = ref('');  // ⭐ 客户筛选
@@ -308,7 +309,7 @@ const pagination = reactive({
 
 // ===== 选中合计 =====
 const selectedTotal = computed(() => {
-  return selectedOrders.value.reduce((sum, o) => sum + (o.amount || 0), 0);
+  return selectedOrders.value.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 });
 
 // ===== 状态映射 =====
@@ -554,30 +555,23 @@ const handleGenerateBill = (row) => {
 // ============================================================
 // 批量生成账单（跳转到 bill-create）
 // ============================================================
+// factory-list.vue - handleBatchGenerateBill
+
 const handleBatchGenerateBill = async () => {
   if (selectedOrders.value.length === 0) {
     ElMessage.warning('请先选择订单');
     return;
   }
   
-  // 只允许选择 polishing 状态的订单
   const validOrders = selectedOrders.value.filter(o => o.flowStatus === 'polishing');
   if (validOrders.length === 0) {
     ElMessage.warning('请选择状态为"可出账单"的订单');
     return;
   }
-  
-  // 检查是否有金额为空的订单
-  const emptyAmount = validOrders.filter(o => !o.totalAmount || o.totalAmount <= 0);
-  if (emptyAmount.length > 0) {
-    ElMessage.warning(`以下订单没有金额：${emptyAmount.map(o => o.orderNo).join(', ')}，请先编辑完善`);
-    return;
-  }
 
   try {
     await ElMessageBox.confirm(
-      `确定为 ${validOrders.length} 个订单生成账单吗？\n` +
-      `合计金额：¥${validOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0).toFixed(2)}`,
+      `确定为 ${validOrders.length} 个订单生成账单吗？`,
       '生成账单',
       { type: 'info' }
     );
@@ -591,7 +585,8 @@ const handleBatchGenerateBill = async () => {
     const res = await createBill({ orderIds });
     if (res.success) {
       ElMessage.success(`账单 ${res.billNo} 创建成功`);
-      // ⭐ 直接跳转到编辑页
+      // ⭐ 跳转到 bill-edit.vue
+      console.log('=== createBill 返回完整数据 ===', res);
       router.push(`/order/bill/edit/${res.billId}`);
     }
   } catch (error) {

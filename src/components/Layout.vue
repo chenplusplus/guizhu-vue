@@ -43,7 +43,7 @@
           <template v-for="item in menuList" :key="item.menuId">
             <el-sub-menu v-if="item.children && item.children.length > 0" :index="item.menuPath || item.menuId.toString()">
               <template #title>
-                <span style="font-size:18px;margin-right:8px;">{{ item.menuIcon || '📄' }}</span>
+              
                 <span>{{ item.menuName }}</span>
               </template>
               <el-menu-item
@@ -52,12 +52,10 @@
                 :index="child.menuPath"
                 @click="handleMenuSelect(child.menuPath)"
               >
-                <span style="font-size:16px;margin-right:8px;">{{ child.menuIcon || '📄' }}</span>
                 <span>{{ child.menuName }}</span>
               </el-menu-item>
             </el-sub-menu>
             <el-menu-item v-else :index="item.menuPath">
-              <span style="font-size:18px;margin-right:8px;">{{ item.menuIcon || '📄' }}</span>
               <template #title>{{ item.menuName }}</template>
             </el-menu-item>
           </template>
@@ -285,7 +283,6 @@ onMounted(async () => {
 
 /* ===== 左侧菜单 - 淡蓝色风格 ===== */
 .layout-aside {
-  background: #e8f4f8;
   overflow: hidden;
   transition: width 0.3s;
   display: flex;

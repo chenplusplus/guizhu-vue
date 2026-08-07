@@ -30,8 +30,3 @@ export const saveLr = (data) => {
 export const deleteLr = (id) => {
   return api.delete(`/lr/${id}`);
 };
-
-// 导出LR表
-export const exportLr = (lrId) => {
-  return api.get(`/lr/export/${lrId}`);
-};

@@ -1,6 +1,6 @@
 // src/api/bill.js
 import api from './index';
-
+import request from '@/utils/request'; 
 // ===== 获取可生成账单的订单 =====
 export const getAvailableOrders = () => {
   return api.get('/bill/available-orders');
@@ -41,6 +41,12 @@ export const confirmBill = (id) => {
   return api.post(`/bill/${id}/confirm`);
 };
 
+export const saveBillData = (data) => {
+  return request.put('/bill/update-details', data);
+};
+export const submitBillAudit = (id) => {
+  return request.post(`/bill/${id}/submit-audit`);
+};
 // ===== 退回账单 =====
 export const returnBill = (id, data) => {
   return api.post(`/bill/${id}/return`, data);
@@ -50,3 +56,19 @@ export const returnBill = (id, data) => {
 export const getReturns = (params) => {
   return api.get('/bill/returns', { params });
 };
+
+export const generateLr = (id) => {
+  return api.post(`/bill/${id}/generate-lr`);
+};
+
+
+// ⭐ 退回单个明细（编辑页用）
+export const returnBillItem = (data) => {
+  return api.post('/bill/return-item', data);
+};
+
+// 导出账单Excel
+export const exportBill = (id) => {
+  return api.get(`/bill/export/${id}`, { responseType: 'blob' });
+};
+
