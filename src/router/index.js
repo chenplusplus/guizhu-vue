@@ -192,25 +192,38 @@ const routes = [
         component: () => import('@/views/system/operation-log.vue'), 
         meta: { title: '操作日志', roles: ['admin'] } 
       },
-      
+
+      // 在路由配置中添加流程管理相关路由
+      {
+        path: '/system/flow-config',
+        name: 'FlowConfig',
+        component: () => import('@/views/system/FlowConfig.vue'),
+        meta: { title: '流程配置', icon: 'Setting', roles: ['admin'] }
+      },
       // ===== 总进出模块 =====
       { 
         path: 'inout/list', 
         name: 'InoutList', 
         component: () => import('@/views/inout/list.vue'), 
-        meta: { title: '总进出管理', icon: '💰' } 
+        meta: { title: '总进出管理' } 
       },
       { 
         path: 'inout/create', 
         name: 'InoutCreate', 
         component: () => import('@/views/inout/create.vue'), 
-        meta: { title: '总进出录入', icon: '📝' } 
+        meta: { title: '总进出录入' } 
+      },
+      { 
+        path: 'inout/list', 
+        name: 'InoutAudit', 
+        component: () => import('@/views/inout/list.vue'), 
+        meta: { title: '总进出审核' } 
       },
       { 
         path: 'inout/detail/:id', 
         name: 'InoutDetail', 
         component: () => import('@/views/inout/detail.vue'), 
-        meta: { title: '总进出详情', icon: '📄' } 
+        meta: { title: '总进出详情' } 
       },
     ],
   },

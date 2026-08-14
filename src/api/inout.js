@@ -28,3 +28,13 @@ export const auditInout = (id, data) => {
 export const getInoutStats = (params) => {
   return api.get('/inout/stats', { params });
 };
+
+// ⭐ 提交审核
+export const submitInout = (id) => {
+  return api.post(`/inout/${id}/submit`);
+};
+
+// ⭐ 重新提交
+export const resubmitInout = (id) => {
+  return api.post(`/inout/${id}/resubmit`);
+};

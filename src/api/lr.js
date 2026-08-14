@@ -30,3 +30,8 @@ export const saveLr = (data) => {
 export const deleteLr = (id) => {
   return api.delete(`/lr/${id}`);
 };
+
+export const exportLr = (id) => {
+  return api.delete(`/lr/${id}`);
+};
+

@@ -86,7 +86,6 @@
       stripe
       v-loading="loading"
       @selection-change="handleSelectionChange"
-      @row-click="viewDetail"
       row-key="orderId"
     >
       <el-table-column type="selection" width="55" align="center" />
@@ -668,7 +667,7 @@ onMounted(() => {
 .summary-bar b { color: #303133; }
 
 :deep(.el-table .cell) { padding: 6px 8px; }
-:deep(.el-table .el-table__row) { cursor: pointer; }
+:deep(.el-table .el-table__row) { }
 :deep(.el-button.is-link) { padding: 0 4px; }
 
 /* 图片悬停放大 - 使用预览 */
