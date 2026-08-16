@@ -267,7 +267,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Document, Check, Search } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { createOrder, updateOrder, getOrderDetail } from '@/api/order';
+import { createOrder, updateOrder, getOrderDetail,submitOrder } from '@/api/order';
 import { searchProducts, getProductList, createProduct } from '@/api/product';
 import ImageUpload from '@/components/ImageUpload.vue';
 
@@ -622,14 +622,29 @@ const handleSubmit = async () => {
     // 如果是新产品，先保存产品
     await saveProductIfNew();
     
-    const payload = buildPayload('pending');
+    let orderId = null;
+    
     if (isEdit.value) {
+      // ⭐ 编辑模式：先更新订单数据
+      const payload = buildPayload('draft');  // 状态保持 draft
       await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
-      ElMessage.success('提交成功');
+      orderId = parseInt(route.params.id);
     } else {
-      await createOrder(payload);
-      ElMessage.success('提交成功');
+      // ⭐ 新建模式：创建订单（状态为 draft）
+      const payload = buildPayload('draft');
+      const res = await createOrder(payload);
+      orderId = res.data?.orderId || res.orderId;
     }
+    
+    if (!orderId) {
+      ElMessage.error('订单ID获取失败');
+      return;
+    }
+    
+    // ⭐ 调用提交审核接口
+    await submitOrder(orderId);
+    
+    ElMessage.success('提交审核成功');
     router.push('/order/my-list');
   } catch (error) {
     ElMessage.error(error.message || '提交失败');

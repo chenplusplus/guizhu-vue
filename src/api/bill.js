@@ -72,3 +72,11 @@ export const exportBill = (id) => {
   return api.get(`/bill/export/${id}`, { responseType: 'blob' });
 };
 
+// src/api/bill.js
+export function getBillStats(params) {
+  return request({
+    url: '/api/bill/stats',
+    method: 'get',
+    params
+  });
+}

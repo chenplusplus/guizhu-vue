@@ -94,3 +94,15 @@ export const getPendingCount = (auditType) => {
 export const getStatusCount = (customerId) => {
   return api.get('/order/stats/status-count', { params: { customerId } });
 };
+
+export const submitOrder = (id) => {
+  return  api.post(`/order/${id}/submit`);
+}; 
+// src/api/order.js
+export function getBillPendingOrders(params) {
+  return request({
+    url: '/api/order/pending-bills',
+    method: 'get',
+    params
+  });
+}

@@ -13,7 +13,7 @@ export const getProductList = (params) => {
 
 // 创建产品
 export const createProduct = (data) => {
-  return request.post('/api/product/Save', data);
+  return request.post('/api/product', data);
 };
 
 // 获取产品详情
