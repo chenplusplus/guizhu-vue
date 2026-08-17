@@ -5,14 +5,14 @@
       <h2>🏭 工厂订单</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <el-button
-          v-if="selectedOrders.length > 0"
+          v-if="selectedOrders.length > 0 && filterStatus === 'customerAudited'"
           type="success"
           @click="handleBatchAccept"
         >
           批量接单 ({{ selectedOrders.length }})
         </el-button>
         <el-button
-          v-if="selectedOrders.length > 0"
+          v-if="selectedOrders.length > 0 && filterStatus === 'polishing'"
           type="warning"
           @click="handleBatchGenerateBill"
         >
@@ -24,13 +24,14 @@
       </div>
     </div>
 
-    <!-- ⭐ 筛选栏：状态 + 关键词 + 客户 -->
+    <!-- 筛选栏 -->
     <div class="filter-bar">
       <el-radio-group v-model="filterStatus" @change="loadData">
         <el-radio-button value="">全部</el-radio-button>
         <el-radio-button value="customerAudited">待接单</el-radio-button>
         <el-radio-button value="producing">制作中</el-radio-button>
-        <el-radio-button value="polishing">可出账单</el-radio-button>
+        <el-radio-button value="polishing">制作完成</el-radio-button>
+        <el-radio-button value="billPending">账单待审核</el-radio-button>
       </el-radio-group>
 
       <el-input
@@ -42,7 +43,6 @@
         @keyup.enter="loadData"
       />
 
-      <!-- ⭐ 客户筛选 -->
       <el-select
         v-model="filterCustomerId"
         placeholder="全部客户"
@@ -67,7 +67,7 @@
       </el-button>
     </div>
 
-    <!-- ⭐ 去掉统计卡片，改为简洁的一行汇总 -->
+    <!-- 汇总 -->
     <div class="summary-bar" v-if="tableData.length > 0">
       <span>共 <b>{{ tableData.length }}</b> 个订单</span>
       <span v-if="selectedOrders.length > 0" style="color:#409EFF;">
@@ -108,7 +108,6 @@
 
       <el-table-column prop="productName" label="品名" min-width="120" />
 
-      <!-- 产品图片 -->
       <el-table-column label="图片" width="70" align="center">
         <template #default="{ row }">
           <el-image
@@ -154,17 +153,18 @@
 
       <el-table-column prop="flowStatus" label="状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.flowStatus)" size="small">
-            {{ getStatusText(row.flowStatus) }}
+          <el-tag :type="getStatusType(normalizeStatus(row.flowStatus))" size="small">
+            {{ getStatusText(normalizeStatus(row.flowStatus)) }}
           </el-tag>
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="260" fixed="right" align="center">
+      <!-- 操作列 -->
+      <el-table-column label="操作" width="320" fixed="right" align="center">
         <template #default="{ row }">
-          <!-- ⭐ 待接单 → 接单 -->
+          <!-- 待接单 → 接单 -->
           <el-button
-            v-if="row.flowStatus === 'customerAudited'"
+            v-if="normalizeStatus(row.flowStatus) === 'customerAudited'"
             size="small"
             type="success"
             @click.stop="handleAccept(row)"
@@ -172,9 +172,8 @@
             接单
           </el-button>
 
-          <!-- ⭐ 所有工厂状态都可以更新状态（跳着选） -->
+          <!-- 制作中 → 更新状态（弹窗） -->
           <el-button
-            v-if="isInProduction(row.flowStatus)"
             size="small"
             type="primary"
             @click.stop="openStatusDialog(row)"
@@ -182,9 +181,9 @@
             更新状态
           </el-button>
 
-          <!-- 可生成账单 -->
+          <!-- 制作完成 → 生成账单 -->
           <el-button
-            v-if="row.flowStatus === 'polishing'"
+            v-if="normalizeStatus(row.flowStatus) === 'polishing'"
             size="small"
             type="warning"
             @click.stop="handleGenerateBill(row)"
@@ -194,7 +193,7 @@
 
           <!-- 编辑 -->
           <el-button
-            v-if="canEdit(row)"
+            v-if="normalizeStatus(row.flowStatus) === 'factory_edit'"
             size="small"
             type="primary"
             link
@@ -229,24 +228,25 @@
       />
     </div>
 
-    <!-- ===== 快捷更新状态弹窗（跳着选） ===== -->
+    <!-- ============================================================ -->
+    <!-- 更新制作状态弹窗 -->
+    <!-- ============================================================ -->
     <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="450px" destroy-on-close>
       <div style="margin-bottom: 16px;">
         <p><strong>订单号：</strong>{{ currentOrder?.orderNo }}</p>
         <p><strong>品名：</strong>{{ currentOrder?.productName }}</p>
         <p><strong>当前状态：</strong>
-          <el-tag :type="getStatusType(currentOrder?.flowStatus)" size="small">
-            {{ getStatusText(currentOrder?.flowStatus) }}
+          <el-tag :type="getStatusType(normalizeStatus(currentOrder?.flowStatus))" size="small">
+            {{ getStatusText(normalizeStatus(currentOrder?.flowStatus)) }}
           </el-tag>
         </p>
       </div>
 
       <el-form label-width="80px">
-        <el-form-item label="更新为">
-          <!-- ⭐ 下拉显示所有可跳转的状态，不做顺序限制 -->
+        <el-form-item label="更新为" required>
           <el-select v-model="selectedStatus" placeholder="请选择目标状态" style="width: 100%;">
             <el-option
-              v-for="item in allAvailableStatuses"
+              v-for="item in statusOptions"
               :key="item.value"
               :label="item.label"
               :value="item.value"
@@ -265,7 +265,12 @@
 
       <template #footer>
         <el-button @click="statusDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmStatusUpdate" :loading="statusLoading">
+        <el-button
+          type="primary"
+          @click="confirmStatusUpdate"
+          :loading="statusLoading"
+          :disabled="!selectedStatus"
+        >
           确认更新
         </el-button>
       </template>
@@ -278,7 +283,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
-import { getOrderList, acceptOrder, updateProduction, generateBill } from '@/api/order';
+import { getOrderList, acceptOrder, updateProduction } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
 import { createBill } from '@/api/bill';
 
@@ -290,10 +295,11 @@ const tableData = ref([]);
 const batchCreating = ref(false);
 const keyword = ref('');
 const filterStatus = ref('');
-const filterCustomerId = ref('');  // ⭐ 客户筛选
+const filterCustomerId = ref('');
 const selectedOrders = ref([]);
-const customerList = ref([]);      // ⭐ 客户列表
+const customerList = ref([]);
 
+// 状态更新弹窗
 const statusDialogVisible = ref(false);
 const statusLoading = ref(false);
 const currentOrder = ref(null);
@@ -306,15 +312,19 @@ const pagination = reactive({
   total: 0,
 });
 
-// ===== 选中合计 =====
+// 选中合计
 const selectedTotal = computed(() => {
   return selectedOrders.value.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 });
 
-// ===== 状态映射 =====
+// ============================================================
+// 状态映射
+// ============================================================
 const statusMap = {
   customerAudited: { text: '待接单', type: 'success' },
+  customeraudited: { text: '待接单', type: 'success' },
   accepted: { text: '已接单', type: 'primary' },
+  factory_edit: { text: '编辑中', type: 'primary' },
   waxing: { text: '出蜡', type: 'primary' },
   molded: { text: '倒模', type: 'primary' },
   setting: { text: '执模', type: 'primary' },
@@ -323,28 +333,47 @@ const statusMap = {
   stoneCutting: { text: '车石', type: 'primary' },
   microInlay: { text: '微镶', type: 'primary' },
   handInlay: { text: '手镶', type: 'primary' },
-  polishing: { text: '可出账单', type: 'warning' },
+  polishing: { text: '制作完成', type: 'success' },
+  billPending: { text: '账单待审核', type: 'warning' },
+  billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
 };
 
-const getStatusText = (status) => statusMap[status]?.text || status;
-const getStatusType = (status) => statusMap[status]?.type || 'info';
-
-// ===== 制作中状态（可更新状态） =====
+// 制作中状态（显示"更新状态"按钮）
 const productionStatuses = [
   'accepted', 'waxing', 'molded', 'setting', 'cnc',
-  'sweeping', 'stoneCutting', 'microInlay', 'handInlay', 'polishing'
+  'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
 ];
 
-const isInProduction = (status) => productionStatuses.includes(status);
+const normalizeStatus = (status) => {
+  if (!status) return status;
+  if (status.toLowerCase() === 'customeraudited') return 'customerAudited';
+  if (statusMap[status]) return status;
+  const lowerKey = status.toLowerCase();
+  if (statusMap[lowerKey]) return lowerKey;
+  return status;
+};
 
-// ===== ⭐ 所有可跳转的状态（不做顺序限制，可以跳着选） =====
-const allAvailableStatuses = computed(() => {
-  const current = currentOrder.value?.flowStatus;
-  
-  // 所有工厂状态列表（排除当前状态和终态）
-  const allStatuses = [
-    { value: 'accepted', label: '已接单' },
+const getStatusText = (status) => {
+  const normalized = normalizeStatus(status);
+  return statusMap[normalized]?.text || status || '-';
+};
+
+const getStatusType = (status) => {
+  const normalized = normalizeStatus(status);
+  return statusMap[normalized]?.type || 'info';
+};
+
+// 判断是否为制作中状态（显示更新状态按钮）
+const isInProduction = (status) => {
+  const normalized = normalizeStatus(status);
+  return productionStatuses.includes(normalized);
+};
+
+// 状态选项（从当前状态之后可选）
+const statusOptions = computed(() => {
+  const current = normalizeStatus(currentOrder.value?.flowStatus);
+  const allOptions = [
     { value: 'waxing', label: '出蜡' },
     { value: 'molded', label: '倒模' },
     { value: 'setting', label: '执模' },
@@ -353,27 +382,19 @@ const allAvailableStatuses = computed(() => {
     { value: 'stoneCutting', label: '车石' },
     { value: 'microInlay', label: '微镶' },
     { value: 'handInlay', label: '手镶' },
-    { value: 'polishing', label: '可出账单' },
-    { value: 'completed', label: '已完成' },
+    { value: 'polishing', label: '制作完成' },
   ];
   
-  // ⭐ 如果是待接单，只能转到已接单
-  if (current === 'customerAudited') {
-    return allStatuses.filter(s => s.value === 'accepted');
+  const currentIndex = allOptions.findIndex(s => s.value === current);
+  if (currentIndex >= 0) {
+    return allOptions.slice(currentIndex + 1);
   }
-  
-  // ⭐ 如果是制作中状态，可以跳转到任何其他制作状态（包括已完成）
-  // 但排除当前状态
-  return allStatuses.filter(s => s.value !== current);
+  // 如果当前状态不在列表中（如 customerAudited），返回全部
+  return allOptions;
 });
 
-// ===== 权限 =====
-const canEdit = (row) => {
-  return isInProduction(row.flowStatus) || row.flowStatus === 'customerAudited';
-};
-
 // ============================================================
-// 加载客户列表
+// 加载数据
 // ============================================================
 const loadCustomers = async () => {
   try {
@@ -384,9 +405,6 @@ const loadCustomers = async () => {
   }
 };
 
-// ============================================================
-// 加载数据
-// ============================================================
 const loadData = async () => {
   loading.value = true;
   try {
@@ -399,37 +417,50 @@ const loadData = async () => {
     const res = await getOrderList(params);
     let data = res?.data || res || [];
     
-    if (data.items) {
-      data = data.items;
-    }
+    if (data.items) data = data.items;
     
-    // ⭐ 前端过滤：只显示工厂相关状态
+    // 工厂相关状态
     const factoryStatuses = [
-      'customerAudited', 'accepted', 'waxing', 'molded', 'setting',
-      'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay',
-      'polishing'
+      'customerAudited', 'accepted', 'factory_edit', 'waxing', 'molded', 
+      'setting', 'cnc', 'sweeping', 'stoneCutting', 'microInlay', 
+      'handInlay', 'polishing', 'billPending'
     ];
     
-    let filteredData = data.filter(item => factoryStatuses.includes(item.flowStatus));
+    let filteredData = data.filter(item => {
+      const normalized = normalizeStatus(item.flowStatus);
+      return factoryStatuses.includes(normalized);
+    });
     
-    // ⭐ 客户筛选
     if (filterCustomerId.value) {
       filteredData = filteredData.filter(item => item.customerId === filterCustomerId.value);
     }
     
-    // ⭐ 状态筛选
+    // 状态筛选
     if (filterStatus.value === 'producing') {
       const producingStatuses = [
-        'accepted', 'waxing', 'molded', 'setting',
-        'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
+        'accepted', 'waxing', 'molded', 'setting', 'cnc',
+        'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
       ];
-      filteredData = filteredData.filter(item => producingStatuses.includes(item.flowStatus));
+      filteredData = filteredData.filter(item => {
+        const normalized = normalizeStatus(item.flowStatus);
+        return producingStatuses.includes(normalized);
+      });
     } else if (filterStatus.value === 'polishing') {
-      filteredData = filteredData.filter(item => item.flowStatus === 'polishing');
+      filteredData = filteredData.filter(item => {
+        const normalized = normalizeStatus(item.flowStatus);
+        return normalized === 'polishing';
+      });
     } else if (filterStatus.value === 'customerAudited') {
-      filteredData = filteredData.filter(item => item.flowStatus === 'customerAudited');
+      filteredData = filteredData.filter(item => {
+        const normalized = normalizeStatus(item.flowStatus);
+        return normalized === 'customerAudited';
+      });
+    } else if (filterStatus.value === 'billPending') {
+      filteredData = filteredData.filter(item => {
+        const normalized = normalizeStatus(item.flowStatus);
+        return normalized === 'billPending';
+      });
     }
-    // filterStatus.value === '' 显示全部
     
     tableData.value = filteredData;
     pagination.total = filteredData.length;
@@ -443,7 +474,6 @@ const loadData = async () => {
   }
 };
 
-// ===== 重置搜索 =====
 const resetSearch = () => {
   keyword.value = '';
   filterStatus.value = '';
@@ -460,10 +490,13 @@ const handleSelectionChange = (selection) => {
 };
 
 // ============================================================
-// 批量接单
+// 接单
 // ============================================================
 const handleBatchAccept = async () => {
-  const acceptList = selectedOrders.value.filter(row => row.flowStatus === 'customerAudited');
+  const acceptList = selectedOrders.value.filter(row => {
+    const normalized = normalizeStatus(row.flowStatus);
+    return normalized === 'customerAudited';
+  });
   if (acceptList.length === 0) {
     ElMessage.warning('请选择待接单的订单');
     return;
@@ -489,18 +522,13 @@ const handleBatchAccept = async () => {
 
     if (successCount > 0 && failCount === 0) {
       ElMessage.success(`${successCount} 个订单接单成功`);
-    } else if (successCount > 0 && failCount > 0) {
-      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
     } else {
-      ElMessage.error('全部失败');
+      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
     }
     loadData();
   } catch {}
 };
 
-// ============================================================
-// 单个接单
-// ============================================================
 const handleAccept = async (row) => {
   try {
     await ElMessageBox.confirm(`确定要接单 ${row.orderNo} 吗？`, '接单确认', { type: 'info' });
@@ -511,7 +539,7 @@ const handleAccept = async (row) => {
 };
 
 // ============================================================
-// ⭐ 快捷更新状态（跳着选）
+// 更新状态（弹窗）
 // ============================================================
 const openStatusDialog = (row) => {
   currentOrder.value = row;
@@ -528,12 +556,14 @@ const confirmStatusUpdate = async () => {
 
   statusLoading.value = true;
   try {
-    const label = statusMap[selectedStatus.value]?.text || selectedStatus.value;
+    const label = statusOptions.value.find(s => s.value === selectedStatus.value)?.label || selectedStatus.value;
+    
     await updateProduction(currentOrder.value.orderId, {
       status: selectedStatus.value,
       step: 0,
-      remark: statusRemark.value || '',
+      remark: statusRemark.value || `制作状态更新为：${label}`,
     });
+    
     ElMessage.success(`状态已更新为：${label}`);
     statusDialogVisible.value = false;
     loadData();
@@ -545,16 +575,11 @@ const confirmStatusUpdate = async () => {
 };
 
 // ============================================================
-// 生成账单（跳转到 bill-create）
+// 生成账单
 // ============================================================
 const handleGenerateBill = (row) => {
   router.push(`/order/bill/create?orderIds=${row.orderId}`);
 };
-
-// ============================================================
-// 批量生成账单（跳转到 bill-create）
-// ============================================================
-// factory-list.vue - handleBatchGenerateBill
 
 const handleBatchGenerateBill = async () => {
   if (selectedOrders.value.length === 0) {
@@ -562,9 +587,12 @@ const handleBatchGenerateBill = async () => {
     return;
   }
   
-  const validOrders = selectedOrders.value.filter(o => o.flowStatus === 'polishing');
+  const validOrders = selectedOrders.value.filter(o => {
+    const normalized = normalizeStatus(o.flowStatus);
+    return normalized === 'polishing';
+  });
   if (validOrders.length === 0) {
-    ElMessage.warning('请选择状态为"可出账单"的订单');
+    ElMessage.warning('请选择状态为"制作完成"的订单');
     return;
   }
 
@@ -584,8 +612,6 @@ const handleBatchGenerateBill = async () => {
     const res = await createBill({ orderIds });
     if (res.success) {
       ElMessage.success(`账单 ${res.billNo} 创建成功`);
-      // ⭐ 跳转到 bill-edit.vue
-      console.log('=== createBill 返回完整数据 ===', res);
       router.push(`/order/bill/edit/${res.billId}`);
     }
   } catch (error) {
@@ -596,15 +622,12 @@ const handleBatchGenerateBill = async () => {
 };
 
 // ============================================================
-// 跳转工厂编辑
+// 跳转
 // ============================================================
 const goFactoryEdit = (orderId) => {
   router.push(`/order/factory-edit/${orderId}`);
 };
 
-// ============================================================
-// 查看详情
-// ============================================================
 const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
 };
@@ -651,7 +674,6 @@ onMounted(() => {
   border-radius: 6px;
 }
 
-/* ⭐ 汇总栏 */
 .summary-bar {
   display: flex;
   align-items: center;
@@ -667,10 +689,9 @@ onMounted(() => {
 .summary-bar b { color: #303133; }
 
 :deep(.el-table .cell) { padding: 6px 8px; }
-:deep(.el-table .el-table__row) { }
+:deep(.el-table .el-table__row) { cursor: pointer; }
 :deep(.el-button.is-link) { padding: 0 4px; }
 
-/* 图片悬停放大 - 使用预览 */
 :deep(.el-image) { transition: transform 0.3s; }
 :deep(.el-image:hover) { transform: scale(2.5); z-index: 10; position: relative; }
 </style>

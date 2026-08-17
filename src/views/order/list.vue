@@ -40,18 +40,8 @@
             <el-option label="草稿" value="draft" />
             <el-option label="待客户审核" value="pending" />
             <el-option label="客户已审核" value="customerAudited" />
-            <el-option label="已接单" value="accepted" />
-            <el-option label="数据确认" value="dataConfirm" />
-            <el-option label="出蜡" value="waxing" />
-            <el-option label="倒模" value="molded" />
-            <el-option label="CNC" value="cnc" />
-            <el-option label="配件缺失" value="partsMissing" />
-            <el-option label="配石完成" value="stoneReady" />
-            <el-option label="执模" value="setting" />
-            <el-option label="滴胶/磨石" value="glue" />
-            <el-option label="镶嵌" value="inlay" />
-            <el-option label="组装" value="assembly" />
-            <el-option label="抛光" value="polishing" />
+            <el-option label="工厂编辑中" value="factory_edit" />
+            <el-option label="制作完成" value="polishing" />
             <el-option label="账单待审核" value="billPending" />
             <el-option label="客户已确认" value="billConfirmed" />
             <el-option label="已完成" value="completed" />
@@ -73,7 +63,7 @@
         </el-form-item>
 
         <el-form-item>
-          <el-button type="primary" @click="loadData">
+          <el-button type="primary" @click="handleSearch">
             <el-icon><Search /></el-icon> 查询
           </el-button>
           <el-button @click="resetQuery">
@@ -117,6 +107,11 @@
           <!-- 日期 -->
           <template v-if="col.prop === 'orderDate'">
             {{ formatDate(row.orderDate) }}
+          </template>
+
+          <!-- ⭐ 客户名称显示销售名称 -->
+          <template v-else-if="col.prop === 'customerName'">
+            {{ row.salesman || row.customerName || '-' }}
           </template>
 
           <!-- 图片列 -->
@@ -329,7 +324,7 @@ const userStore = useUserStore();
 const allColumns = ref([
   { prop: 'orderDate', label: '订单日期', width: 110, align: 'center', visible: true, sortable: true },
   { prop: 'productName', label: '品名', minWidth: 120, visible: true },
-  { prop: 'customerName', label: '客户', width: 120, visible: true },
+  { prop: 'customerName', label: '销售名称', width: 120, visible: true },
   { prop: 'imageUrl', label: '产品图片', width: 80, align: 'center', visible: true },
   { prop: 'dataImageUrl', label: '数据图', width: 80, align: 'center', visible: true },
   { prop: 'size', label: '手寸/长度', width: 100, visible: true },
@@ -374,7 +369,6 @@ const toggleAllColumns = (val) => {
 
 // 应用列设置
 const applyColumnSettings = () => {
-  // 保存到 localStorage
   const settings = {};
   allColumns.value.forEach(col => {
     settings[col.prop] = col.visible;
@@ -399,7 +393,6 @@ const loadColumnSettings = () => {
   } catch (e) {
     // ignore
   }
-  // 固定列
   allColumns.value.forEach(col => {
     if (fixedColumns.includes(col.prop)) {
       col.fixed = true;
@@ -414,23 +407,13 @@ const currentFlowOrderId = ref(0);
 const currentFlowOrderNo = ref('');
 const currentFlowStatus = ref('');
 
-// ===== 状态映射 =====
+// ===== 状态映射（根据你的流程节点） =====
 const statusMap = {
   draft: { text: '草稿', type: 'info' },
   pending: { text: '待客户审核', type: 'warning' },
   customerAudited: { text: '客户已审核', type: 'success' },
-  accepted: { text: '已接单', type: 'primary' },
-  dataConfirm: { text: '数据确认', type: 'primary' },
-  waxing: { text: '出蜡', type: 'primary' },
-  molded: { text: '倒模', type: 'primary' },
-  cnc: { text: 'CNC', type: 'primary' },
-  partsMissing: { text: '配件缺失', type: 'warning' },
-  stoneReady: { text: '配石完成', type: 'primary' },
-  setting: { text: '执模', type: 'primary' },
-  glue: { text: '滴胶/磨石', type: 'primary' },
-  inlay: { text: '镶嵌', type: 'primary' },
-  assembly: { text: '组装', type: 'primary' },
-  polishing: { text: '抛光', type: 'primary' },
+  factory_edit: { text: '工厂编辑中', type: 'primary' },
+  polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
   billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
@@ -511,6 +494,12 @@ const onPageChange = () => {
   loadData();
 };
 
+// ===== ⭐ 搜索（重置到第一页） =====
+const handleSearch = () => {
+  pagination.current = 1;
+  loadData();
+};
+
 // ===== 加载数据 =====
 const loadData = async () => {
   loading.value = true;
@@ -524,32 +513,44 @@ const loadData = async () => {
       descending: query.descending,
     };
 
+    // ⭐ 日期查询
     if (query.dateRange && query.dateRange.length === 2) {
       params.startDate = query.dateRange[0];
       params.endDate = query.dateRange[1];
     }
 
     const res = await getOrderList(params);
+    console.log('列表返回数据:', res);
+
     // 兼容多种返回格式
-    const data = res?.data || res || {};
-    // 判断数据结构：可能是 { items, total } 或直接是数组
+    let data = res?.data || res || {};
+    let list = [];
+    let total = 0;
+
     if (Array.isArray(data)) {
-      tableData.value = data;
-      pagination.total = data.length;
+      list = data;
+      total = data.length;
     } else if (data.items && Array.isArray(data.items)) {
-      tableData.value = data.items;
-      pagination.total = data.total || data.items.length;
+      list = data.items;
+      total = data.total || data.items.length;
     } else if (data.list && Array.isArray(data.list)) {
-      tableData.value = data.list;
-      pagination.total = data.total || data.list.length;
+      list = data.list;
+      total = data.total || data.list.length;
     } else if (data.rows && Array.isArray(data.rows)) {
-      tableData.value = data.rows;
-      pagination.total = data.count || data.rows.length;
+      list = data.rows;
+      total = data.count || data.rows.length;
+    } else if (data.data && Array.isArray(data.data)) {
+      list = data.data;
+      total = data.total || data.data.length;
     } else {
-      // 尝试直接赋值
-      tableData.value = Array.isArray(data) ? data : [];
-      pagination.total = tableData.value.length;
+      list = Array.isArray(data) ? data : [];
+      total = list.length;
     }
+
+    tableData.value = list;
+    pagination.total = total;
+
+    console.log(`加载完成: ${list.length} 条, 总计: ${total}`);
   } catch (error) {
     ElMessage.error(error.message || '加载数据失败');
     tableData.value = [];
@@ -696,8 +697,6 @@ onMounted(() => {
 :deep(.el-button.is-link) {
   padding: 0 4px;
 }
-
-/* 图片预览 - 使用 Element Plus 自带的预览功能，不会在表格内放大 */
 :deep(.el-image) {
   display: inline-block;
 }

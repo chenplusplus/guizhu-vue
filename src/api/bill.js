@@ -36,16 +36,19 @@ export const auditBill = (id, data) => {
   return api.post(`/bill/${id}/audit`, data);
 };
 
+export const getCustomerList = (params) => {
+  return api.get('/customer/list', { params });
+};
 // ===== 确认账单 =====
 export const confirmBill = (id) => {
   return api.post(`/bill/${id}/confirm`);
 };
 
 export const saveBillData = (data) => {
-  return request.put('/bill/update-details', data);
+  return api.put('/bill/update-details', data);
 };
 export const submitBillAudit = (id) => {
-  return request.post(`/bill/${id}/submit-audit`);
+  return api.post(`/bill/${id}/submit-audit`);
 };
 // ===== 退回账单 =====
 export const returnBill = (id, data) => {
@@ -72,7 +75,12 @@ export const exportBill = (id) => {
   return api.get(`/bill/export/${id}`, { responseType: 'blob' });
 };
 
-// src/api/bill.js
+
+// ⭐ 审批退回（工厂审核员）
+export const auditReturn = (id, data) => {
+  return api.post(`/bill/${id}/return-audit`, data);
+};
+
 export function getBillStats(params) {
   return request({
     url: '/api/bill/stats',

@@ -2,68 +2,143 @@
 <template>
   <el-drawer
     v-model="visible"
-    :title="`流程节点 - ${orderNo}`"
+    :title="`🕐 流程节点 - ${orderNo}`"
     direction="rtl"
-    size="480px"
+    size="520px"
     destroy-on-close
   >
     <div class="flow-drawer" v-loading="loading">
-      <!-- 当前状态 -->
+      <!-- ===== 当前状态 ===== -->
       <div class="flow-header">
         <span class="status-label">当前状态：</span>
-        <el-tag :type="statusTagType" size="large">{{ currentStepName }}</el-tag>
+        <el-tag :type="statusTagType" size="large">
+          {{ currentStepName }}
+        </el-tag>
+        <span v-if="billNo" class="bill-link" @click="goToBill">
+          📄 查看账单
+        </span>
       </div>
 
-      <!-- 纵向步骤 -->
-      <div class="flow-timeline">
+      <!-- ===== 操作记录 ===== -->
+      <div class="timeline-section">
+        <div class="section-title">
+          <span class="title-icon">📋</span>
+          操作记录
+          <span class="title-count">{{ historyList.length }} 条</span>
+        </div>
+
+        <div v-if="historyList.length === 0" class="empty-tip">
+          <el-empty description="暂无操作记录" :image-size="60" />
+        </div>
+
+        <!-- ⭐ 按时间从旧到新（上到下） -->
         <div
-          v-for="(step, index) in stepStatusList"
-          :key="step.key"
+          v-for="(item, index) in sortedHistoryList"
+          :key="item.id"
           class="timeline-item"
-          :class="{
-            'is-completed': step.status === 'completed',
-            'is-current': step.status === 'current',
-            'is-pending': step.status === 'pending'
-          }"
+          :class="{ 'is-last': index === sortedHistoryList.length - 1 }"
         >
           <!-- 连接线 -->
-          <div v-if="index > 0" class="timeline-line" :class="{ 'line-active': step.status !== 'pending' }" />
+          <div v-if="index < sortedHistoryList.length - 1" class="timeline-line" />
 
-          <!-- 节点 -->
-          <div class="timeline-node">
-            <el-icon v-if="step.status === 'completed'" class="node-icon"><Check /></el-icon>
-            <span v-else-if="step.status === 'current'" class="node-number current">{{ index + 1 }}</span>
-            <span v-else class="node-number pending">{{ index + 1 }}</span>
+          <!-- 节点图标 -->
+          <div class="timeline-node" :class="getNodeClass(index, sortedHistoryList.length)">
+            <el-icon v-if="index === 0" class="node-icon"><Check /></el-icon>
+            <span v-else class="node-dot" />
           </div>
 
           <!-- 内容 -->
           <div class="timeline-content">
             <div class="content-header">
-              <span class="step-name">{{ step.label }}</span>
-              <span class="step-badge">
-                <span v-if="step.status === 'completed'" class="badge-completed">✅ 已完成</span>
-                <span v-else-if="step.status === 'current'" class="badge-current">● 进行中</span>
-                <span v-else class="badge-pending">○ 待处理</span>
+              <span class="step-name">{{ item.actionName || item.actionKey }}</span>
+              <span class="step-time">{{ formatTime(item.createdAt) }}</span>
+            </div>
+            <div class="step-operator">
+              <span class="operator-icon">👤</span>
+              {{ item.operatorName || '系统' }}
+              <span v-if="item.operatorRole" class="operator-role">
+                · {{ getRoleLabel(item.operatorRole) }}
               </span>
             </div>
-            <!-- ⭐ 节点时间 -->
-            <div v-if="step.time" class="step-time">🕐 {{ step.time }}</div>
-            <div v-if="step.operator" class="step-operator">👤 {{ step.operator }}</div>
+            <div v-if="item.remark" class="step-remark">
+              💬 {{ item.remark }}
+            </div>
+            <!-- ⭐ 去掉状态变化显示 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 账单明细 ===== -->
+      <div v-if="billItems.length > 0" class="bill-section">
+        <div class="section-title">
+          <span class="title-icon">💰</span>
+          账单明细
+          <span v-if="billNo" class="bill-no">#{{ billNo }}</span>
+          <el-tag v-if="billStatus" :type="getBillStatusType(billStatus)" size="small">
+            {{ getBillStatusLabel(billStatus) }}
+          </el-tag>
+        </div>
+
+        <div class="bill-table">
+          <!-- 表头 -->
+          <div class="bill-header">
+            <span style="width:30px;">#</span>
+            <span style="flex:1;">品名</span>
+            <span style="width:50px;">数量</span>
+            <span style="width:80px;">金料费</span>
+            <span style="width:80px;">石费</span>
+            <span style="width:80px;">合计</span>
+          </div>
+
+          <!-- 明细行 -->
+          <div
+            v-for="item in billItems"
+            :key="item.id"
+            class="bill-row"
+            :class="{ 'is-returned': item.isReturned }"
+          >
+            <span style="width:30px;color:#8a9aaa;">{{ item.seqNo }}</span>
+            <span style="flex:1;" :title="item.productName">
+              {{ item.productName || '-' }}
+            </span>
+            <span style="width:50px;">{{ item.quantity || 1 }}</span>
+            <span style="width:80px;">¥{{ formatMoney(item.goldMaterialFee) }}</span>
+            <span style="width:80px;">¥{{ formatMoney((item.mainStoneAmount || 0) + (item.subStoneAmount || 0)) }}</span>
+            <span style="width:80px;font-weight:600;color:#409EFF;">
+              ¥{{ formatMoney(item.totalAmount) }}
+            </span>
+          </div>
+
+          <!-- 合计行 -->
+          <div class="bill-footer">
+            <span>合计</span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+            <span class="bill-total">¥{{ formatMoney(billTotalAmount) }}</span>
           </div>
         </div>
       </div>
 
       <!-- 无数据 -->
-      <el-empty v-if="stepStatusList.length === 0" description="暂无流程数据" :image-size="80" />
+      <el-empty
+        v-if="historyList.length === 0 && billItems.length === 0"
+        description="暂无流程数据"
+        :image-size="80"
+      />
     </div>
   </el-drawer>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Check } from '@element-plus/icons-vue';
-import { getOrderDetail } from '@/api/order';
+import { getOrderFlowWithBill } from '@/api/order';
+
+const router = useRouter();
 
 const props = defineProps({
   orderId: { type: Number, required: true },
@@ -74,140 +149,106 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'refresh']);
 
+// ===== 状态 =====
 const loading = ref(false);
 const visible = ref(false);
-const orderData = ref(null);
+const historyList = ref([]);
+const billItems = ref([]);
+const billNo = ref('');
+const billTotalAmount = ref(0);
+const billStatus = ref('');
+const currentStatus = ref('');
 
-// ===== 状态映射（第一个改成"下单"） =====
+// ===== 状态映射 =====
 const statusMap = {
-  pending: { label: '下单', color: 'info', step: 0 },
-  customerAudited: { label: '客户已审核', color: 'success', step: 1 },
-  accepted: { label: '已接单', color: 'primary', step: 2 },
-  dataConfirm: { label: '数据确认', color: 'primary', step: 3 },
-  waxing: { label: '出蜡', color: 'primary', step: 4 },
-  molded: { label: '倒模', color: 'primary', step: 5 },
-  cnc: { label: 'CNC', color: 'primary', step: 6 },
-  partsMissing: { label: '配件缺失', color: 'warning', step: 7 },
-  stoneReady: { label: '配石完成', color: 'primary', step: 8 },
-  setting: { label: '执模', color: 'primary', step: 9 },
-  glue: { label: '滴胶/磨石', color: 'primary', step: 10 },
-  inlay: { label: '镶嵌', color: 'primary', step: 11 },
-  assembly: { label: '组装', color: 'primary', step: 12 },
-  polishing: { label: '抛光', color: 'primary', step: 13 },
-  billPending: { label: '账单待审核', color: 'warning', step: 14 },
-  billConfirmed: { label: '客户已确认', color: 'success', step: 15 },
-  completed: { label: '已完成', color: 'success', step: 16 },
-  scrapped: { label: '已报废', color: 'danger', step: -1 },
-  rejected: { label: '已驳回', color: 'danger', step: -1 },
-  cancelled: { label: '已取消', color: 'info', step: -1 },
+  draft: { label: '草稿', color: 'info' },
+  pending: { label: '待客户审核', color: 'warning' },
+  customerAudited: { label: '客户已审核', color: 'success' },
+  accepted: { label: '已接单', color: 'primary' },
+  dataConfirm: { label: '数据确认', color: 'primary' },
+  waxing: { label: '出蜡', color: 'primary' },
+  molded: { label: '倒模', color: 'primary' },
+  cnc: { label: 'CNC', color: 'primary' },
+  partsMissing: { label: '配件缺失', color: 'warning' },
+  stoneReady: { label: '配石完成', color: 'primary' },
+  setting: { label: '执模', color: 'primary' },
+  glue: { label: '滴胶/磨石', color: 'primary' },
+  inlay: { label: '镶嵌', color: 'primary' },
+  assembly: { label: '组装', color: 'primary' },
+  polishing: { label: '抛光', color: 'primary' },
+  billPending: { label: '账单待审核', color: 'warning' },
+  billConfirmed: { label: '客户待确认', color: 'success' },
+  completed: { label: '已完成', color: 'success' },
+  rejected: { label: '已驳回', color: 'danger' },
+  cancelled: { label: '已取消', color: 'info' },
+  scrapped: { label: '已报废', color: 'danger' }
 };
 
-// 工厂流转顺序
-const factoryFlow = [
-  'accepted', 'dataConfirm', 'waxing', 'molded', 'cnc',
-  'partsMissing', 'stoneReady', 'setting', 'glue',
-  'inlay', 'assembly', 'polishing'
-];
+const billStatusMap = {
+  pending: { label: '草稿', type: 'info' },
+  billPending: { label: '待审核', type: 'warning' },
+  billConfirmed: { label: '待确认', type: 'success' },
+  confirmed: { label: '已确认', type: 'success' },
+  returned: { label: '已退回', type: 'danger' }
+};
 
-// ===== 步骤列表（带时间和操作人） =====
-const stepStatusList = computed(() => {
-  const status = orderData.value?.flowStatus || props.currentStatus || 'pending';
-  
-  const steps = [
-    { key: 'pending', label: '下单' },
-    { key: 'customerAudited', label: '客户已审核' },
-    ...factoryFlow.map(key => ({ key, label: statusMap[key]?.label || key })),
-    { key: 'billPending', label: '账单待审核' },
-    { key: 'billConfirmed', label: '客户已确认' },
-    { key: 'completed', label: '已完成' },
-  ];
-
-  const currentIdx = steps.findIndex(s => s.key === status);
-  const isAbnormal = ['scrapped', 'rejected', 'cancelled'].includes(status);
-
-  // ⭐ 模拟时间数据（实际应从后端获取）
-  const now = new Date();
-  const mockTimes = {
-    'pending': new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-    'customerAudited': new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
-    'accepted': new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000),
-    'dataConfirm': new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000),
-  };
-  const mockOperators = {
-    'pending': '张飞',
-    'customerAudited': '李四',
-    'accepted': '王五',
-  };
-
-  return steps.map((step, index) => {
-    let stepStatus = 'pending';
-    if (isAbnormal) {
-      stepStatus = index <= currentIdx ? 'completed' : 'pending';
-    } else if (index < currentIdx) {
-      stepStatus = 'completed';
-    } else if (index === currentIdx) {
-      stepStatus = 'current';
-    } else {
-      stepStatus = 'pending';
-    }
-
-    // ⭐ 根据状态生成时间
-    let time = null;
-    let operator = null;
-    
-    // 如果已完成或当前，显示时间
-    if (stepStatus === 'completed' || stepStatus === 'current') {
-      // 从 orderData 中获取实际时间（如果有）
-      const statusKey = step.key;
-      if (orderData.value) {
-        // 根据状态获取对应的时间字段
-        const timeMap = {
-          'pending': orderData.value.createdAt,
-          'customerAudited': orderData.value.customerAuditedAt,
-          'accepted': orderData.value.acceptedAt,
-        };
-        const rawTime = timeMap[statusKey];
-        if (rawTime) {
-          time = formatTime(rawTime);
-        } else {
-          // 模拟时间
-          const mockTime = mockTimes[statusKey];
-          if (mockTime) {
-            time = formatTime(mockTime);
-          }
-        }
-      }
-      
-      // 操作人（从 orderData 获取或模拟）
-      if (orderData.value) {
-        const operatorMap = {
-          'pending': orderData.value.submittedByName || '张飞',
-          'customerAudited': orderData.value.customerAuditedByName || '李四',
-          'accepted': orderData.value.acceptedByName || '王五',
-        };
-        operator = operatorMap[step.key] || mockOperators[step.key] || '系统';
-      }
-    }
-
-    return { ...step, status: stepStatus, time, operator };
-  });
-});
-
+// ===== 计算属性 =====
 const currentStepName = computed(() => {
-  const status = orderData.value?.flowStatus || props.currentStatus || 'pending';
+  const status = currentStatus.value || props.currentStatus || 'draft';
   return statusMap[status]?.label || status;
 });
 
 const statusTagType = computed(() => {
-  const status = orderData.value?.flowStatus || props.currentStatus || 'pending';
+  const status = currentStatus.value || props.currentStatus || 'draft';
   return statusMap[status]?.color || 'info';
 });
 
-// ===== 格式化时间 =====
+// ⭐ 按时间从旧到新排序（正序）
+const sortedHistoryList = computed(() => {
+  return [...historyList.value].sort((a, b) => {
+    return new Date(a.createdAt) - new Date(b.createdAt);
+  });
+});
+
+// ===== 方法 =====
+const getNodeClass = (index, total) => {
+  if (index === 0) return 'completed';
+  if (index === total - 1) return 'latest';
+  return 'normal';
+};
+
+const getRoleLabel = (role) => {
+  const map = {
+    customer: '客户',
+    customerAudit: '客户审核员',
+    factoryOrder: '工厂业务员',
+    factoryAudit: '工厂审核员',
+    admin: '管理员'
+  };
+  return map[role] || role;
+};
+
+const getBillStatusLabel = (status) => {
+  return billStatusMap[status]?.label || status;
+};
+
+const getBillStatusType = (status) => {
+  return billStatusMap[status]?.type || 'info';
+};
+
 const formatTime = (date) => {
-  if (!date) return null;
+  if (!date) return '-';
   const d = new Date(date);
   return d.toLocaleString('zh-CN', { hour12: false });
+};
+
+const formatMoney = (val) => {
+  if (val === null || val === undefined) return '0.00';
+  return val.toFixed(2);
+};
+
+const goToBill = () => {
+  ElMessage.info('跳转到账单详情');
 };
 
 // ===== 加载数据 =====
@@ -215,12 +256,18 @@ const loadFlowData = async () => {
   if (!props.orderId) return;
   loading.value = true;
   try {
-    const res = await getOrderDetail(props.orderId);
+    const res = await getOrderFlowWithBill(props.orderId);
     if (res?.data) {
-      orderData.value = res.data;
+      const data = res.data;
+      historyList.value = data.history || [];
+      billItems.value = data.billItems || [];
+      billNo.value = data.billNo || '';
+      billTotalAmount.value = data.billTotalAmount || 0;
+      billStatus.value = data.billStatus || '';
+      currentStatus.value = data.currentStatus || props.currentStatus || 'draft';
     }
-  } catch {
-    ElMessage.error('加载流程数据失败');
+  } catch (error) {
+    ElMessage.error(error.message || '加载流程数据失败');
   } finally {
     loading.value = false;
   }
@@ -235,187 +282,283 @@ watch(() => props.modelValue, (val) => {
 watch(visible, (val) => emit('update:modelValue', val));
 
 watch(() => props.currentStatus, (val) => {
-  if (val && orderData.value) {
-    orderData.value.flowStatus = val;
-  }
+  if (val) currentStatus.value = val;
 });
 </script>
 
 <style scoped>
+/* ===== 整体 ===== */
 .flow-drawer {
-  padding: 8px 4px;
-  max-height: 70vh;
+  padding: 4px 0;
+  max-height: 75vh;
   overflow-y: auto;
 }
 
+/* ===== 头部 ===== */
 .flow-header {
   display: flex;
   align-items: center;
-  padding: 12px 0 20px 0;
+  padding: 8px 0 16px 0;
   gap: 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid #e8f0fe;
 }
 
 .status-label {
   font-weight: 500;
-  color: #606266;
+  color: #5a6b8a;
+  font-size: 14px;
 }
 
-/* ===== 纵向时间线 ===== */
-.flow-timeline {
-  padding: 16px 0 8px 0;
+.bill-link {
+  margin-left: auto;
+  color: #409EFF;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 12px;
+  border-radius: 4px;
+  background: #ecf5ff;
+  transition: background 0.2s;
+}
+.bill-link:hover {
+  background: #d9ecff;
+}
+
+/* ===== 区块标题 ===== */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2a3a5a;
+  padding: 16px 0 10px 0;
+  border-bottom: 1px solid #e8f0fe;
+  margin-top: 4px;
+}
+
+.title-icon {
+  font-size: 16px;
+}
+
+.title-count {
+  font-size: 12px;
+  font-weight: 400;
+  color: #8a9aaa;
+  margin-left: auto;
+}
+
+.bill-no {
+  font-size: 12px;
+  font-weight: 400;
+  color: #6a8aaa;
+  background: #f0f6ff;
+  padding: 0 10px;
+  border-radius: 4px;
+}
+
+/* ===== 时间线 ===== */
+.timeline-section {
+  padding-bottom: 4px;
 }
 
 .timeline-item {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding-bottom: 20px;
+  gap: 14px;
+  padding: 10px 0 12px 0;
   position: relative;
-  padding-left: 4px;
+  padding-left: 2px;
 }
 
-/* 连接线 */
 .timeline-line {
   position: absolute;
-  left: 15px;
-  top: 32px;
+  left: 10px;
+  top: 28px;
   width: 2px;
-  height: calc(100% - 12px);
-  background: #e8ecf1;
-  z-index: 0;
+  height: calc(100% + 4px);
+  background: #e0e8f0;
 }
 
-.timeline-line.line-active {
-  background: #67C23A;
+.timeline-item.is-last .timeline-line {
+  display: none;
 }
 
-/* 节点圆圈 */
+/* 节点 */
 .timeline-node {
-  width: 32px;
-  height: 32px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
   z-index: 1;
-  border: 2px solid #dcdfe6;
-  background: #f5f7fa;
-  transition: all 0.3s;
+  margin-top: 2px;
 }
 
-.timeline-item.is-completed .timeline-node {
-  background: #67C23A;
-  border-color: #67C23A;
-}
-
-.timeline-item.is-current .timeline-node {
+.timeline-node.completed {
   background: #409EFF;
-  border-color: #409EFF;
-  box-shadow: 0 0 0 4px rgba(64, 158, 255, 0.2);
-  transform: scale(1.05);
 }
 
-.timeline-item.is-pending .timeline-node {
-  background: #f5f7fa;
-  border-color: #dcdfe6;
+.timeline-node.normal {
+  background: #d4e2f0;
+}
+
+.timeline-node.latest {
+  background: #409EFF;
+  box-shadow: 0 0 0 3px rgba(64, 158, 255, 0.2);
+}
+
+.node-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
 }
 
 .node-icon {
   color: #fff;
-  font-size: 16px;
+  font-size: 13px;
 }
 
-.node-number {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.node-number.current {
-  color: #fff;
-}
-
-.node-number.pending {
-  color: #c0c4cc;
-}
-
-/* 内容区域 */
+/* 内容 */
 .timeline-content {
   flex: 1;
-  padding-top: 2px;
   min-width: 0;
+  padding-top: 1px;
 }
 
 .content-header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
 
 .step-name {
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
-}
-
-.step-badge {
-  font-size: 12px;
-}
-
-.badge-completed {
-  color: #67C23A;
-}
-
-.badge-current {
-  color: #409EFF;
-  font-weight: 600;
-}
-
-.badge-pending {
-  color: #c0c4cc;
+  color: #2a3a5a;
 }
 
 .step-time {
   font-size: 12px;
-  color: #909399;
-  margin-top: 2px;
+  color: #8a9aaa;
+  white-space: nowrap;
 }
 
 .step-operator {
   font-size: 12px;
-  color: #909399;
+  color: #6a8aaa;
   margin-top: 2px;
 }
 
-/* 已完成项的样式 */
-.timeline-item.is-completed .step-name {
-  color: #67C23A;
+.operator-role {
+  color: #8a9aaa;
 }
 
-/* 当前项的样式 */
-.timeline-item.is-current .step-name {
-  color: #409EFF;
+.step-remark {
+  font-size: 12px;
+  color: #5a7a9a;
+  background: #f5f9ff;
+  padding: 4px 12px;
+  border-radius: 4px;
+  margin-top: 4px;
+  display: inline-block;
+  max-width: 100%;
+  word-break: break-all;
+}
+
+.empty-tip {
+  padding: 16px 0;
+}
+
+/* ===== 账单 ===== */
+.bill-section {
+  margin-top: 4px;
+  border-top: 1px solid #e8f0fe;
+}
+
+.bill-table {
+  background: #f8faff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-top: 6px;
+}
+
+.bill-header {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
   font-weight: 600;
+  color: #6a7a8a;
+  padding: 6px 0;
+  border-bottom: 1px solid #e8f0fe;
 }
 
-/* 待处理项的样式 */
-.timeline-item.is-pending .step-name {
-  color: #999;
+.bill-row {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: #2a3a5a;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f6ff;
+  align-items: center;
 }
 
-/* 滚动条 */
+.bill-row:last-child {
+  border-bottom: none;
+}
+
+.bill-row.is-returned {
+  opacity: 0.6;
+  text-decoration: line-through;
+  color: #8a9aaa;
+}
+
+.bill-footer {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0 4px 0;
+  border-top: 2px solid #e0e8f0;
+  font-weight: 600;
+  font-size: 14px;
+  color: #2a3a5a;
+  align-items: center;
+}
+
+.bill-footer > span {
+  flex: 0 0 auto;
+}
+.bill-footer > span:first-child {
+  width: 30px;
+}
+.bill-footer > span:nth-child(2) {
+  flex: 1;
+}
+.bill-footer > span:nth-child(3) {
+  width: 50px;
+}
+.bill-footer > span:nth-child(4) {
+  width: 80px;
+}
+.bill-footer > span:nth-child(5) {
+  width: 80px;
+}
+
+.bill-total {
+  width: 80px !important;
+  color: #409EFF;
+  font-size: 16px;
+}
+
+/* ===== 滚动条 ===== */
 .flow-drawer::-webkit-scrollbar {
   width: 4px;
 }
-
 .flow-drawer::-webkit-scrollbar-thumb {
-  background: #d0d5dd;
+  background: #d4e2f0;
   border-radius: 2px;
 }
-
 .flow-drawer::-webkit-scrollbar-track {
   background: transparent;
 }

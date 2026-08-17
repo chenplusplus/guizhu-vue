@@ -3,11 +3,12 @@
   <div class="page-container">
     <div class="page-header">
       <h2>✅ 客户订单审核</h2>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <el-button
           v-if="selectedOrders.length > 0"
           type="success"
           @click="handleBatchAudit(true)"
+          :loading="batchLoading"
         >
           批量通过 ({{ selectedOrders.length }})
         </el-button>
@@ -15,6 +16,7 @@
           v-if="selectedOrders.length > 0"
           type="danger"
           @click="handleBatchAudit(false)"
+          :loading="batchLoading"
         >
           批量驳回 ({{ selectedOrders.length }})
         </el-button>
@@ -30,27 +32,11 @@
         <el-form-item label="关键词">
           <el-input
             v-model="search.keyword"
-            placeholder="订单号/品名/客户"
+            placeholder="订单号/品名"
             clearable
             style="width: 180px;"
+            @keyup.enter="loadData"
           />
-        </el-form-item>
-
-        <el-form-item label="客户">
-          <el-select
-            v-model="search.customerId"
-            placeholder="全部客户"
-            clearable
-            filterable
-            style="width: 150px;"
-          >
-            <el-option
-              v-for="item in customerList"
-              :key="item.customerId"
-              :label="item.customerName"
-              :value="item.customerId"
-            />
-          </el-select>
         </el-form-item>
 
         <el-form-item label="日期">
@@ -65,6 +51,14 @@
           />
         </el-form-item>
 
+        <el-form-item label="状态">
+          <el-select v-model="search.status" placeholder="全部状态" clearable style="width: 140px;">
+            <el-option label="待审核" value="pending" />
+            <el-option label="已审核" value="customerAudited" />
+            <el-option label="已驳回" value="rejected" />
+          </el-select>
+        </el-form-item>
+
         <el-form-item>
           <el-button type="primary" @click="loadData">
             <el-icon><Search /></el-icon> 查询
@@ -76,22 +70,6 @@
       </el-form>
     </div>
 
-    <!-- 统计 -->
-    <el-row :gutter="12" style="margin-bottom: 16px;">
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #E6A23C;">
-          <div class="stat-number">{{ tableData.length }}</div>
-          <div class="stat-label">待审核</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #409EFF;">
-          <div class="stat-number">{{ selectedOrders.length }}</div>
-          <div class="stat-label">已选</div>
-        </div>
-      </el-col>
-    </el-row>
-
     <!-- 表格 -->
     <el-table
       ref="tableRef"
@@ -100,10 +78,10 @@
       border
       stripe
       @selection-change="handleSelectionChange"
-      @row-click="viewDetail"
+      @row-click="handleRowClick"
       row-key="orderId"
     >
-      <el-table-column type="selection" width="50" align="center" />
+      <el-table-column type="selection" width="50" align="center" :selectable="checkSelectable" />
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
@@ -133,6 +111,7 @@
             style="width: 50px; height: 50px; border-radius: 4px; cursor: pointer;"
             :preview-src-list="[row.imageUrl]"
             preview-teleported
+            @click.stop
           />
           <span v-else style="color: #ccc; font-size: 12px;">无图</span>
         </template>
@@ -160,7 +139,7 @@
 
       <el-table-column prop="url" label="网址" min-width="120">
         <template #default="{ row }">
-          <a v-if="row.url" :href="row.url" target="_blank" style="color: #409EFF; text-decoration: none;">
+          <a v-if="row.url" :href="row.url" target="_blank" style="color: #409EFF; text-decoration: none;" @click.stop>
             查看链接
           </a>
           <span v-else style="color: #ccc;">-</span>
@@ -174,20 +153,31 @@
         </template>
       </el-table-column>
 
+      <el-table-column prop="flowStatus" label="状态" width="110" align="center">
+        <template #default="{ row }">
+          <el-tag :type="getStatusType(row.flowStatus)" size="small">
+            {{ getStatusText(row.flowStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="createdAt" label="提交时间" width="160">
         <template #default="{ row }">
           {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="170" fixed="right" align="center">
+      <el-table-column label="操作" width="220" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button size="small" type="success" @click.stop="handleAudit(row, true)">
-            通过
-          </el-button>
-          <el-button size="small" type="danger" @click.stop="handleAudit(row, false)">
-            驳回
-          </el-button>
+          <!-- 只有待审核状态才显示审核按钮 -->
+          <template v-if="row.flowStatus === 'pending'">
+            <el-button size="small" type="success" @click.stop="handleAudit(row, true)">
+              通过
+            </el-button>
+            <el-button size="small" type="danger" @click.stop="handleAudit(row, false)">
+              驳回
+            </el-button>
+          </template>
           <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
             查看
           </el-button>
@@ -195,15 +185,17 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-if="!loading && tableData.length === 0" description="暂无待审核订单" />
+    <el-empty v-if="!loading && tableData.length === 0" description="暂无审核数据" />
 
     <!-- 分页 -->
     <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
       <el-pagination
         v-model:current-page="pagination.current"
         v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="pagination.total"
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="loadData"
         @current-change="loadData"
       />
     </div>
@@ -236,13 +228,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, auditOrder } from '@/api/order';
-import { getCustomerList } from '@/api/customer';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -251,12 +242,13 @@ const tableRef = ref();
 
 const loading = ref(false);
 const rejectLoading = ref(false);
+const batchLoading = ref(false);
 const tableData = ref([]);
 const selectedOrders = ref([]);
 const rejectDialogVisible = ref(false);
 const rejectReason = ref('');
 const currentOrder = ref(null);
-const customerList = ref([]);
+const isBatchReject = ref(false);
 
 // 流程抽屉
 const flowDrawerVisible = ref(false);
@@ -264,9 +256,14 @@ const currentFlowOrderId = ref(0);
 const currentFlowOrderNo = ref('');
 const currentFlowStatus = ref('');
 
+// 当前用户绑定的客户ID
+const currentCustomerId = computed(() => {
+  return userStore.userInfo?.customerId || null;
+});
+
 const search = reactive({
   keyword: '',
-  customerId: '',
+  status: '', // 空 = 全部，pending = 待审核，customerAudited = 已审核，rejected = 已驳回
   dateRange: [],
 });
 
@@ -278,23 +275,27 @@ const pagination = reactive({
 
 // ===== 状态映射 =====
 const statusMap = {
-  pending: { text: '待客户审核', type: 'warning' },
-  customerAudited: { text: '客户已审核', type: 'success' },
+  pending: { text: '待审核', type: 'warning' },
+  customerAudited: { text: '已审核', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
+  draft: { text: '草稿', type: 'info' },
 };
 
 const getStatusText = (status) => statusMap[status]?.text || status;
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
-// ===== 加载客户列表 =====
-const loadCustomers = async () => {
-  try {
-    const res = await getCustomerList({ includeInactive: false });
-    customerList.value = res?.data || [];
-  } catch {
-    customerList.value = [];
-  }
+// ===== 行点击 - 打开流程抽屉 =====
+const handleRowClick = (row) => {
+  currentFlowOrderId.value = row.orderId;
+  currentFlowOrderNo.value = row.orderNo;
+  currentFlowStatus.value = row.flowStatus;
+  flowDrawerVisible.value = true;
+};
+
+// ===== 是否可勾选（只有待审核的才能选中） =====
+const checkSelectable = (row) => {
+  return row.flowStatus === 'pending';
 };
 
 // ===== 加载数据 =====
@@ -302,9 +303,9 @@ const loadData = async () => {
   loading.value = true;
   try {
     const params = {
-      status: 'pending',
       keyword: search.keyword || undefined,
-      customerId: search.customerId || undefined,
+      status: search.status || undefined,
+      customerId: currentCustomerId.value || undefined,
       page: pagination.current,
       pageSize: pagination.pageSize,
     };
@@ -316,10 +317,28 @@ const loadData = async () => {
 
     const res = await getOrderList(params);
     const data = res?.data || res || {};
-    tableData.value = data.items || data || [];
-    pagination.total = data.total || tableData.value.length;
-  } catch {
-    ElMessage.error('加载数据失败');
+
+    // 兼容多种返回格式
+    if (Array.isArray(data)) {
+      tableData.value = data;
+      pagination.total = data.length;
+    } else if (data.items && Array.isArray(data.items)) {
+      tableData.value = data.items;
+      pagination.total = data.total || data.items.length;
+    } else if (data.list && Array.isArray(data.list)) {
+      tableData.value = data.list;
+      pagination.total = data.total || data.list.length;
+    } else if (data.data && Array.isArray(data.data)) {
+      tableData.value = data.data;
+      pagination.total = data.total || data.data.length;
+    } else {
+      tableData.value = [];
+      pagination.total = 0;
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '加载数据失败');
+    tableData.value = [];
+    pagination.total = 0;
   } finally {
     loading.value = false;
   }
@@ -327,7 +346,7 @@ const loadData = async () => {
 
 const resetSearch = () => {
   search.keyword = '';
-  search.customerId = '';
+  search.status = '';
   search.dateRange = [];
   pagination.current = 1;
   loadData();
@@ -347,6 +366,7 @@ const viewDetail = (id) => {
 const handleAudit = (row, approved) => {
   currentOrder.value = row;
   if (!approved) {
+    isBatchReject.value = false;
     rejectReason.value = '';
     rejectDialogVisible.value = true;
   } else {
@@ -356,47 +376,60 @@ const handleAudit = (row, approved) => {
 
 // ===== 批量审核 =====
 const handleBatchAudit = async (approved) => {
-  if (selectedOrders.value.length === 0) {
-    ElMessage.warning('请至少选择一个订单');
+  const pendingOrders = selectedOrders.value.filter(row => row.flowStatus === 'pending');
+  
+  if (pendingOrders.length === 0) {
+    ElMessage.warning('请至少选择一个待审核的订单');
     return;
   }
 
   if (!approved) {
+    isBatchReject.value = true;
+    currentOrder.value = { orders: pendingOrders };
     rejectReason.value = '';
     rejectDialogVisible.value = true;
-    // 暂存批量驳回的订单列表
-    currentOrder.value = { batch: true, orders: selectedOrders.value };
     return;
   }
 
   // 批量通过
   try {
     await ElMessageBox.confirm(
-      `确定要通过 ${selectedOrders.value.length} 个订单吗？`,
+      `确定要通过 ${pendingOrders.length} 个订单吗？`,
       '批量通过',
       { type: 'info' }
     );
+    
+    batchLoading.value = true;
     let successCount = 0;
     let failCount = 0;
+    const failList = [];
 
-    for (const order of selectedOrders.value) {
+    for (const order of pendingOrders) {
       try {
         await auditOrder(order.orderId, { approved: true, remark: '' });
         successCount++;
-      } catch {
+      } catch (error) {
         failCount++;
+        failList.push(order.orderNo);
       }
     }
 
-    if (successCount > 0 && failCount === 0) {
-      ElMessage.success(`${successCount} 个订单审核通过`);
-    } else if (successCount > 0 && failCount > 0) {
-      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
+    if (successCount > 0) {
+      ElMessage.success(`成功通过 ${successCount} 个订单${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+      if (failList.length > 0) {
+        ElMessage.warning(`失败订单: ${failList.join(', ')}`);
+      }
     } else {
       ElMessage.error('全部失败');
     }
     loadData();
-  } catch {}
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '批量操作失败');
+    }
+  } finally {
+    batchLoading.value = false;
+  }
 };
 
 // ============================================================
@@ -411,10 +444,11 @@ const confirmReject = async () => {
   rejectLoading.value = true;
   try {
     // 批量驳回
-    if (currentOrder.value?.batch) {
+    if (isBatchReject.value && currentOrder.value?.orders) {
       const orders = currentOrder.value.orders;
       let successCount = 0;
       let failCount = 0;
+      const failList = [];
 
       for (const order of orders) {
         try {
@@ -423,15 +457,17 @@ const confirmReject = async () => {
             remark: rejectReason.value,
           });
           successCount++;
-        } catch {
+        } catch (error) {
           failCount++;
+          failList.push(order.orderNo);
         }
       }
 
-      if (successCount > 0 && failCount === 0) {
-        ElMessage.success(`${successCount} 个订单已驳回`);
-      } else if (successCount > 0 && failCount > 0) {
-        ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
+      if (successCount > 0) {
+        ElMessage.success(`成功驳回 ${successCount} 个订单${failCount > 0 ? `，失败 ${failCount} 个` : ''}`);
+        if (failList.length > 0) {
+          ElMessage.warning(`失败订单: ${failList.join(', ')}`);
+        }
       } else {
         ElMessage.error('全部失败');
       }
@@ -443,6 +479,7 @@ const confirmReject = async () => {
     rejectDialogVisible.value = false;
     rejectReason.value = '';
     currentOrder.value = null;
+    isBatchReject.value = false;
     loadData();
   } finally {
     rejectLoading.value = false;
@@ -473,7 +510,11 @@ const formatDateTime = (date) => {
 
 // ===== 初始化 =====
 onMounted(() => {
-  loadCustomers();
+  // 默认日期：今天
+  const today = new Date();
+  const todayStr = formatDate(today);
+  search.dateRange = [todayStr, todayStr];
+  
   loadData();
 });
 </script>
@@ -491,6 +532,8 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 .page-header h2 {
   font-size: 18px;
@@ -507,22 +550,8 @@ onMounted(() => {
 .search-bar :deep(.el-form-item) {
   margin-bottom: 0;
 }
-
-.stat-card {
-  background: #fafafa;
-  padding: 12px 16px;
-  border-radius: 6px;
-  border-left: 4px solid #ddd;
-}
-.stat-card .stat-number {
-  font-size: 22px;
-  font-weight: bold;
-  color: #303133;
-}
-.stat-card .stat-label {
-  font-size: 13px;
-  color: #909399;
-  margin-top: 4px;
+.search-bar :deep(.el-form-item:last-child) {
+  margin-left: 8px;
 }
 
 :deep(.el-table .cell) {

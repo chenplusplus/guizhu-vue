@@ -98,6 +98,10 @@ export const getStatusCount = (customerId) => {
 export const submitOrder = (id) => {
   return  api.post(`/order/${id}/submit`);
 }; 
+
+export const getOrderFlowWithBill = (id) => {
+  return api.get(`/order/${id}/flow-with-bill`);
+};
 // src/api/order.js
 export function getBillPendingOrders(params) {
   return request({
@@ -105,4 +109,6 @@ export function getBillPendingOrders(params) {
     method: 'get',
     params
   });
+
+
 }
