@@ -70,11 +70,16 @@ export const returnBillItem = (data) => {
   return api.post('/bill/return-item', data);
 };
 
-// 导出账单Excel
-export const exportBill = (id) => {
-  return api.get(`/bill/export/${id}`, { responseType: 'blob' });
-};
 
+// ===== 导出账单Excel =====
+export const exportBill = (id) => {
+  return request({
+    url: `/api/bill/export/${id}`,
+    method: 'get',
+    responseType: 'blob',
+    timeout: 60000,
+  });
+};
 
 // ⭐ 审批退回（工厂审核员）
 export const auditReturn = (id, data) => {

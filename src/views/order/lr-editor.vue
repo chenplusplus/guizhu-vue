@@ -57,153 +57,154 @@
             size="small"
             style="width:100%;"
             :row-class-name="rowClassName"
-            :header-cell-style="headerStyle"
+            :header-cell-style="headerCellStyle"
             max-height="550"
+            @cell-edit="handleCellEdit"
           >
-            <!-- 基础列 -->
+            <!-- 基础列 - 全部居中 -->
             <el-table-column prop="serialNo" label="流水单号" width="100" align="center" />
             <el-table-column prop="seqDisplay" label="序号" width="55" align="center" />
-            <el-table-column prop="productName" label="品名" min-width="110" />
-            <el-table-column prop="customerName" label="客户" width="90" />
+            <el-table-column prop="productName" label="品名" min-width="110" align="center" />
+            <el-table-column prop="customerName" label="客户" width="90" align="center" />
             <el-table-column prop="diamondLevel" label="钻石级别" width="85" align="center" />
             <el-table-column prop="color" label="颜色" width="60" align="center" />
             <el-table-column prop="quantity" label="件数" width="55" align="center" />
             <el-table-column prop="size" label="手寸/长度" width="85" align="center" />
 
-            <!-- 工厂数据列（成本行可编辑） -->
-            <el-table-column prop="totalWeight" label="总重" width="75" align="right">
+            <!-- 工厂数据列 - 全部居中 -->
+            <el-table-column prop="totalWeight" label="总重" width="75" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.totalWeight" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.totalWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.totalWeight || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="netWeight" label="净重" width="75" align="right">
+            <el-table-column prop="netWeight" label="净重" width="75" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.netWeight" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.netWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.netWeight || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="lossRate" label="损耗" width="65" align="right">
+            <el-table-column prop="lossRate" label="损耗" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.lossRate" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.lossRate" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.lossRate || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="addLossWeight" label="加耗重" width="75" align="right">
+            <el-table-column prop="addLossWeight" label="加耗重" width="75" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.addLossWeight" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.addLossWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.addLossWeight || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="goldPrice" label="金价" width="70" align="right">
+            <el-table-column prop="goldPrice" label="金价" width="70" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.goldPrice" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.goldPrice" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.goldPrice || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="right">
+            <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.goldMaterialFee" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.goldMaterialFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.goldMaterialFee || '-' }}</span>
               </template>
             </el-table-column>
 
-            <!-- 主石 -->
+            <!-- 主石 - 全部居中 -->
             <el-table-column label="主石" align="center">
               <el-table-column prop="stoneQty" label="粒数" width="50" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneQty" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneQty || 0 }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stoneWeight" label="石重(ct)" width="75" align="right">
+              <el-table-column prop="stoneWeight" label="石重(ct)" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneWeight" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneWeight || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stonePrice" label="单价(元)" width="75" align="right">
+              <el-table-column prop="stonePrice" label="单价(元)" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stonePrice" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stonePrice" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stonePrice || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stoneAmount" label="金额(元)" width="85" align="right">
+              <el-table-column prop="stoneAmount" label="金额(元)" width="85" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneAmount" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneAmount || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stoneSettingFee" label="镶石工费" width="80" align="right">
+              <el-table-column prop="stoneSettingFee" label="镶石工费" width="80" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneSettingFee" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneSettingFee || '-' }}</span>
                 </template>
               </el-table-column>
             </el-table-column>
 
-            <!-- 副石 -->
+            <!-- 副石 - 全部居中 -->
             <el-table-column label="副石" align="center">
               <el-table-column prop="subStoneQty" label="粒数" width="50" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneQty" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneQty || 0 }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStoneWeight" label="石重" width="65" align="right">
+              <el-table-column prop="subStoneWeight" label="石重" width="65" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneWeight" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneWeight || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStonePrice" label="单价(元)" width="75" align="right">
+              <el-table-column prop="subStonePrice" label="单价(元)" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStonePrice" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStonePrice" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStonePrice || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="right">
+              <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneAmount" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneAmount || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStoneSettingFee" label="镶石工费" width="80" align="right">
+              <el-table-column prop="subStoneSettingFee" label="镶石工费" width="80" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneSettingFee" size="small" class="cell-input" @input="recalcRow(row)" />
+                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneSettingFee || '-' }}</span>
                 </template>
               </el-table-column>
             </el-table-column>
 
-            <!-- 尾部 -->
-            <el-table-column prop="packingFee" label="包装证书" width="80" align="right">
+            <!-- 尾部 - 全部居中 -->
+            <el-table-column prop="packingFee" label="包装证书" width="80" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.packingFee" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.packingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.packingFee || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="moldFee" label="版费" width="65" align="right">
+            <el-table-column prop="moldFee" label="版费" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.moldFee" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.moldFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.moldFee || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="laborFee" label="工费" width="65" align="right">
+            <el-table-column prop="laborFee" label="工费" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.laborFee" size="small" class="cell-input" @input="recalcRow(row)" />
+                <el-input v-if="row.rowType === 'cost'" v-model.number="row.laborFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.laborFee || '-' }}</span>
               </template>
             </el-table-column>
 
-            <el-table-column prop="totalAmount" label="应收金额" width="95" align="right">
+            <el-table-column prop="totalAmount" label="应收金额" width="95" align="center">
               <template #default="{ row }">
                 <span style="color:#E6A23C;font-weight:bold;">{{ (row.totalAmount || 0).toFixed(2) }}</span>
               </template>
@@ -222,40 +223,40 @@
 
       <div class="section-divider"></div>
 
-      <!-- 汇总统计 -->
+      <!-- ===== 汇总统计（按成色）- 自动更新 ===== -->
       <div class="summary-section">
         <div class="section-title">📊 汇总统计（按成色）</div>
-        <el-table :data="summaryRows" border size="small" :header-cell-style="headerStyle" style="width:100%;">
+        <el-table :data="summaryRows" border size="small" :header-cell-style="headerCellStyle" style="width:100%;">
           <el-table-column prop="color" label="成色" width="70" align="center" />
-          <el-table-column prop="prevNetWeight" label="上单净重" width="100" align="right" />
-          <el-table-column prop="currNetWeight" label="本单净重" width="100" align="right" />
-          <el-table-column prop="totalNetWeight" label="累计净重" width="100" align="right">
+          <el-table-column prop="prevNetWeight" label="上单净重" width="100" align="center" />
+          <el-table-column prop="currNetWeight" label="本单净重" width="100" align="center" />
+          <el-table-column prop="totalNetWeight" label="累计净重" width="100" align="center">
             <template #default="{ row }"><span class="highlight-cell">{{ row.totalNetWeight }}</span></template>
           </el-table-column>
-          <el-table-column prop="prevAddLoss" label="上单加耗重" width="110" align="right" />
-          <el-table-column prop="currAddLoss" label="本单加耗重" width="110" align="right" />
-          <el-table-column prop="totalAddLoss" label="累计加耗重" width="110" align="right">
+          <el-table-column prop="prevAddLoss" label="上单加耗重" width="110" align="center" />
+          <el-table-column prop="currAddLoss" label="本单加耗重" width="110" align="center" />
+          <el-table-column prop="totalAddLoss" label="累计加耗重" width="110" align="center">
             <template #default="{ row }"><span class="highlight-cell">{{ row.totalAddLoss }}</span></template>
           </el-table-column>
           <el-table-column label="钻石利润" align="center">
-            <el-table-column prop="prevDiamondProfit" label="上单" width="85" align="right" />
-            <el-table-column prop="currDiamondProfit" label="本单" width="85" align="right" />
-            <el-table-column prop="totalDiamondProfit" label="累计" width="85" align="right" />
+            <el-table-column prop="prevDiamondProfit" label="上单" width="85" align="center" />
+            <el-table-column prop="currDiamondProfit" label="本单" width="85" align="center" />
+            <el-table-column prop="totalDiamondProfit" label="累计" width="85" align="center" />
           </el-table-column>
           <el-table-column label="镶石利润" align="center">
-            <el-table-column prop="prevSettingProfit" label="上单" width="85" align="right" />
-            <el-table-column prop="currSettingProfit" label="本单" width="85" align="right" />
-            <el-table-column prop="totalSettingProfit" label="累计" width="85" align="right" />
+            <el-table-column prop="prevSettingProfit" label="上单" width="85" align="center" />
+            <el-table-column prop="currSettingProfit" label="本单" width="85" align="center" />
+            <el-table-column prop="totalSettingProfit" label="累计" width="85" align="center" />
           </el-table-column>
           <el-table-column label="工费利润" align="center">
-            <el-table-column prop="prevLaborProfit" label="上单" width="85" align="right" />
-            <el-table-column prop="currLaborProfit" label="本单" width="85" align="right" />
-            <el-table-column prop="totalLaborProfit" label="累计" width="85" align="right" />
+            <el-table-column prop="prevLaborProfit" label="上单" width="85" align="center" />
+            <el-table-column prop="currLaborProfit" label="本单" width="85" align="center" />
+            <el-table-column prop="totalLaborProfit" label="累计" width="85" align="center" />
           </el-table-column>
           <el-table-column label="应收总利润" align="center">
-            <el-table-column prop="prevTotalProfit" label="上单" width="95" align="right" />
-            <el-table-column prop="currTotalProfit" label="本单" width="95" align="right" />
-            <el-table-column prop="totalTotalProfit" label="累计" width="95" align="right" />
+            <el-table-column prop="prevTotalProfit" label="上单" width="95" align="center" />
+            <el-table-column prop="currTotalProfit" label="本单" width="95" align="center" />
+            <el-table-column prop="totalTotalProfit" label="累计" width="95" align="center" />
           </el-table-column>
         </el-table>
       </div>
@@ -284,7 +285,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage,ElLoading } from 'element-plus';
 import { ArrowLeft, Check, Download, Upload } from '@element-plus/icons-vue';
 import { getLrTable, saveLr, generateLr, exportLr } from '@/api/lr';
 import * as XLSX from 'xlsx';
@@ -321,27 +322,40 @@ const rowClassName = ({ row }) => {
   return row.rowType === 'sale' ? 'sale-row' : 'cost-row';
 };
 
-const headerStyle = { background: '#409EFF', color: '#fff', textAlign: 'center', fontWeight: 'bold' };
+const headerCellStyle = {
+  background: '#e8f0fe',
+  color: '#1d2129',
+  textAlign: 'center',
+  fontWeight: '600',
+  fontSize: '13px',
+  borderBottom: '2px solid #c0d4f0'
+};
 
-// ==================== 自动计算 ====================
+// ==================== ⭐ 核心：自动计算 ====================
 const recalcRow = (row) => {
-  // 计算加耗重 = 净重 × 损耗
+  if (!row) return;
+
+  // 1. 加耗重 = 净重 × 损耗
   if (row.netWeight && row.lossRate) {
     row.addLossWeight = +(row.netWeight * row.lossRate).toFixed(3);
   }
-  // 计算足金料 = 加耗重 × 金价
+
+  // 2. 足金料 = 加耗重 × 金价
   if (row.addLossWeight && row.goldPrice) {
     row.goldMaterialFee = +(row.addLossWeight * row.goldPrice).toFixed(2);
   }
-  // 主石金额 = 粒数 × 石重 × 单价
+
+  // 3. 主石金额 = 粒数 × 石重 × 单价
   if (row.stoneQty && row.stoneWeight && row.stonePrice) {
     row.stoneAmount = +(row.stoneQty * row.stoneWeight * row.stonePrice).toFixed(2);
   }
-  // 副石金额 = 粒数 × 石重 × 单价
+
+  // 4. 副石金额 = 粒数 × 石重 × 单价
   if (row.subStoneQty && row.subStoneWeight && row.subStonePrice) {
     row.subStoneAmount = +(row.subStoneQty * row.subStoneWeight * row.subStonePrice).toFixed(2);
   }
-  // 应收金额 = 足金料 + 主石金额 + 主石镶石工费 + 副石金额 + 副石镶石工费 + 包装证书 + 版费 + 工费
+
+  // 5. 应收金额 = 足金料 + 主石金额 + 主石镶石工费 + 副石金额 + 副石镶石工费 + 包装证书 + 版费 + 工费
   row.totalAmount = +(
     (row.goldMaterialFee || 0) +
     (row.stoneAmount || 0) +
@@ -354,44 +368,73 @@ const recalcRow = (row) => {
   ).toFixed(2);
 };
 
-// ==================== 汇总统计 ====================
-const colorList = ['18K', '14K', '9K', 'PT', '银', '铜'];
+// ==================== 单元格变化触发重算 ====================
+const onCellChange = (row) => {
+  recalcRow(row);
+  // ⭐ 触发汇总表更新（通过重新计算 computed）
+  // summaryRows 会自动更新
+};
 
+// ==================== 从数据中动态读取成色 ====================
+const colorList = computed(() => {
+  const colors = new Set();
+  displayRows.value.forEach(r => {
+    if (r.color) colors.add(r.color);
+  });
+  return Array.from(colors).sort();
+});
+
+// ==================== ⭐ 汇总统计（自动计算） ====================
 const summaryRows = computed(() => {
-  return colorList.map(color => {
-    const rows = displayRows.value.filter(r => (r.color || '').toUpperCase() === color.toUpperCase());
-    const saleSum = (prop) => +rows.filter(r => r.rowType === 'sale').reduce((s, r) => s + (Number(r[prop]) || 0), 0).toFixed(2);
-    const costSum = (prop) => +rows.filter(r => r.rowType === 'cost').reduce((s, r) => s + (Number(r[prop]) || 0), 0).toFixed(2);
-    const diff = (prop) => +(saleSum(prop) - costSum(prop)).toFixed(2);
+  return colorList.value.map(color => {
+    const rows = displayRows.value.filter(r => (r.color || '') === color);
+    const saleRows_ = rows.filter(r => r.rowType === 'sale');
+    const costRows_ = rows.filter(r => r.rowType === 'cost');
+
+    // 销售行汇总
+    const saleSum = (prop) => saleRows_.reduce((s, r) => s + (Number(r[prop]) || 0), 0);
+    // 成本行汇总
+    const costSum = (prop) => costRows_.reduce((s, r) => s + (Number(r[prop]) || 0), 0);
+    // 利润 = 销售 - 成本
+    const diff = (prop) => saleSum(prop) - costSum(prop);
+
+    // ⭐ 钻石利润 = 主石金额 + 副石金额 的销售-成本差
+    const diamondProfit = diff('stoneAmount') + diff('subStoneAmount');
+    // ⭐ 镶石利润 = 主石镶石工费 + 副石镶石工费 的销售-成本差
+    const settingProfit = diff('stoneSettingFee') + diff('subStoneSettingFee');
+    // ⭐ 工费利润 = 工费 的销售-成本差
+    const laborProfit = diff('laborFee');
+    // ⭐ 总利润 = 应收金额 的销售-成本差
+    const totalProfit = diff('totalAmount');
 
     return {
       color,
       prevNetWeight: '-',
-      currNetWeight: saleSum('netWeight'),
-      totalNetWeight: saleSum('netWeight'),
+      currNetWeight: saleSum('netWeight').toFixed(3),
+      totalNetWeight: saleSum('netWeight').toFixed(3),
       prevAddLoss: '-',
-      currAddLoss: saleSum('addLossWeight'),
-      totalAddLoss: saleSum('addLossWeight'),
+      currAddLoss: saleSum('addLossWeight').toFixed(3),
+      totalAddLoss: saleSum('addLossWeight').toFixed(3),
       prevDiamondProfit: '-',
-      currDiamondProfit: diff('stoneAmount'),
-      totalDiamondProfit: diff('stoneAmount'),
+      currDiamondProfit: diamondProfit.toFixed(2),
+      totalDiamondProfit: diamondProfit.toFixed(2),
       prevSettingProfit: '-',
-      currSettingProfit: diff('stoneSettingFee') + diff('subStoneSettingFee'),
-      totalSettingProfit: diff('stoneSettingFee') + diff('subStoneSettingFee'),
+      currSettingProfit: settingProfit.toFixed(2),
+      totalSettingProfit: settingProfit.toFixed(2),
       prevLaborProfit: '-',
-      currLaborProfit: diff('laborFee'),
-      totalLaborProfit: diff('laborFee'),
+      currLaborProfit: laborProfit.toFixed(2),
+      totalLaborProfit: laborProfit.toFixed(2),
       prevTotalProfit: '-',
-      currTotalProfit: diff('totalAmount'),
-      totalTotalProfit: diff('totalAmount')
+      currTotalProfit: totalProfit.toFixed(2),
+      totalTotalProfit: totalProfit.toFixed(2)
     };
   });
 });
 
 // ==================== 底部统计 ====================
 const bottomStats = computed(() => {
-  const saleSum = (prop) => +displayRows.value.filter(r => r.rowType === 'sale').reduce((s, r) => s + (Number(r[prop]) || 0), 0).toFixed(2);
-  const costSum = (prop) => +displayRows.value.filter(r => r.rowType === 'cost').reduce((s, r) => s + (Number(r[prop]) || 0), 0).toFixed(2);
+  const saleSum = (prop) => displayRows.value.filter(r => r.rowType === 'sale').reduce((s, r) => s + (Number(r[prop]) || 0), 0);
+  const costSum = (prop) => displayRows.value.filter(r => r.rowType === 'cost').reduce((s, r) => s + (Number(r[prop]) || 0), 0);
   const qty = displayRows.value.filter(r => r.rowType === 'sale').reduce((s, r) => s + (Number(r.quantity) || 1), 0);
   return {
     prevIncome: '-',
@@ -416,7 +459,6 @@ const loadData = async () => {
       if (res.data.rows && res.data.rows.length > 0) {
         saleRows.value = res.data.rows.filter(r => r.rowType === 'sale').map(r => ({ ...r }));
         costRows.value = res.data.rows.filter(r => r.rowType === 'cost').map(r => ({ ...r }));
-        // 如果成本行数量少于销售行，补全
         while (costRows.value.length < saleRows.value.length) {
           const idx = costRows.value.length;
           costRows.value.push({ ...saleRows.value[idx], rowType: 'cost', id: null });
@@ -465,9 +507,7 @@ const generateLrTable = async () => {
 const handleSave = async () => {
   saving.value = true;
   try {
-    // 先重算所有行
     displayRows.value.forEach(r => recalcRow(r));
-    // 只保存销售行和成本行（分开保存）
     const allRows = [
       ...saleRows.value.map(r => ({ ...r, rowType: 'sale' })),
       ...costRows.value.map(r => ({ ...r, rowType: 'cost' }))
@@ -497,7 +537,6 @@ const handleFileImport = (event) => {
       const wb = XLSX.read(e.target.result, { type: 'array' });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const json = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      // 从第5行开始读数据
       const detailRows = json.slice(4).filter(r => r[1]);
       const newSaleRows = [];
       const newCostRows = [];
@@ -549,38 +588,68 @@ const handleFileImport = (event) => {
 };
 
 const handleExport = async () => {
-  try {
-    await exportLr(lrId.value);
-    ElMessage.success('导出成功');
+  if (!lrId.value) {
+    ElMessage.warning('LR表ID无效');
     return;
-  } catch {}
-  // 前端导出兜底
-  const headers = [
-    ['支出收入LR表'],
-    ['客户:', '', '', '', '', '成色: Au755', '', '', '', '', '币种: RMB', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '出货日期:2026/7/2'],
-    ['流水单号','序号','品名','客户','钻石级别','颜色','件数','手寸/长度','总重','净重','损耗','加耗重','金价','足金料',
-     '主石','','','','','副石','','','','','包装证书','版费','工费','应收金额'],
-    ['','','','','','','','','','','','','','',
-     '粒数','石重(ct)','单价(元)','金额(元)','镶石工费','粒数','石重','单价(元)','金额(元)','镶石工费','','','','']
-  ];
-  const rows = displayRows.value.map(r => [
-    r.serialNo, r.seqDisplay, r.productName, r.customerName, r.diamondLevel, r.color, r.quantity, r.size,
-    r.totalWeight, r.netWeight, r.lossRate, r.addLossWeight, r.goldPrice, r.goldMaterialFee,
-    r.stoneQty, r.stoneWeight, r.stonePrice, r.stoneAmount, r.stoneSettingFee,
-    r.subStoneQty, r.subStoneWeight, r.subStonePrice, r.subStoneAmount, r.subStoneSettingFee,
-    r.packingFee, r.moldFee, r.laborFee, r.totalAmount
-  ]);
-  const aoa = [...headers, ...rows];
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 28 } },
-    { s: { r: 2, c: 14 }, e: { r: 2, c: 18 } },
-    { s: { r: 2, c: 19 }, e: { r: 2, c: 23 } }
-  ];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'LR表');
-  XLSX.writeFile(wb, `LR表_${lrInfo.value?.billNo || ''}.xlsx`);
-  ElMessage.success('导出成功');
+  }
+
+  const loading = ElLoading.service({
+    fullscreen: true,
+    text: '正在导出...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  });
+
+  try {
+    const response = await exportLr(lrId.value);
+    loading.close();
+
+    const blob = await response.blob();
+    
+    if (!blob || blob.size === 0) {
+      ElMessage.error('导出失败：文件为空');
+      return;
+    }
+
+    // 检查是否是 JSON 错误
+    if (blob.type === 'application/json') {
+      const text = await blob.text();
+      try {
+        const json = JSON.parse(text);
+        ElMessage.error(json.message || '导出失败');
+        return;
+      } catch {
+        // 不是 JSON，继续下载
+      }
+    }
+
+    // 获取文件名
+    const contentDisposition = response.headers.get('content-disposition');
+    let fileName = `支出收入LR表_${lrInfo.value?.billNo || lrId.value}.xlsx`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (match) {
+        fileName = decodeURIComponent(match[1].replace(/['"]/g, ''));
+      }
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+    }, 10000);
+    
+    ElMessage.success('导出成功');
+  } catch (error) {
+    loading.close();
+    console.error('导出失败:', error);
+    ElMessage.error(error.message || '导出失败，请重试');
+  }
 };
 
 onMounted(() => loadData());
@@ -671,9 +740,16 @@ onMounted(() => loadData());
 }
 :deep(.el-table .cell) {
   padding: 2px 4px;
+  text-align: center !important;
 }
 :deep(.el-table th) {
-  background: #f5f7fa !important;
+  background: #e8f0fe !important;
+  color: #1d2129 !important;
+  font-weight: 600 !important;
+}
+:deep(.el-table th .cell) {
+  color: #1d2129 !important;
+  text-align: center !important;
 }
 :deep(.cell-input .el-input__wrapper) {
   padding: 0 2px;
@@ -690,10 +766,10 @@ onMounted(() => loadData());
   background: #e3f0fa !important;
 }
 :deep(.cost-row) {
-  background: #fafafa !important;
+  background: #f8f8f8 !important;
 }
 :deep(.cost-row:hover) {
-  background: #f0f0f0 !important;
+  background: #efefef !important;
 }
 :deep(.el-input-number) {
   width: 100%;

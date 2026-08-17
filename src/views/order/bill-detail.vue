@@ -459,7 +459,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox,ElLoading } from 'element-plus';
 import { 
   ArrowLeft, Check, Close, Select, RefreshLeft, Upload, Download,
   Document, User, Money, Goods
@@ -711,28 +711,97 @@ const viewOrder = (id) => {
 };
 
 // ============================================================
-// 导出
+// 导出（使用原生 fetch，绕过 axios）
 // ============================================================
 const handleExport = async () => {
+  if (!billId.value) {
+    ElMessage.warning('账单ID无效');
+    return;
+  }
+
+  const loading = ElLoading.service({
+    fullscreen: true,
+    text: '正在导出...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  });
+
   try {
-    const res = await exportBill(billId.value);
-    const blob = new Blob([res.data], { 
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    const token = localStorage.getItem('token');
+    
+    const response = await fetch(`/api/bill/export/${billId.value}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      },
     });
+
+    loading.close();
+
+    // 检查响应状态
+    if (!response.ok) {
+      // 尝试读取错误信息
+      const text = await response.text();
+      try {
+        const json = JSON.parse(text);
+        ElMessage.error(json.message || `导出失败：${response.status}`);
+      } catch {
+        ElMessage.error(`导出失败：${response.status}`);
+      }
+      return;
+    }
+
+    // 获取 Blob
+    const blob = await response.blob();
+    
+    // 检查 Blob
+    if (!blob || blob.size === 0) {
+      ElMessage.error('导出失败：文件为空');
+      return;
+    }
+
+    // 检查是否是 JSON 错误（后端可能返回了错误信息）
+    if (blob.type === 'application/json') {
+      const text = await blob.text();
+      try {
+        const json = JSON.parse(text);
+        ElMessage.error(json.message || '导出失败');
+        return;
+      } catch {
+        // 不是 JSON，继续下载
+      }
+    }
+
+    // 获取文件名（从 Content-Disposition 头）
+    const contentDisposition = response.headers.get('content-disposition');
+    let fileName = `出货明细_${billData.value?.billNo || billId.value}.xlsx`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+      if (match) {
+        fileName = decodeURIComponent(match[1].replace(/['"]/g, ''));
+      }
+    }
+
+    // 下载
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `出货明细_${billData.value?.billNo || billId.value}.xlsx`;
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    window.URL.revokeObjectURL(url);
+    
+    setTimeout(() => {
+      window.URL.revokeObjectURL(url);
+    }, 10000);
+    
     ElMessage.success('导出成功');
-  } catch {
-    ElMessage.error('导出失败');
+  } catch (error) {
+    loading.close();
+    console.error('导出失败:', error);
+    ElMessage.error(error.message || '导出失败，请重试');
   }
 };
-
 // ============================================================
 // 更新来料/来款
 // ============================================================

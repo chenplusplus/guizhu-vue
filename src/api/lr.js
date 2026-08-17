@@ -31,7 +31,48 @@ export const deleteLr = (id) => {
   return api.delete(`/lr/${id}`);
 };
 
-export const exportLr = (id) => {
-  return api.delete(`/lr/${id}`);
+
+
+// ===== 导出LR表Excel（原生fetch） =====
+export const exportLr = async (lrId) => {
+  const token = localStorage.getItem('token');
+  
+  const response = await fetch(`/api/lr/export/${lrId}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    try {
+      const json = JSON.parse(text);
+      throw new Error(json.message || `导出失败：${response.status}`);
+    } catch {
+      throw new Error(`导出失败：${response.status}`);
+    }
+  }
+
+  return response;
+};
+export const confirmLr = (id) => {
+  return request({
+    url: `/api/lr/${id}/confirm`,
+    method: 'post'
+  });
 };
 
+export const getLrCustomers = () => {
+  return request({
+    url: '/api/lr/customers',
+    method: 'get'
+  });
+};
+// 获取客户累计数据
+export const getCustomerLrSummary = (customerId) => {
+  return request({
+    url: `/api/lr/customer-summary/${customerId}`,
+    method: 'get'
+  })
+}
