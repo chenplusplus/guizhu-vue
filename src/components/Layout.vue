@@ -35,7 +35,7 @@
           :default-active="activeMenu"
           :collapse="isCollapse"
           :collapse-transition="false"
-          background-color="#e8f4f8"
+          background-color="#ffffff"
           text-color="#5a7a8a"
           active-text-color="#409EFF"
           @select="handleMenuSelect"
@@ -43,7 +43,6 @@
           <template v-for="item in menuList" :key="item.menuId">
             <el-sub-menu v-if="item.children && item.children.length > 0" :index="item.menuPath || item.menuId.toString()">
               <template #title>
-              
                 <span>{{ item.menuName }}</span>
               </template>
               <el-menu-item
@@ -281,14 +280,15 @@ onMounted(async () => {
   min-height: 0;
 }
 
-/* ===== 左侧菜单 - 淡蓝色风格 ===== */
+/* ===== 左侧菜单 - 白色背景 ===== */
 .layout-aside {
   overflow: hidden;
   transition: width 0.3s;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  border-right: 1px solid #d4e8f0;
+  border-right: 1px solid #e8ecf1;
+  background: #ffffff;
 }
 
 .menu-toggle {
@@ -299,7 +299,7 @@ onMounted(async () => {
   color: #5a7a8a;
   cursor: pointer;
   font-size: 18px;
-  border-bottom: 1px solid #d4e8f0;
+  border-bottom: 1px solid #e8ecf1;
   flex-shrink: 0;
   transition: color 0.3s;
 }
@@ -311,55 +311,58 @@ onMounted(async () => {
   border-right: none;
   flex: 1;
   overflow-y: auto;
+  background: #ffffff !important;
 }
 
-/* 菜单项样式 */
+/* ⭐ 菜单项样式 - 无间距、无圆角 */
 .el-menu-item {
   height: 44px;
   line-height: 44px;
   display: flex;
   align-items: center;
   color: #5a7a8a;
-  border-radius: 6px;
-  margin: 2px 8px;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 20px;
 }
 
 .el-menu-item:hover {
-  background: #d4e8f0 !important;
+  background: #f0f2f5 !important;
   color: #409EFF;
 }
 
 .el-menu-item.is-active {
-  background: #b5d9e8 !important;
+  background: #ecf5ff !important;
   color: #409EFF;
   font-weight: 600;
 }
 
-/* 子菜单样式 */
+/* ⭐ 子菜单样式 - 无间距、无圆角 */
 .el-sub-menu {
-  margin: 2px 8px;
-  border-radius: 6px;
+  margin: 0 !important;
+  border-radius: 0 !important;
 }
 
 .el-sub-menu .el-sub-menu__title {
   height: 44px;
   line-height: 44px;
   color: #5a7a8a;
-  border-radius: 6px;
+  border-radius: 0 !important;
+  padding: 0 20px;
 }
 
 .el-sub-menu .el-sub-menu__title:hover {
-  background: #d4e8f0 !important;
+  background: #f0f2f5 !important;
   color: #409EFF;
 }
 
 .el-sub-menu .el-menu-item {
-  padding-left: 40px !important;
+  padding-left: 44px !important;
 }
 
 /* 菜单选中状态背景 */
 .el-menu-item.is-active {
-  background: #b5d9e8 !important;
+  background: #ecf5ff !important;
   color: #409EFF;
   font-weight: 600;
 }
@@ -453,7 +456,7 @@ onMounted(async () => {
 
 .layout-main {
   flex: 1;
-  padding: 16px 20px;
+  
   overflow-y: auto;
   min-height: 0;
 }

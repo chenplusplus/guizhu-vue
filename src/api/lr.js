@@ -1,6 +1,6 @@
 // src/api/lr.js
 import api from './index';
-
+import request from '@/utils/request';  
 // 获取LR表列表
 export const getLrList = (params) => {
   return api.get('/lr/list', { params });
@@ -76,3 +76,11 @@ export const getCustomerLrSummary = (customerId) => {
     method: 'get'
   })
 }
+
+// 获取客户累计数据（上单）
+export const getCustomerSummary = (customerId) => {
+  return request({
+    url: `/api/lr/customer-summary/${customerId}`,
+    method: 'get'
+  });
+};
