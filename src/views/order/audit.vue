@@ -2,7 +2,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2>✅ 客户订单审核</h2>
+      <h2>📋 订单审核</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <el-button
           v-if="selectedOrders.length > 0"
@@ -52,7 +52,7 @@
         </el-form-item>
 
         <el-form-item label="状态">
-          <el-select v-model="search.status" placeholder="全部状态" clearable style="width: 140px;">
+          <el-select v-model="search.status" placeholder="全部状态" clearable style="width: 140px;" @change="loadData">
             <el-option label="待审核" value="pending" />
             <el-option label="已审核" value="customerAudited" />
             <el-option label="已驳回" value="rejected" />
@@ -91,13 +91,27 @@
         </template>
       </el-table-column>
 
+      <!-- 状态列 -->
+      <el-table-column prop="flowStatus" label="状态" width="110" align="center">
+        <template #default="{ row }">
+          <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
+            {{ getStatusText(row.flowStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="orderDate" label="订单日期" width="100" align="center">
         <template #default="{ row }">
           {{ formatDate(row.orderDate) }}
         </template>
       </el-table-column>
 
-      <el-table-column prop="customerName" label="客户" width="120" />
+      <!-- 创建人 -->
+      <el-table-column prop="salesman" label="创建人" width="100" align="center">
+        <template #default="{ row }">
+          {{ row.salesman || row.submittedByName || '-' }}
+        </template>
+      </el-table-column>
 
       <el-table-column prop="productName" label="品名" min-width="120" />
 
@@ -153,22 +167,31 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="flowStatus" label="状态" width="110" align="center">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.flowStatus)" size="small">
-            {{ getStatusText(row.flowStatus) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-
       <el-table-column prop="createdAt" label="提交时间" width="160">
         <template #default="{ row }">
           {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="220" fixed="right" align="center">
+      <!-- ⭐ 操作列 -->
+      <el-table-column label="操作" width="280" fixed="right" align="center">
         <template #default="{ row }">
+          <!-- 查看 -->
+          <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
+            查看
+          </el-button>
+
+          <!-- ⭐ 编辑：待审核 或 已驳回 状态可编辑 -->
+          <el-button
+            v-if="row.flowStatus === 'pending' || row.flowStatus === 'rejected'"
+            size="small"
+            type="warning"
+            link
+            @click.stop="goEdit(row.orderId)"
+          >
+            编辑
+          </el-button>
+
           <!-- 只有待审核状态才显示审核按钮 -->
           <template v-if="row.flowStatus === 'pending'">
             <el-button size="small" type="success" @click.stop="handleAudit(row, true)">
@@ -178,9 +201,6 @@
               驳回
             </el-button>
           </template>
-          <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
-            查看
-          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -263,7 +283,7 @@ const currentCustomerId = computed(() => {
 
 const search = reactive({
   keyword: '',
-  status: '', // 空 = 全部，pending = 待审核，customerAudited = 已审核，rejected = 已驳回
+  status: 'pending',
   dateRange: [],
 });
 
@@ -276,7 +296,8 @@ const pagination = reactive({
 // ===== 状态映射 =====
 const statusMap = {
   pending: { text: '待审核', type: 'warning' },
-  customerAudited: { text: '已审核', type: 'success' },
+  customeraudited: { text: '待接单', type: 'success' },
+  completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
   draft: { text: '草稿', type: 'info' },
@@ -296,6 +317,27 @@ const handleRowClick = (row) => {
 // ===== 是否可勾选（只有待审核的才能选中） =====
 const checkSelectable = (row) => {
   return row.flowStatus === 'pending';
+};
+
+// ===== 获取默认日期范围（7天前 ~ 今天） =====
+const getDefaultDateRange = () => {
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  const format = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  return [format(sevenDaysAgo), format(today)];
+};
+
+// ===== 编辑 =====
+const goEdit = (id) => {
+  router.push(`/order/create/${id}`);
 };
 
 // ===== 加载数据 =====
@@ -318,7 +360,6 @@ const loadData = async () => {
     const res = await getOrderList(params);
     const data = res?.data || res || {};
 
-    // 兼容多种返回格式
     if (Array.isArray(data)) {
       tableData.value = data;
       pagination.total = data.length;
@@ -346,8 +387,8 @@ const loadData = async () => {
 
 const resetSearch = () => {
   search.keyword = '';
-  search.status = '';
-  search.dateRange = [];
+  search.status = 'pending';
+  search.dateRange = getDefaultDateRange();
   pagination.current = 1;
   loadData();
 };
@@ -377,7 +418,7 @@ const handleAudit = (row, approved) => {
 // ===== 批量审核 =====
 const handleBatchAudit = async (approved) => {
   const pendingOrders = selectedOrders.value.filter(row => row.flowStatus === 'pending');
-  
+
   if (pendingOrders.length === 0) {
     ElMessage.warning('请至少选择一个待审核的订单');
     return;
@@ -391,14 +432,13 @@ const handleBatchAudit = async (approved) => {
     return;
   }
 
-  // 批量通过
   try {
     await ElMessageBox.confirm(
       `确定要通过 ${pendingOrders.length} 个订单吗？`,
       '批量通过',
       { type: 'info' }
     );
-    
+
     batchLoading.value = true;
     let successCount = 0;
     let failCount = 0;
@@ -443,7 +483,6 @@ const confirmReject = async () => {
 
   rejectLoading.value = true;
   try {
-    // 批量驳回
     if (isBatchReject.value && currentOrder.value?.orders) {
       const orders = currentOrder.value.orders;
       let successCount = 0;
@@ -472,7 +511,6 @@ const confirmReject = async () => {
         ElMessage.error('全部失败');
       }
     } else {
-      // 单个驳回
       await doAudit(currentOrder.value.orderId, false, rejectReason.value);
     }
 
@@ -510,11 +548,8 @@ const formatDateTime = (date) => {
 
 // ===== 初始化 =====
 onMounted(() => {
-  // 默认日期：今天
-  const today = new Date();
-  const todayStr = formatDate(today);
-  search.dateRange = [todayStr, todayStr];
-  
+  search.dateRange = getDefaultDateRange();
+  search.status = 'pending';
   loadData();
 });
 </script>

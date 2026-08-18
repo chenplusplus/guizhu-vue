@@ -20,16 +20,14 @@
       <el-table-column prop="menuPath" label="路由路径" width="180" />
       <el-table-column prop="menuIcon" label="图标" width="120">
         <template #default="{ row }">
-          <span v-if="row.menuIcon">
-            {{ row.menuIcon }}
-          </span>
+          <span v-if="row.menuIcon">{{ row.menuIcon }}</span>
           <span v-else style="color:#ccc;">-</span>
         </template>
       </el-table-column>
       <el-table-column prop="menuType" label="类型" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.menuType === 'menu' ? 'primary' : 'success'" size="small">
-            {{ row.menuType === 'menu' ? '菜单' : '按钮' }}
+          <el-tag :type="row.menuType === '1' ? 'primary' : 'success'" size="small">
+            {{ row.menuType === '1' ? '菜单' : '按钮' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -42,10 +40,10 @@
         </template>
       </el-table-column>
       <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
-      <el-table-column prop="isVisible" label="状态" width="100">
+      <el-table-column prop="isActive" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.isVisible ? 'success' : 'danger'" size="small">
-            {{ row.isVisible ? '启用' : '禁用' }}
+          <el-tag :type="row.isActive ? 'success' : 'danger'" size="small">
+            {{ row.isActive ? '启用' : '禁用' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -84,8 +82,8 @@
           <el-col :span="12">
             <el-form-item label="类型">
               <el-select v-model="form.menuType" style="width:100%;">
-                <el-option label="菜单" value="menu" />
-                <el-option label="按钮" value="button" />
+                <el-option label="菜单" value="1" />
+                <el-option label="按钮" value="2" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -98,8 +96,8 @@
         <el-form-item label="权限编码">
           <el-input v-model="form.permissionCode" placeholder="如 order:view" />
         </el-form-item>
-        <el-form-item label="状态" v-if="editId">
-          <el-switch v-model="form.isVisible" active-text="启用" inactive-text="禁用" />
+        <el-form-item label="状态">
+          <el-switch v-model="form.isActive" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -128,10 +126,10 @@ const form = reactive({
   menuName: '',
   menuPath: '',
   menuIcon: '',
-  menuType: 'menu',
+  menuType: '1',
   permissionCode: '',
   sortOrder: 0,
-  isVisible: true
+  isActive: true
 });
 
 const rules = {
@@ -158,7 +156,6 @@ const loadData = async () => {
   loading.value = true;
   try {
     const res = await menuApi.tree();
-    // 安全处理
     tableData.value = res?.data || res || [];
     if (!Array.isArray(tableData.value)) {
       tableData.value = [];
@@ -181,10 +178,10 @@ const resetForm = () => {
     menuName: '',
     menuPath: '',
     menuIcon: '',
-    menuType: 'menu',
+    menuType: '1',
     permissionCode: '',
     sortOrder: 0,
-    isVisible: true
+    isActive: true
   });
 };
 

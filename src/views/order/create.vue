@@ -7,7 +7,7 @@
         <el-button @click="$router.back()">
           <el-icon><ArrowLeft /></el-icon> 返回
         </el-button>
-        <h2>{{ isEdit ? '✏️ 编辑订单' : '📝 下单' }}</h2>
+        <h2>{{ pageTitle }}</h2>
         <el-tag v-if="isEdit" type="warning" size="large">编辑中</el-tag>
         <el-tag v-if="isCopy" type="info" size="large">📋 复刻订单</el-tag>
         <el-tag v-if="orderStatus" :type="getStatusType(orderStatus)" size="large">
@@ -15,11 +15,29 @@
         </el-tag>
       </div>
       <div class="header-right">
-        <el-button @click="handleSaveDraft" :loading="saving">
-          <el-icon><Document /></el-icon> 保存草稿
+        <!-- ⭐ 保存按钮（所有人都显示） -->
+        <el-button @click="handleSave" :loading="saving">
+          <el-icon><Document /></el-icon> 保存
         </el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">
+
+        <!-- ⭐ 提交审核：只有客户下单员（customer）显示 -->
+        <el-button
+          v-if="userStore.userType === 'customer' && showSubmitButton"
+          type="primary"
+          @click="handleSubmit"
+          :loading="submitting"
+        >
           <el-icon><Check /></el-icon> 提交审核
+        </el-button>
+
+        <!-- ⭐ 提交到工厂：只有客户审核员（customerAudit）编辑待审核订单时显示 -->
+        <el-button
+          v-if="userStore.userType === 'customerAudit' && showSubmitToFactory"
+          type="success"
+          @click="handleSubmitToFactory"
+          :loading="submitting"
+        >
+          <el-icon><Check /></el-icon> 提交到工厂
         </el-button>
       </div>
     </div>
@@ -262,12 +280,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, nextTick, computed } from 'vue';
+import { ref, reactive, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Document, Check, Search } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { createOrder, updateOrder, getOrderDetail,submitOrder } from '@/api/order';
+import { createOrder, updateOrder, getOrderDetail, submitOrder, acceptOrder } from '@/api/order';
 import { searchProducts, getProductList, createProduct } from '@/api/product';
 import ImageUpload from '@/components/ImageUpload.vue';
 
@@ -338,6 +356,36 @@ const getStatusText = (status) => statusMap[status]?.text || status;
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
 // ============================================================
+// ⭐ 页面标题
+// ============================================================
+const pageTitle = computed(() => {
+  if (isEdit.value && userStore.userType === 'customerAudit') {
+    return '✏️ 编辑待审核订单';
+  }
+  if (isEdit.value) {
+    return '✏️ 编辑订单';
+  }
+  return '📝 下单';
+});
+
+// ============================================================
+// ⭐ 按钮显示控制
+// ============================================================
+// 显示"提交审核"（客户下单员）
+const showSubmitButton = computed(() => {
+  // 新建时：显示
+  if (!isEdit.value) return true;
+  // 编辑时：只有草稿或已驳回状态才显示
+  return orderStatus.value === 'draft' || orderStatus.value === 'rejected';
+});
+
+// 显示"提交到工厂"（客户审核员）
+const showSubmitToFactory = computed(() => {
+  // 只有编辑待审核(pending)状态的订单才显示
+  return isEdit.value && orderStatus.value === 'pending';
+});
+
+// ============================================================
 // 产品搜索（自动补全）
 // ============================================================
 const querySearch = async (queryString, cb) => {
@@ -350,11 +398,9 @@ const querySearch = async (queryString, cb) => {
     const res = await searchProducts({ keyword: queryString, limit: 10 });
     const results = res?.data || [];
     
-    // 检查输入的品名是否已存在
     const exists = results.some(item => item.productName === queryString.trim());
     isNewProduct.value = !exists && queryString.trim().length > 0;
     
-    // 格式化建议列表
     const suggestions = results.map(item => ({
       ...item,
       value: item.productName,
@@ -376,7 +422,6 @@ const handleSelectProduct = (item) => {
 };
 
 const handleFocus = () => {
-  // 聚焦时如果有内容则搜索
   if (form.productName && form.productName.length >= 1) {
     querySearch(form.productName, () => {});
   }
@@ -436,13 +481,12 @@ const fillFormFromProduct = (product) => {
 };
 
 // ============================================================
-// 加载订单数据（编辑/复刻）
+// 加载订单数据
 // ============================================================
 const loadOrderData = async () => {
   const id = route.params.id;
   const copyId = route.query.copy;
 
-  // 复刻模式
   if (copyId) {
     isCopy.value = true;
     loading.value = true;
@@ -478,7 +522,6 @@ const loadOrderData = async () => {
     return;
   }
 
-  // 编辑模式
   if (!id) return;
   isEdit.value = true;
   loading.value = true;
@@ -545,13 +588,12 @@ const saveProductIfNew = async () => {
     return null;
   } catch (error) {
     console.warn('创建产品失败:', error);
-    // 不影响订单提交
     return null;
   }
 };
 
 // ============================================================
-// 提交
+// 构建 payload
 // ============================================================
 const buildPayload = (status) => {
   return {
@@ -578,7 +620,10 @@ const buildPayload = (status) => {
   };
 };
 
-const handleSaveDraft = async () => {
+// ============================================================
+// ⭐ 保存（所有人都可以用）
+// ============================================================
+const handleSave = async () => {
   if (!formRef.value) return;
   
   const valid = await formRef.value.validate().catch(() => false);
@@ -586,7 +631,6 @@ const handleSaveDraft = async () => {
   
   saving.value = true;
   try {
-    // 如果是新产品，先保存产品
     await saveProductIfNew();
     
     const payload = buildPayload('draft');
@@ -596,7 +640,9 @@ const handleSaveDraft = async () => {
     } else {
       await createOrder(payload);
       ElMessage.success('保存成功');
-      router.push('/order/my-list');
+      // 新建后跳转到列表
+      const targetPath = userStore.userType === 'customer' ? '/order/my-list' : '/order/audit';
+      router.push(targetPath);
     }
   } catch (error) {
     ElMessage.error(error.message || '保存失败');
@@ -605,6 +651,9 @@ const handleSaveDraft = async () => {
   }
 };
 
+// ============================================================
+// ⭐ 提交审核（仅客户下单员）
+// ============================================================
 const handleSubmit = async () => {
   if (!formRef.value) return;
   
@@ -619,18 +668,15 @@ const handleSubmit = async () => {
 
   submitting.value = true;
   try {
-    // 如果是新产品，先保存产品
     await saveProductIfNew();
     
     let orderId = null;
     
     if (isEdit.value) {
-      // ⭐ 编辑模式：先更新订单数据
-      const payload = buildPayload('draft');  // 状态保持 draft
+      const payload = buildPayload('draft');
       await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
       orderId = parseInt(route.params.id);
     } else {
-      // ⭐ 新建模式：创建订单（状态为 draft）
       const payload = buildPayload('draft');
       const res = await createOrder(payload);
       orderId = res.data?.orderId || res.orderId;
@@ -641,11 +687,52 @@ const handleSubmit = async () => {
       return;
     }
     
-    // ⭐ 调用提交审核接口
     await submitOrder(orderId);
-    
     ElMessage.success('提交审核成功');
     router.push('/order/my-list');
+  } catch (error) {
+    ElMessage.error(error.message || '提交失败');
+  } finally {
+    submitting.value = false;
+  }
+};
+
+// ============================================================
+// ⭐ 提交到工厂（仅客户审核员）
+// ============================================================
+
+const handleSubmitToFactory = async () => {
+  if (!formRef.value) return;
+  
+  const valid = await formRef.value.validate().catch(() => false);
+  if (!valid) return;
+  
+  try {
+    await ElMessageBox.confirm(
+      '确认审核通过并提交到工厂吗？',
+      '提交到工厂',
+      { type: 'info' }
+    );
+  } catch {
+    return;
+  }
+
+  submitting.value = true;
+  try {
+    // 先保存订单
+    await saveProductIfNew();
+    
+    const payload = buildPayload('customerAudited');
+    await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
+    
+    // ⭐ 调用审核通过接口（不是接单）
+    await auditOrder(parseInt(route.params.id), { 
+      approved: true, 
+      remark: '审核通过，提交到工厂' 
+    });
+    
+    ElMessage.success('审核通过，已提交到工厂');
+    router.push('/order/audit');
   } catch (error) {
     ElMessage.error(error.message || '提交失败');
   } finally {

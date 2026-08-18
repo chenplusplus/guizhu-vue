@@ -26,21 +26,33 @@
 
     <!-- 筛选栏 -->
     <div class="filter-bar">
-      <el-radio-group v-model="filterStatus" @change="loadData">
+      <el-radio-group v-model="filterStatus" @change="handleSearch">
         <el-radio-button value="">全部</el-radio-button>
         <el-radio-button value="customerAudited">待接单</el-radio-button>
         <el-radio-button value="producing">制作中</el-radio-button>
         <el-radio-button value="polishing">制作完成</el-radio-button>
         <el-radio-button value="billPending">账单待审核</el-radio-button>
+        <el-radio-button value="completed">已完成</el-radio-button>
       </el-radio-group>
+
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        value-format="YYYY-MM-DD"
+        style="width: 240px; margin-left: 12px;"
+        @change="handleSearch"
+      />
 
       <el-input
         v-model="keyword"
         placeholder="搜索订单号/品名"
-        style="width: 180px; margin-left: 12px;"
+        style="width: 180px; margin-left: 8px;"
         clearable
-        @clear="loadData"
-        @keyup.enter="loadData"
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
       />
 
       <el-select
@@ -49,7 +61,7 @@
         clearable
         filterable
         style="width: 180px; margin-left: 8px;"
-        @change="loadData"
+        @change="handleSearch"
       >
         <el-option
           v-for="item in customerList"
@@ -59,7 +71,7 @@
         />
       </el-select>
 
-      <el-button type="primary" @click="loadData" style="margin-left: 8px;">
+      <el-button type="primary" @click="handleSearch" style="margin-left: 8px;">
         <el-icon><Search /></el-icon> 搜索
       </el-button>
       <el-button @click="resetSearch">
@@ -68,8 +80,8 @@
     </div>
 
     <!-- 汇总 -->
-    <div class="summary-bar" v-if="tableData.length > 0">
-      <span>共 <b>{{ tableData.length }}</b> 个订单</span>
+    <div class="summary-bar" v-if="pagination.total > 0">
+      <span>共 <b>{{ pagination.total }}</b> 个订单</span>
       <span v-if="selectedOrders.length > 0" style="color:#409EFF;">
         已选 <b>{{ selectedOrders.length }}</b> 个
       </span>
@@ -86,15 +98,25 @@
       stripe
       v-loading="loading"
       @selection-change="handleSelectionChange"
+      @row-click="handleRowClick"
       row-key="orderId"
     >
-      <el-table-column type="selection" width="55" align="center" />
+      <el-table-column type="selection" width="45" align="center" />
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
           <el-link type="primary" @click.stop="viewDetail(row.orderId)">
             {{ row.orderNo }}
           </el-link>
+        </template>
+      </el-table-column>
+
+      <!-- ⭐ 状态列移到前面 -->
+      <el-table-column prop="flowStatus" label="状态" width="110" align="center" fixed>
+        <template #default="{ row }">
+          <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
+            {{ getStatusText(row.flowStatus) }}
+          </el-tag>
         </template>
       </el-table-column>
 
@@ -117,6 +139,7 @@
             style="width: 45px; height: 45px; border-radius: 4px; cursor: pointer;"
             :preview-src-list="[row.imageUrl]"
             preview-teleported
+            @click.stop
           />
           <span v-else style="color: #ccc; font-size: 12px;">无图</span>
         </template>
@@ -151,20 +174,12 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="flowStatus" label="状态" width="100" align="center">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(normalizeStatus(row.flowStatus))" size="small">
-            {{ getStatusText(normalizeStatus(row.flowStatus)) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-
-      <!-- 操作列 -->
+      <!-- ⭐ 操作列 -->
       <el-table-column label="操作" width="320" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 待接单 → 接单 -->
           <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'customerAudited'"
+            v-if="row.flowStatus === 'customerAudited'"
             size="small"
             type="success"
             @click.stop="handleAccept(row)"
@@ -172,8 +187,9 @@
             接单
           </el-button>
 
-          <!-- 制作中 → 更新状态（弹窗） -->
+          <!-- ⭐ 更新状态：制作中状态显示 -->
           <el-button
+            v-if="isInProduction(row.flowStatus)|| row.flowStatus === 'factory_edit'"
             size="small"
             type="primary"
             @click.stop="openStatusDialog(row)"
@@ -183,7 +199,7 @@
 
           <!-- 制作完成 → 生成账单 -->
           <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'polishing'"
+            v-if="row.flowStatus === 'polishing'"
             size="small"
             type="warning"
             @click.stop="handleGenerateBill(row)"
@@ -193,7 +209,7 @@
 
           <!-- 编辑 -->
           <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'factory_edit'"
+            v-if="row.flowStatus === 'factory_edit'"
             size="small"
             type="primary"
             link
@@ -222,22 +238,22 @@
       <el-pagination
         v-model:current-page="pagination.current"
         v-model:page-size="pagination.pageSize"
+        :page-sizes="[10, 20, 50, 100]"
         :total="pagination.total"
-        layout="total, prev, pager, next"
+        layout="total, sizes, prev, pager, next, jumper"
+        @size-change="loadData"
         @current-change="loadData"
       />
     </div>
 
-    <!-- ============================================================ -->
-    <!-- 更新制作状态弹窗 -->
-    <!-- ============================================================ -->
+    <!-- ⭐ 更新制作状态弹窗 -->
     <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="450px" destroy-on-close>
       <div style="margin-bottom: 16px;">
         <p><strong>订单号：</strong>{{ currentOrder?.orderNo }}</p>
         <p><strong>品名：</strong>{{ currentOrder?.productName }}</p>
         <p><strong>当前状态：</strong>
-          <el-tag :type="getStatusType(normalizeStatus(currentOrder?.flowStatus))" size="small">
-            {{ getStatusText(normalizeStatus(currentOrder?.flowStatus)) }}
+          <el-tag :type="getStatusType(currentOrder?.flowStatus)" size="small">
+            {{ getStatusText(currentOrder?.flowStatus) }}
           </el-tag>
         </p>
       </div>
@@ -275,6 +291,15 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 流程抽屉 -->
+    <FlowDrawer
+      v-model="flowDrawerVisible"
+      :order-id="currentFlowOrderId"
+      :order-no="currentFlowOrderNo"
+      :current-status="currentFlowStatus"
+      @refresh="loadData"
+    />
   </div>
 </template>
 
@@ -283,11 +308,14 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
+import { useUserStore } from '@/stores/user';
 import { getOrderList, acceptOrder, updateProduction } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
 import { createBill } from '@/api/bill';
+import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
+const userStore = useUserStore();
 const tableRef = ref();
 
 const loading = ref(false);
@@ -299,6 +327,8 @@ const filterCustomerId = ref('');
 const selectedOrders = ref([]);
 const customerList = ref([]);
 
+const dateRange = ref([]);
+
 // 状态更新弹窗
 const statusDialogVisible = ref(false);
 const statusLoading = ref(false);
@@ -306,13 +336,18 @@ const currentOrder = ref(null);
 const selectedStatus = ref('');
 const statusRemark = ref('');
 
+// 流程抽屉
+const flowDrawerVisible = ref(false);
+const currentFlowOrderId = ref(0);
+const currentFlowOrderNo = ref('');
+const currentFlowStatus = ref('');
+
 const pagination = reactive({
   current: 1,
   pageSize: 20,
   total: 0,
 });
 
-// 选中合计
 const selectedTotal = computed(() => {
   return selectedOrders.value.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 });
@@ -322,7 +357,6 @@ const selectedTotal = computed(() => {
 // ============================================================
 const statusMap = {
   customerAudited: { text: '待接单', type: 'success' },
-  customeraudited: { text: '待接单', type: 'success' },
   accepted: { text: '已接单', type: 'primary' },
   factory_edit: { text: '编辑中', type: 'primary' },
   waxing: { text: '出蜡', type: 'primary' },
@@ -345,34 +379,18 @@ const productionStatuses = [
   'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
 ];
 
-const normalizeStatus = (status) => {
-  if (!status) return status;
-  if (status.toLowerCase() === 'customeraudited') return 'customerAudited';
-  if (statusMap[status]) return status;
-  const lowerKey = status.toLowerCase();
-  if (statusMap[lowerKey]) return lowerKey;
-  return status;
-};
+const getStatusText = (status) => statusMap[status]?.text || status || '-';
+const getStatusType = (status) => statusMap[status]?.type || 'info';
 
-const getStatusText = (status) => {
-  const normalized = normalizeStatus(status);
-  return statusMap[normalized]?.text || status || '-';
-};
-
-const getStatusType = (status) => {
-  const normalized = normalizeStatus(status);
-  return statusMap[normalized]?.type || 'info';
-};
-
-// 判断是否为制作中状态（显示更新状态按钮）
 const isInProduction = (status) => {
-  const normalized = normalizeStatus(status);
-  return productionStatuses.includes(normalized);
+  return productionStatuses.includes(status);
 };
 
-// 状态选项（从当前状态之后可选）
+// ============================================================
+// ⭐ 状态选项
+// ============================================================
 const statusOptions = computed(() => {
-  const current = normalizeStatus(currentOrder.value?.flowStatus);
+  const current = currentOrder.value?.flowStatus;
   const allOptions = [
     { value: 'waxing', label: '出蜡' },
     { value: 'molded', label: '倒模' },
@@ -389,12 +407,12 @@ const statusOptions = computed(() => {
   if (currentIndex >= 0) {
     return allOptions.slice(currentIndex + 1);
   }
-  // 如果当前状态不在列表中（如 customerAudited），返回全部
+  // 如果当前状态不在列表中（如 factory_edit），显示全部
   return allOptions;
 });
 
 // ============================================================
-// 加载数据
+// 加载客户列表
 // ============================================================
 const loadCustomers = async () => {
   try {
@@ -405,79 +423,86 @@ const loadCustomers = async () => {
   }
 };
 
+// ============================================================
+// 获取今天日期字符串
+// ============================================================
+const getTodayStr = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// ============================================================
+// 加载数据（后端筛选）
+// ============================================================
 const loadData = async () => {
   loading.value = true;
   try {
     const params = {
       keyword: keyword.value || undefined,
+      customerId: filterCustomerId.value || undefined,
       page: pagination.current,
       pageSize: pagination.pageSize,
     };
 
+   if (filterStatus.value) {
+      params.status = filterStatus.value;
+    }
+
+    if (dateRange.value && dateRange.value.length === 2) {
+      params.startDate = dateRange.value[0];
+      params.endDate = dateRange.value[1];
+    }
+
     const res = await getOrderList(params);
-    let data = res?.data || res || [];
+    const responseData = res?.data || res || {};
     
-    if (data.items) data = data.items;
+    let data = [];
+    let total = 0;
     
-    // 工厂相关状态
+    if (Array.isArray(responseData)) {
+      data = responseData;
+      total = responseData.length;
+    } else if (responseData.items && Array.isArray(responseData.items)) {
+      data = responseData.items;
+      total = responseData.total || data.length;
+    } else {
+      data = Array.isArray(responseData) ? responseData : [];
+      total = data.length;
+    }
+
+    // 只显示工厂相关状态
     const factoryStatuses = [
       'customerAudited', 'accepted', 'factory_edit', 'waxing', 'molded', 
       'setting', 'cnc', 'sweeping', 'stoneCutting', 'microInlay', 
-      'handInlay', 'polishing', 'billPending'
+      'handInlay', 'polishing', 'billPending', 'billConfirmed', 'completed'
     ];
     
-    let filteredData = data.filter(item => {
-      const normalized = normalizeStatus(item.flowStatus);
-      return factoryStatuses.includes(normalized);
-    });
-    
-    if (filterCustomerId.value) {
-      filteredData = filteredData.filter(item => item.customerId === filterCustomerId.value);
-    }
-    
-    // 状态筛选
-    if (filterStatus.value === 'producing') {
-      const producingStatuses = [
-        'accepted', 'waxing', 'molded', 'setting', 'cnc',
-        'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
-      ];
-      filteredData = filteredData.filter(item => {
-        const normalized = normalizeStatus(item.flowStatus);
-        return producingStatuses.includes(normalized);
-      });
-    } else if (filterStatus.value === 'polishing') {
-      filteredData = filteredData.filter(item => {
-        const normalized = normalizeStatus(item.flowStatus);
-        return normalized === 'polishing';
-      });
-    } else if (filterStatus.value === 'customerAudited') {
-      filteredData = filteredData.filter(item => {
-        const normalized = normalizeStatus(item.flowStatus);
-        return normalized === 'customerAudited';
-      });
-    } else if (filterStatus.value === 'billPending') {
-      filteredData = filteredData.filter(item => {
-        const normalized = normalizeStatus(item.flowStatus);
-        return normalized === 'billPending';
-      });
-    }
-    
-    tableData.value = filteredData;
-    pagination.total = filteredData.length;
+    tableData.value = data.filter(item => factoryStatuses.includes(item.flowStatus));
+    pagination.total = total;
     
   } catch (error) {
     console.error('加载数据失败:', error);
     ElMessage.error('加载数据失败');
     tableData.value = [];
+    pagination.total = 0;
   } finally {
     loading.value = false;
   }
+};
+
+const handleSearch = () => {
+  pagination.current = 1;
+  loadData();
 };
 
 const resetSearch = () => {
   keyword.value = '';
   filterStatus.value = '';
   filterCustomerId.value = '';
+  dateRange.value = [getTodayStr(), getTodayStr()];
   pagination.current = 1;
   loadData();
 };
@@ -490,26 +515,67 @@ const handleSelectionChange = (selection) => {
 };
 
 // ============================================================
+// 行点击
+// ============================================================
+const handleRowClick = (row) => {
+  currentFlowOrderId.value = row.orderId;
+  currentFlowOrderNo.value = row.orderNo;
+  currentFlowStatus.value = row.flowStatus;
+  flowDrawerVisible.value = true;
+};
+
+// ============================================================
+// 打开状态更新弹窗
+// ============================================================
+const openStatusDialog = (row) => {
+  currentOrder.value = row;
+  selectedStatus.value = '';
+  statusRemark.value = '';
+  statusDialogVisible.value = true;
+};
+
+// ============================================================
+// 确认状态更新
+// ============================================================
+const confirmStatusUpdate = async () => {
+  if (!selectedStatus.value) {
+    ElMessage.warning('请选择目标状态');
+    return;
+  }
+
+  statusLoading.value = true;
+  try {
+    const label = statusOptions.value.find(s => s.value === selectedStatus.value)?.label || selectedStatus.value;
+    
+    await updateProduction(currentOrder.value.orderId, {
+      status: selectedStatus.value,
+      step: 0,
+      remark: statusRemark.value || `制作状态更新为：${label}`,
+    });
+    
+    ElMessage.success(`状态已更新为：${label}`);
+    statusDialogVisible.value = false;
+    loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '更新失败');
+  } finally {
+    statusLoading.value = false;
+  }
+};
+
+// ============================================================
 // 接单
 // ============================================================
 const handleBatchAccept = async () => {
-  const acceptList = selectedOrders.value.filter(row => {
-    const normalized = normalizeStatus(row.flowStatus);
-    return normalized === 'customerAudited';
-  });
+  const acceptList = selectedOrders.value.filter(row => row.flowStatus === 'customerAudited');
   if (acceptList.length === 0) {
     ElMessage.warning('请选择待接单的订单');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定要接单 ${acceptList.length} 个订单吗？`,
-      '批量接单',
-      { type: 'info' }
-    );
-    let successCount = 0;
-    let failCount = 0;
+    await ElMessageBox.confirm(`确定要接单 ${acceptList.length} 个订单吗？`, '批量接单', { type: 'info' });
+    let successCount = 0, failCount = 0;
 
     for (const order of acceptList) {
       try {
@@ -539,42 +605,6 @@ const handleAccept = async (row) => {
 };
 
 // ============================================================
-// 更新状态（弹窗）
-// ============================================================
-const openStatusDialog = (row) => {
-  currentOrder.value = row;
-  selectedStatus.value = '';
-  statusRemark.value = '';
-  statusDialogVisible.value = true;
-};
-
-const confirmStatusUpdate = async () => {
-  if (!selectedStatus.value) {
-    ElMessage.warning('请选择目标状态');
-    return;
-  }
-
-  statusLoading.value = true;
-  try {
-    const label = statusOptions.value.find(s => s.value === selectedStatus.value)?.label || selectedStatus.value;
-    
-    await updateProduction(currentOrder.value.orderId, {
-      status: selectedStatus.value,
-      step: 0,
-      remark: statusRemark.value || `制作状态更新为：${label}`,
-    });
-    
-    ElMessage.success(`状态已更新为：${label}`);
-    statusDialogVisible.value = false;
-    loadData();
-  } catch (error) {
-    ElMessage.error(error.message || '更新失败');
-  } finally {
-    statusLoading.value = false;
-  }
-};
-
-// ============================================================
 // 生成账单
 // ============================================================
 const handleGenerateBill = (row) => {
@@ -587,21 +617,14 @@ const handleBatchGenerateBill = async () => {
     return;
   }
   
-  const validOrders = selectedOrders.value.filter(o => {
-    const normalized = normalizeStatus(o.flowStatus);
-    return normalized === 'polishing';
-  });
+  const validOrders = selectedOrders.value.filter(o => o.flowStatus === 'polishing');
   if (validOrders.length === 0) {
     ElMessage.warning('请选择状态为"制作完成"的订单');
     return;
   }
 
   try {
-    await ElMessageBox.confirm(
-      `确定为 ${validOrders.length} 个订单生成账单吗？`,
-      '生成账单',
-      { type: 'info' }
-    );
+    await ElMessageBox.confirm(`确定为 ${validOrders.length} 个订单生成账单吗？`, '生成账单', { type: 'info' });
   } catch {
     return;
   }
@@ -645,6 +668,7 @@ const formatDate = (date) => {
 // 初始化
 // ============================================================
 onMounted(() => {
+  dateRange.value = [getTodayStr(), getTodayStr()];
   loadCustomers();
   loadData();
 });

@@ -61,6 +61,11 @@ const routes = [
         component: () => import('@/views/order/factory-list.vue'), 
         meta: { title: '工厂订单' } 
       },
+      {
+        path: '/order/factory-history',
+        component: () => import('@/views/order/factory-history.vue'),
+        meta: { title: '历史订单'}
+      },
       { 
         path: 'order/factory-edit/:id', 
         name: 'FactoryEdit', 

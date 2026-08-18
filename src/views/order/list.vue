@@ -7,19 +7,27 @@
         <el-button type="primary" @click="goCreate">
           <el-icon><Plus /></el-icon> 新增
         </el-button>
-        <el-button type="success" @click="goImport">
-          <el-icon><Upload /></el-icon> 导入Excel
-        </el-button>
         <el-button @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
-        <el-button v-if="userStore.isAdmin" type="info" @click="exportData">
-          <el-icon><Download /></el-icon> 导出
-        </el-button>
-        <!-- 列显示控制 -->
         <el-button @click="columnVisibleDialog = true">
           <el-icon><Setting /></el-icon> 列设置
         </el-button>
+      </div>
+    </div>
+
+    <!-- ⭐ 顶部统计卡片 -->
+    <div class="stats-wrapper">
+      <div
+        v-for="item in statusStats"
+        :key="item.key"
+        class="stat-item"
+        :style="{ borderLeftColor: item.color }"
+        @click="filterByStatus(item.key)"
+      >
+        <span class="stat-num" :style="{ color: item.color }">{{ item.count }}</span>
+        <span class="stat-label">{{ item.label }}</span>
+        <span class="stat-mine" v-if="item.mineCount > 0">(我的: {{ item.mineCount }})</span>
       </div>
     </div>
 
@@ -29,24 +37,18 @@
         <el-form-item label="关键词">
           <el-input
             v-model="query.keyword"
-            placeholder="订单号/品名/客户"
+            placeholder="订单号/品名"
             clearable
             style="width: 200px;"
+            @keyup.enter="handleSearch"
           />
         </el-form-item>
 
         <el-form-item label="状态">
-          <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px;">
-            <el-option label="草稿" value="draft" />
-            <el-option label="待客户审核" value="pending" />
-            <el-option label="客户已审核" value="customerAudited" />
-            <el-option label="工厂编辑中" value="factory_edit" />
-            <el-option label="制作完成" value="polishing" />
-            <el-option label="账单待审核" value="billPending" />
-            <el-option label="客户已确认" value="billConfirmed" />
+          <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px;" @change="handleSearch">
+            <el-option label="全部" value="" />
+            <el-option label="进行中" value="running" />
             <el-option label="已完成" value="completed" />
-            <el-option label="已驳回" value="rejected" />
-            <el-option label="已取消" value="cancelled" />
           </el-select>
         </el-form-item>
 
@@ -58,7 +60,7 @@
             start-placeholder="开始日期"
             end-placeholder="结束日期"
             value-format="YYYY-MM-DD"
-            style="width: 260px;"
+            style="width: 240px;"
           />
         </el-form-item>
 
@@ -75,6 +77,7 @@
 
     <!-- 表格 -->
     <el-table
+      ref="tableRef"
       :data="tableData"
       v-loading="loading"
       border
@@ -82,8 +85,13 @@
       style="width: 100%"
       @sort-change="handleSortChange"
       @row-click="handleRowClick"
+      @selection-change="handleSelectionChange"
+      row-key="orderId"
+      :row-class-name="getRowClassName"
     >
-      <!-- 订单号 - 固定 -->
+      <!-- 多选列 -->
+      <el-table-column type="selection" width="40" align="center" />
+
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
           <el-link type="primary" @click.stop="viewDetail(row.orderId)">
@@ -92,7 +100,15 @@
         </template>
       </el-table-column>
 
-      <!-- 动态列 -->
+      <!-- ⭐ 状态列 -->
+      <el-table-column prop="flowStatus" label="状态" width="110" fixed align="center">
+        <template #default="{ row }">
+          <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
+            {{ getStatusText(row.flowStatus) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+
       <el-table-column
         v-for="col in visibleColumns"
         :key="col.prop"
@@ -104,17 +120,14 @@
         :sortable="col.sortable"
       >
         <template #default="{ row }">
-          <!-- 日期 -->
           <template v-if="col.prop === 'orderDate'">
             {{ formatDate(row.orderDate) }}
           </template>
 
-          <!-- ⭐ 客户名称显示销售名称 -->
           <template v-else-if="col.prop === 'customerName'">
             {{ row.salesman || row.customerName || '-' }}
           </template>
 
-          <!-- 图片列 -->
           <template v-else-if="col.prop === 'imageUrl'">
             <el-image
               v-if="row.imageUrl"
@@ -141,12 +154,10 @@
             <span v-else style="color:#ccc;font-size:12px;">无图</span>
           </template>
 
-          <!-- 金价 -->
           <template v-else-if="col.prop === 'goldPrice'">
             {{ row.goldPrice || '-' }}
           </template>
 
-          <!-- 网址 -->
           <template v-else-if="col.prop === 'url'">
             <a v-if="row.url" :href="row.url" target="_blank" style="color:#409EFF;text-decoration:none;">
               查看链接
@@ -154,44 +165,35 @@
             <span v-else style="color:#ccc;">-</span>
           </template>
 
-          <!-- 备注 -->
           <template v-else-if="col.prop === 'remark'">
             <span v-if="row.remark">{{ row.remark }}</span>
             <span v-else style="color:#ccc;">-</span>
           </template>
 
-          <!-- 状态 -->
-          <template v-else-if="col.prop === 'flowStatus'">
-            <el-tag :type="getStatusType(row.flowStatus)" size="small">
-              {{ getStatusText(row.flowStatus) }}
-            </el-tag>
-          </template>
-
-          <!-- 紧急标记 -->
           <template v-else-if="col.prop === 'warnFlag'">
             <el-tag v-if="row.warnFlag" type="danger" size="small">⚠️</el-tag>
             <span v-else style="color:#ccc;">-</span>
           </template>
 
-          <!-- 创建时间 -->
           <template v-else-if="col.prop === 'createdAt'">
             {{ formatDateTime(row.createdAt) }}
           </template>
 
-          <!-- 默认 -->
           <template v-else>
             {{ row[col.prop] ?? '-' }}
           </template>
         </template>
       </el-table-column>
 
-      <!-- 操作列 - 固定 -->
-      <el-table-column label="操作" width="250" fixed="right" align="center">
+      <!-- ⭐ 操作列 -->
+      <el-table-column label="操作" width="280" fixed="right" align="center">
         <template #default="{ row }">
-          <el-button type="primary" size="small" link @click.stop="viewDetail(row.orderId)">
+          <!-- 查看：所有人都可以 -->
+          <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
             查看
           </el-button>
 
+          <!-- 再次下单：所有人都可以 -->
           <el-button
             size="small"
             type="success"
@@ -201,35 +203,38 @@
             再次下单
           </el-button>
 
-          <el-button
-            v-if="canEdit(row)"
-            type="warning"
-            size="small"
-            link
-            @click.stop="goEdit(row.orderId)"
-          >
-            编辑
-          </el-button>
+          <!-- ⭐ 只有自己的订单才显示操作按钮 -->
+          <template v-if="isMine(row)">
+            <el-button
+              v-if="row.flowStatus === 'draft'"
+              size="small"
+              type="primary"
+              @click.stop="handleSingleSubmit(row)"
+            >
+              提交
+            </el-button>
+            <el-button
+              v-if="canEdit(row)"
+              size="small"
+              type="warning"
+              link
+              @click.stop="goEdit(row.orderId)"
+            >
+              编辑
+            </el-button>
+            <el-button
+              v-if="canDelete(row)"
+              size="small"
+              type="danger"
+              link
+              @click.stop="handleDelete(row)"
+            >
+              删除
+            </el-button>
+          </template>
 
-          <el-button
-            v-if="canDelete(row)"
-            type="danger"
-            size="small"
-            link
-            @click.stop="handleDelete(row)"
-          >
-            删除
-          </el-button>
-
-          <el-button
-            v-if="canAudit(row)"
-            type="success"
-            size="small"
-            link
-            @click.stop="handleQuickAudit(row)"
-          >
-            审核
-          </el-button>
+          <!-- ⭐ 别人的订单显示只读 -->
+          <el-tag v-else size="small" type="info" effect="plain">只读</el-tag>
         </template>
       </el-table-column>
     </el-table>
@@ -312,13 +317,14 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Plus, Upload, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
+import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, deleteOrder, auditOrder } from '@/api/order';
+import { getOrderList, deleteOrder, auditOrder, submitOrder } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
+const tableRef = ref();
 
 // ===== 列定义 =====
 const allColumns = ref([
@@ -343,17 +349,13 @@ const allColumns = ref([
   { prop: 'createdAt', label: '创建时间', width: 160, visible: true, sortable: true },
 ]);
 
-// 固定列（不可隐藏）
 const fixedColumns = ['orderNo'];
-
 const columnVisibleDialog = ref(false);
 
-// 计算可见列
 const visibleColumns = computed(() => {
   return allColumns.value.filter(col => col.visible);
 });
 
-// 全选状态
 const isAllSelected = computed(() => {
   const selectable = allColumns.value.filter(col => !col.fixed);
   return selectable.every(col => col.visible);
@@ -367,7 +369,6 @@ const toggleAllColumns = (val) => {
   });
 };
 
-// 应用列设置
 const applyColumnSettings = () => {
   const settings = {};
   allColumns.value.forEach(col => {
@@ -378,7 +379,6 @@ const applyColumnSettings = () => {
   ElMessage.success('列设置已保存');
 };
 
-// 加载列设置
 const loadColumnSettings = () => {
   try {
     const saved = localStorage.getItem('orderListColumns');
@@ -390,9 +390,7 @@ const loadColumnSettings = () => {
         }
       });
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) {}
   allColumns.value.forEach(col => {
     if (fixedColumns.includes(col.prop)) {
       col.fixed = true;
@@ -407,27 +405,68 @@ const currentFlowOrderId = ref(0);
 const currentFlowOrderNo = ref('');
 const currentFlowStatus = ref('');
 
-// ===== 状态映射（根据你的流程节点） =====
+// ===== 多选 =====
+const selectedOrders = ref([]);
+const handleSelectionChange = (selection) => {
+  selectedOrders.value = selection;
+};
+
+// ===== ⭐ 判断是否为自己的订单 =====
+const isMine = (row) => {
+  return Number(row.submittedBy) === Number(userStore.userId);
+};
+
+// ===== 状态映射 =====
 const statusMap = {
-  draft: { text: '草稿', type: 'info' },
-  pending: { text: '待客户审核', type: 'warning' },
-  customerAudited: { text: '客户已审核', type: 'success' },
-  factory_edit: { text: '工厂编辑中', type: 'primary' },
-  polishing: { text: '制作完成', type: 'primary' },
-  billPending: { text: '账单待审核', type: 'warning' },
-  billConfirmed: { text: '客户已确认', type: 'success' },
-  completed: { text: '已完成', type: 'success' },
-  rejected: { text: '已驳回', type: 'danger' },
-  cancelled: { text: '已取消', type: 'info' },
+  draft: { text: '草稿', type: 'info', color: '#909399' },
+  pending: { text: '待客户审核', type: 'warning', color: '#E6A23C' },
+  customeraudited: { text: '待工厂接单', type: 'success', color: '#67C23A' },
+  factory_edit: { text: '工厂编辑中', type: 'primary', color: '#409EFF' },
+  polishing: { text: '制作完成', type: 'primary', color: '#409EFF' },
+  billPending: { text: '账单待审核', type: 'warning', color: '#E6A23C' },
+  billConfirmed: { text: '客户已确认', type: 'success', color: '#67C23A' },
+  completed: { text: '已完成', type: 'success', color: '#67C23A' },
+  rejected: { text: '已驳回', type: 'danger', color: '#F56C6C' },
+  cancelled: { text: '已取消', type: 'info', color: '#909399' },
 };
 
 const getStatusText = (status) => statusMap[status]?.text || status || '-';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
+// ===== ⭐ 行样式 =====
+const getRowClassName = ({ row }) => {
+  return isMine(row) ? 'row-mine' : 'row-other';
+};
+
+// ===== ⭐ 统计卡片（含"我的"数量） =====
+const statusStats = computed(() => {
+  const counts = {};
+  const mineCounts = {};
+  const userId = Number(userStore.userId);
+
+  tableData.value.forEach(item => {
+    const key = item.flowStatus || 'unknown';
+    counts[key] = (counts[key] || 0) + 1;
+    if (Number(item.submittedBy) === userId) {
+      mineCounts[key] = (mineCounts[key] || 0) + 1;
+    }
+  });
+
+  return Object.keys(statusMap)
+    .filter(key => counts[key] > 0)
+    .map(key => ({
+      key,
+      label: statusMap[key].text,
+      color: statusMap[key].color,
+      count: counts[key] || 0,
+      mineCount: mineCounts[key] || 0,
+    }));
+});
+
 // ===== 查询参数 =====
 const query = reactive({
   keyword: '',
-  status: '',
+  status: 'running',
   dateRange: [],
   orderBy: 'createdAt',
   descending: true,
@@ -441,10 +480,33 @@ const pagination = reactive({
 
 const tableData = ref([]);
 const loading = ref(false);
+
 const auditDialogVisible = ref(false);
 const auditLoading = ref(false);
 const currentOrder = ref(null);
 const auditRemark = ref('');
+
+// ===== 获取默认日期范围（7天前 ~ 今天） =====
+const getDefaultDateRange = () => {
+  const today = new Date();
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(today.getDate() - 7);
+
+  const format = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  return [format(sevenDaysAgo), format(today)];
+};
+
+// ===== 快捷筛选 =====
+const filterByStatus = (status) => {
+  query.status = status;
+  handleSearch();
+};
 
 // ===== 点击行查看流程 =====
 const handleRowClick = (row) => {
@@ -466,27 +528,13 @@ const goEdit = (id) => {
 
 // ===== 权限判断 =====
 const canEdit = (row) => {
-  const userType = userStore.userType;
   const status = row.flowStatus;
-  if (userType === 'admin') return true;
-  if (userType === 'customer' && (status === 'draft' || status === 'rejected')) return true;
-  return false;
+  return status === 'draft' || status === 'rejected';
 };
 
 const canDelete = (row) => {
-  const userType = userStore.userType;
   const status = row.flowStatus;
-  if (userType === 'admin') return true;
-  if (userType === 'customer' && (status === 'draft' || status === 'rejected')) return true;
-  return false;
-};
-
-const canAudit = (row) => {
-  const userType = userStore.userType;
-  const status = row.flowStatus;
-  if (userType === 'customerAudit' && status === 'pending') return true;
-  if (userType === 'factoryAudit' && status === 'billPending') return true;
-  return false;
+  return status === 'draft' || status === 'rejected';
 };
 
 // ===== 分页切换 =====
@@ -494,7 +542,7 @@ const onPageChange = () => {
   loadData();
 };
 
-// ===== ⭐ 搜索（重置到第一页） =====
+// ===== 搜索 =====
 const handleSearch = () => {
   pagination.current = 1;
   loadData();
@@ -513,16 +561,13 @@ const loadData = async () => {
       descending: query.descending,
     };
 
-    // ⭐ 日期查询
     if (query.dateRange && query.dateRange.length === 2) {
       params.startDate = query.dateRange[0];
       params.endDate = query.dateRange[1];
     }
 
     const res = await getOrderList(params);
-    console.log('列表返回数据:', res);
 
-    // 兼容多种返回格式
     let data = res?.data || res || {};
     let list = [];
     let total = 0;
@@ -549,8 +594,6 @@ const loadData = async () => {
 
     tableData.value = list;
     pagination.total = total;
-
-    console.log(`加载完成: ${list.length} 条, 总计: ${total}`);
   } catch (error) {
     ElMessage.error(error.message || '加载数据失败');
     tableData.value = [];
@@ -562,8 +605,8 @@ const loadData = async () => {
 
 const resetQuery = () => {
   query.keyword = '';
-  query.status = '';
-  query.dateRange = [];
+  query.status = 'running';
+  query.dateRange = getDefaultDateRange();
   query.orderBy = 'createdAt';
   query.descending = true;
   pagination.current = 1;
@@ -576,20 +619,29 @@ const handleSortChange = ({ prop, order }) => {
   loadData();
 };
 
-// ===== 跳转 =====
-const goCreate = () => {
-  router.push('/order/create');
+// ============================================================
+// 提交审核（单个）
+// ============================================================
+const handleSingleSubmit = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要提交订单 ${row.orderNo} 审核吗？`,
+      '提交审核',
+      { type: 'info' }
+    );
+    await submitOrder(row.orderId);
+    ElMessage.success('提交审核成功');
+    loadData();
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.message || '提交失败');
+    }
+  }
 };
 
-const goImport = () => {
-  router.push('/order/import');
-};
-
-const viewDetail = (id) => {
-  router.push(`/order/detail/${id}`);
-};
-
-// ===== 删除 =====
+// ============================================================
+// 删除
+// ============================================================
 const handleDelete = (row) => {
   ElMessageBox.confirm(`确定要删除订单 ${row.orderNo} 吗？`, '提示', { type: 'warning' })
     .then(async () => {
@@ -600,7 +652,9 @@ const handleDelete = (row) => {
     .catch(() => {});
 };
 
-// ===== 审核 =====
+// ============================================================
+// 审核
+// ============================================================
 const handleQuickAudit = (row) => {
   currentOrder.value = row;
   auditRemark.value = '';
@@ -633,11 +687,24 @@ const exportData = () => {
   ElMessage.info('导出功能开发中...');
 };
 
-// ===== 时间格式化 =====
+// ============================================================
+// 跳转
+// ============================================================
+const goCreate = () => {
+  router.push('/order/create');
+};
+
+const viewDetail = (id) => {
+  router.push(`/order/detail/${id}`);
+};
+
+// ============================================================
+// 时间格式化
+// ============================================================
 const formatDate = (date) => {
   if (!date) return '-';
   const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 const formatDateTime = (date) => {
@@ -646,9 +713,13 @@ const formatDateTime = (date) => {
   return d.toLocaleString('zh-CN', { hour12: false });
 };
 
-// ===== 初始化 =====
+// ============================================================
+// 初始化
+// ============================================================
 onMounted(() => {
   loadColumnSettings();
+  query.dateRange = getDefaultDateRange();
+  query.status = 'running';
   loadData();
 });
 </script>
@@ -665,7 +736,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -675,9 +746,48 @@ onMounted(() => {
   margin: 0;
 }
 
+/* ===== 统计卡片 ===== */
+.stats-wrapper {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  background: #fafbfc;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #e8ecf1;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 10px;
+  border-left: 3px solid #ddd;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-radius: 4px;
+}
+.stat-item:hover {
+  background: #f0f4f9;
+}
+.stat-item .stat-num {
+  font-size: 18px;
+  font-weight: 600;
+}
+.stat-item .stat-label {
+  font-size: 13px;
+  color: #606266;
+}
+.stat-item .stat-mine {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 2px;
+}
+
 .search-bar {
   background: #f5f7fa;
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-radius: 8px;
   margin-bottom: 16px;
 }
@@ -699,5 +809,16 @@ onMounted(() => {
 }
 :deep(.el-image) {
   display: inline-block;
+}
+
+/* ===== 行样式 ===== */
+:deep(.el-table .row-mine) {
+  background-color: #ffffff !important;
+}
+:deep(.el-table .row-other) {
+  background-color: #f5f7fa !important;
+}
+:deep(.el-table .row-other:hover) {
+  background-color: #eef1f5 !important;
 }
 </style>
