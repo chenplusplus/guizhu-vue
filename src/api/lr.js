@@ -63,6 +63,23 @@ export const confirmLr = (id) => {
   });
 };
 
+// LR表流程动作：制作完成、审核通过/驳回统一走流程引擎
+export const getLrCurrentNode = (lrId) => {
+  return request.get('/api/flow/current-node', { params: { businessId: lrId } });
+};
+
+export const getLrNodeActions = (nodeKey) => {
+  return request.get('/api/flow/node-actions', { params: { flowCode: 'lr_flow', nodeKey } });
+};
+
+export const executeLrAction = (data) => {
+  return request.post('/api/flow/execute', {
+    flowCode: 'lr_flow',
+    ...data,
+    businessId: String(data.businessId)
+  });
+};
+
 export const getLrCustomers = () => {
   return request({
     url: '/api/lr/customers',

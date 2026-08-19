@@ -38,8 +38,8 @@
             <div class="step-dot" :style="{ background: index === 0 ? '#409EFF' : '#e8ecf1' }">
               <span class="step-number">{{ index + 1 }}</span>
             </div>
-            <div class="step-label">{{ node.node_name }}</div>
-            <div class="step-key">{{ node.node_key }}</div>
+            <div class="step-label">{{ getNodeName(node) }}</div>
+            <div class="step-key">{{ getNodeKey(node) }}</div>
             <div v-if="index < nodes.length - 1" class="step-line"></div>
           </div>
         </div>
@@ -60,8 +60,8 @@
           <el-table-column prop="node_name" label="节点名称" width="140" />
           <el-table-column prop="node_type" label="类型" width="80" align="center">
             <template #default="{ row }">
-              <el-tag :type="row.node_type === 'start' ? 'success' : row.node_type === 'end' ? 'danger' : 'primary'" size="small">
-                {{ row.node_type === 'start' ? '开始' : row.node_type === 'end' ? '结束' : '审批' }}
+              <el-tag :type="getNodeType(row) === 'start' ? 'success' : getNodeType(row) === 'end' ? 'danger' : 'primary'" size="small">
+                {{ getNodeType(row) === 'start' ? '开始' : getNodeType(row) === 'end' ? '结束' : '审批' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -71,11 +71,11 @@
                 <el-tag 
                   v-for="(t, idx) in getNodeTransitions(row.node_key)" 
                   :key="idx"
-                  :type="t.action_type || 'primary'"
+                  :type="t.action_type || t.actionType || t.ActionType || 'primary'"
                   size="small"
                   style="margin:2px;"
                 >
-                  {{ t.action_name }} → {{ t.to_node }}
+                  {{ getActionName(t) }} → {{ getToNode(t) }}
                 </el-tag>
                 <span v-if="!getNodeTransitions(row.node_key).length" style="color:#ccc;">无流转</span>
               </div>
@@ -237,6 +237,17 @@ const getNodeTransitions = (nodeKey) => {
   return transitions.value[nodeKey] || [];
 };
 
+const getNodeKey = (node) => node.node_key || node.nodeKey || node.NodeKey || '';
+const getNodeName = (node) => node.node_name || node.nodeName || node.NodeName || '';
+const getActionName = (action) => action.action_name || action.actionName || action.ActionName || '';
+const getToNode = (action) => action.to_node || action.toNode || action.ToNode || '';
+const getNodeType = (node) => node.node_type || node.nodeType || node.NodeType || '';
+const getFieldKey = (field) => field.field_key || field.fieldKey || field.FieldKey || '';
+const getFieldLabel = (field) => field.field_label || field.fieldLabel || field.FieldLabel || '';
+const getFieldGroup = (field) => field.field_group || field.fieldGroup || field.FieldGroup || 'base';
+const getRoleType = (role) => role.role_type || role.roleType || role.RoleType || '';
+const getPermissionType = (permission) => permission.permission_type || permission.permissionType || permission.PermissionType || '';
+
 // ==================== 加载数据 ====================
 const loadFlowList = async () => {
   try {
@@ -261,11 +272,18 @@ const loadData = async () => {
   loading.value = true;
   try {
     const res = await flowApi.getFlowNodes(currentFlow.value);
-    nodes.value = res.data || [];
+    nodes.value = (res.data || []).map(node => ({
+      ...node,
+      node_key: getNodeKey(node),
+      node_name: getNodeName(node),
+      node_type: getNodeType(node),
+      sort_order: node.sort_order ?? node.sortOrder ?? node.SortOrder ?? 0
+    }));
     
     for (const node of nodes.value) {
-      const transRes = await flowApi.getTransitions(currentFlow.value, node.node_key);
-      transitions.value[node.node_key] = transRes.data || [];
+      const nodeKey = getNodeKey(node);
+      const transRes = await flowApi.getTransitions(currentFlow.value, nodeKey);
+      transitions.value[nodeKey] = transRes.data || [];
     }
   } catch (error) {
     console.error(error);
@@ -293,7 +311,14 @@ const handleSaveNode = async () => {
   }
   nodeSaving.value = true;
   try {
-    await flowApi.saveNode({ flow_code: currentFlow.value, ...editNodeData.value });
+    await flowApi.saveNode({
+      id: editNodeData.value.id || 0,
+      flowCode: currentFlow.value,
+      nodeKey: editNodeData.value.node_key,
+      nodeName: editNodeData.value.node_name,
+      nodeType: editNodeData.value.node_type,
+      sortOrder: editNodeData.value.sort_order
+    });
     ElMessage.success('保存成功');
     nodeDialogVisible.value = false;
     loadData();
@@ -318,8 +343,16 @@ const deleteNode = (row) => {
 const openFieldConfig = async (row) => {
   currentNode.value = row;
   try {
-    const res = await flowApi.getNodeFields(currentFlow.value, row.node_key);
-    fieldData.value = res.data || [];
+    const res = await flowApi.getNodeFields(currentFlow.value, getNodeKey(row));
+    fieldData.value = (res.data || []).map(field => ({
+      ...field,
+      field_key: getFieldKey(field),
+      field_label: getFieldLabel(field),
+      field_group: getFieldGroup(field),
+      is_visible: Boolean(field.is_visible ?? field.isVisible ?? field.IsVisible),
+      is_editable: Boolean(field.is_editable ?? field.isEditable ?? field.IsEditable),
+      sort_order: field.sort_order ?? field.sortOrder ?? field.SortOrder ?? 0
+    }));
     fieldDialogVisible.value = true;
   } catch (error) {
     ElMessage.error('加载字段配置失败');
@@ -337,9 +370,16 @@ const handleSaveFields = async () => {
   fieldSaving.value = true;
   try {
     await flowApi.updateNodeFields({
-      flow_code: currentFlow.value,
-      node_key: currentNode.value.node_key,
-      fields: fieldData.value
+      flowCode: currentFlow.value,
+      nodeKey: getNodeKey(currentNode.value),
+      fields: fieldData.value.map(field => ({
+        fieldKey: getFieldKey(field),
+        fieldLabel: getFieldLabel(field),
+        fieldGroup: getFieldGroup(field),
+        isVisible: field.is_visible,
+        isEditable: field.is_editable,
+        sortOrder: field.sort_order
+      }))
     });
     ElMessage.success('保存成功');
     fieldDialogVisible.value = false;
@@ -354,11 +394,13 @@ const handleSaveFields = async () => {
 const openRoleConfig = async (row) => {
   currentNode.value = row;
   try {
-    const res = await flowApi.getNodeRoles(currentFlow.value, row.node_key);
+    const res = await flowApi.getNodeRoles(currentFlow.value, getNodeKey(row));
     const allRoles = ['customer', 'customerAudit', 'factoryOrder', 'factoryAudit', 'admin'];
     const existing = res.data || [];
     roleData.value = allRoles.map(role => {
-      const found = existing.find(r => r.role_type === role);
+      const permissions = existing
+        .filter(r => getRoleType(r) === role)
+        .map(r => getPermissionType(r));
       return {
         role_type: role,
         role_label: { 
@@ -369,9 +411,9 @@ const openRoleConfig = async (row) => {
           admin: '管理员' 
         }[role] || role,
         permissions: {
-          view: found?.permission_type === 'view' || found?.permission_type === 'edit' || found?.permission_type === 'approve',
-          edit: found?.permission_type === 'edit',
-          approve: found?.permission_type === 'approve'
+          view: permissions.includes('view') || permissions.includes('edit') || permissions.includes('approve'),
+          edit: permissions.includes('edit'),
+          approve: permissions.includes('approve')
         }
       };
     });
@@ -386,13 +428,13 @@ const handleSaveRoles = async () => {
   try {
     const permissions = [];
     roleData.value.forEach(r => {
-      if (r.permissions.view) permissions.push({ role_type: r.role_type, permission_type: 'view' });
-      if (r.permissions.edit) permissions.push({ role_type: r.role_type, permission_type: 'edit' });
-      if (r.permissions.approve) permissions.push({ role_type: r.role_type, permission_type: 'approve' });
+      if (r.permissions.view) permissions.push({ roleType: r.role_type, permissionType: 'view' });
+      if (r.permissions.edit) permissions.push({ roleType: r.role_type, permissionType: 'edit' });
+      if (r.permissions.approve) permissions.push({ roleType: r.role_type, permissionType: 'approve' });
     });
     await flowApi.updateNodeRoles({
-      flow_code: currentFlow.value,
-      node_key: currentNode.value.node_key,
+      flowCode: currentFlow.value,
+      nodeKey: getNodeKey(currentNode.value),
       permissions
     });
     ElMessage.success('保存成功');

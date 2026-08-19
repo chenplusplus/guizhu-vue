@@ -83,6 +83,7 @@
             size="small"
             style="width:100%;"
             max-height="600"
+            :row-class-name="getDetailRowClass"
           >
             <!-- 序号 -->
             <el-table-column label="序号" width="55" align="center" fixed>
@@ -431,28 +432,32 @@ const statusType = computed(() => statusMap[billStatus.value]?.type || 'info');
 
 // ===== 汇总计算 =====
 const totalAmount = computed(() => {
-  return details.value.reduce((sum, row) => sum + (row.totalAmount || 0), 0);
+  return activeDetails.value.reduce((sum, row) => sum + (row.totalAmount || 0), 0);
 });
 
 const totalQuantity = computed(() => {
-  return details.value.reduce((sum, row) => sum + (row.quantity || 1), 0);
+  return activeDetails.value.reduce((sum, row) => sum + (row.quantity || 1), 0);
 });
 
 const totalWeightSum = computed(() => {
-  return details.value.reduce((sum, row) => sum + (row.totalWeight || 0), 0);
+  return activeDetails.value.reduce((sum, row) => sum + (row.totalWeight || 0), 0);
 });
 
 const totalNetWeightSum = computed(() => {
-  return details.value.reduce((sum, row) => sum + (row.netWeight || 0), 0);
+  return activeDetails.value.reduce((sum, row) => sum + (row.netWeight || 0), 0);
 });
 
 const totalGoldFee = computed(() => {
-  return details.value.reduce((sum, row) => sum + (row.goldMaterialFee || 0), 0);
+  return activeDetails.value.reduce((sum, row) => sum + (row.goldMaterialFee || 0), 0);
 });
 
 const totalLaborFee = computed(() => {
-  return details.value.reduce((sum, row) => sum + (row.laborFee || 0), 0);
+  return activeDetails.value.reduce((sum, row) => sum + (row.laborFee || 0), 0);
 });
+
+const isReturnedDetail = (row) => Boolean(row.isReturned ?? row.IsReturned);
+const activeDetails = computed(() => details.value.filter(row => !isReturnedDetail(row)));
+const getDetailRowClass = ({ row }) => isReturnedDetail(row) ? 'returned-detail-row' : '';
 
 // ===== 计算单行 =====
 const calcRow = (row) => {
@@ -562,7 +567,10 @@ const loadData = async () => {
     billStatus.value = data.status || '';
 
     if (data.details) {
-      details.value = data.details;
+      details.value = data.details.map(row => ({
+        ...row,
+        isReturned: isReturnedDetail(row)
+      }));
       details.value.forEach(row => calcRow(row));
     }
 
@@ -650,7 +658,7 @@ const confirmReturnRow = async () => {
     ElMessage.success('退回成功');
     returnDialogVisible.value = false;
     returnTargetRow.value.isReturned = true;
-    loadData();
+    await loadData();
   } catch (error) {
     ElMessage.error(error.message || '退回失败');
   } finally {
@@ -674,6 +682,19 @@ onMounted(loadData);
 </script>
 
 <style scoped>
+.returned-detail-row,
+.returned-detail-row td,
+.returned-detail-row td .cell {
+  color: #a8abb2 !important;
+  text-decoration: line-through !important;
+  background: #f7f7f7 !important;
+}
+
+.returned-detail-row :deep(.el-input__wrapper),
+.returned-detail-row :deep(.el-input-number) {
+  opacity: 0.7;
+}
+
 .page-container {
   background: #f5f7fa;
   padding: 16px;

@@ -57,6 +57,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="billNo" label="原账单号" width="140" />
+      <el-table-column prop="detailId" label="明细ID" width="80" />
+      <el-table-column prop="orderNo" label="订单号" width="150" />
+      <el-table-column prop="productName" label="品名" width="120" />
       <el-table-column prop="customerName" label="客户" width="120" />
       <el-table-column prop="operatorName" label="业务员" width="100" />
       <el-table-column prop="returnAmount" label="退货金额" width="120" align="right">
@@ -114,6 +117,10 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="退货编号">{{ detailData?.returnNo }}</el-descriptions-item>
         <el-descriptions-item label="原账单号">{{ detailData?.billNo }}</el-descriptions-item>
+        <el-descriptions-item label="明细ID">{{ detailData?.detailId }}</el-descriptions-item>
+        <el-descriptions-item label="订单号">{{ detailData?.orderNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="品名">{{ detailData?.productName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="数量">{{ detailData?.quantity || 0 }}</el-descriptions-item>
         <el-descriptions-item label="客户">{{ detailData?.customerName }}</el-descriptions-item>
         <el-descriptions-item label="业务员">{{ detailData?.operatorName }}</el-descriptions-item>
         <el-descriptions-item label="退货金额">
@@ -174,10 +181,7 @@ const pagination = reactive({
 
 const statusCount = reactive({ pending: 0, processed: 0, rejected: 0 });
 
-const canAudit = computed(() => {
-  const userType = userStore.userType;
-  return userType === 'admin' || userType === 'factoryAudit';
-});
+const canAudit = computed(() => userStore.isAdmin || userStore.isFactoryAudit);
 
 const statusMap = {
   pending: { text: '待审核', type: 'warning' },

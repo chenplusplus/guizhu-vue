@@ -36,6 +36,13 @@
         <el-button @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
+        <el-button
+          v-if="userStore.isFactoryAudit || userStore.isAdmin"
+          type="warning"
+          @click="goReturnAudit"
+        >
+          退回审核
+        </el-button>
       </div>
     </div>
 
@@ -437,6 +444,10 @@ const handleSubmitAudit = async (row) => {
       ElMessage.error(error.message || '提交失败');
     }
   }
+};
+
+const goReturnAudit = () => {
+  router.push('/order/returns');
 };
 // ============================================================
 // ⭐ 批量审核（工厂审核员）

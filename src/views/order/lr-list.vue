@@ -34,7 +34,8 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="search.status" placeholder="全部状态" clearable style="width: 120px;" @change="loadData">
-            <el-option label="编辑中" value="draft" />
+            <el-option label="起草" value="draft" />
+            <el-option label="已提交" value="submitted" />
             <el-option label="已确认" value="confirmed" />
           </el-select>
         </el-form-item>
@@ -149,18 +150,21 @@
       </el-table-column>
       <el-table-column prop="status" label="状态" width="80" align="center">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'confirmed' ? 'success' : 'warning'" size="small">
-            {{ row.status === 'confirmed' ? '已确认' : '编辑中' }}
+          <el-tag :type="rowStatus(row) === 'confirmed' ? 'success' : rowStatus(row) === 'submitted' ? 'warning' : 'info'" size="small">
+            {{ rowStatus(row) === 'confirmed' ? '已确认' : rowStatus(row) === 'submitted' ? '已提交' : '起草' }}
           </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="160">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" align="center" fixed="right">
+      <el-table-column label="操作" width="300" align="center" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" type="primary" @click.stop="editLr(row)">编辑</el-button>
-          <el-button size="small" type="danger" @click.stop="handleDelete(row)">删除</el-button>
+          <el-button v-if="canEditRow(row)" size="small" type="primary" @click.stop="editLr(row)">编辑</el-button>
+          <el-button v-if="canSubmitRow(row)" size="small" type="warning" :loading="actionId === row.id" @click.stop="submitLr(row)">提交</el-button>
+          <el-button v-if="canConfirmRow(row)" size="small" type="success" :loading="actionId === row.id" @click.stop="confirmLr(row)">确认</el-button>
+          <el-button v-if="canRejectRow(row)" size="small" type="danger" :loading="actionId === row.id" @click.stop="rejectLr(row)">退回</el-button>
+          <el-button v-if="canDeleteRow(row)" size="small" type="danger" link @click.stop="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -237,9 +241,11 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight, Plus } from '@element-plus/icons-vue';
-import { getLrList, deleteLr, generateLr, getAvailableBillsForLr, getLrCustomers } from '@/api/lr';
+import { useUserStore } from '@/stores/user';
+import { getLrList, deleteLr, generateLr, getAvailableBillsForLr, getLrCustomers, getLrCurrentNode, getLrNodeActions, executeLrAction } from '@/api/lr';
 
 const router = useRouter();
+const userStore = useUserStore();
 
 const loading = ref(false);
 const billLoading = ref(false);
@@ -249,6 +255,25 @@ const customerList = ref([]);
 const showGenerateDialog = ref(false);
 const availableBills = ref([]);
 const selectedBills = ref([]);
+const actionId = ref(0);
+
+const normalizedUserType = computed(() => String(userStore.userType || '').trim().replace(/[_-]/g, '').toLowerCase());
+const isAuditUser = computed(() => ['factoryaudit', '工厂审核员'].includes(normalizedUserType.value));
+const isFactoryOperator = computed(() => normalizedUserType.value === 'factoryorder');
+
+const rowStatus = (row) => {
+  const status = String(row.status || row.Status || 'draft').trim();
+  const normalized = status.replace(/[_-]/g, '').toLowerCase();
+  if (['submitted', 'pending', 'pendingaudit', 'auditpending'].includes(normalized)) return 'submitted';
+  if (['confirmed', 'completed', 'finished'].includes(normalized)) return 'confirmed';
+  return 'draft';
+};
+const canEditRow = (row) => (isFactoryOperator.value && rowStatus(row) === 'draft')
+  || (isAuditUser.value && rowStatus(row) !== 'confirmed');
+const canSubmitRow = (row) => isFactoryOperator.value && rowStatus(row) === 'draft';
+const canConfirmRow = (row) => isAuditUser.value && rowStatus(row) === 'submitted';
+const canRejectRow = (row) => isAuditUser.value && rowStatus(row) === 'submitted';
+const canDeleteRow = (row) => isFactoryOperator.value && rowStatus(row) === 'draft';
 
 const search = reactive({
   customerId: '',
@@ -352,6 +377,49 @@ const viewDetail = (row) => {
 
 const editLr = (row) => {
   router.push(`/order/lr/edit/${row.billId}`);
+};
+
+const executeRowAction = async (row, actionKey, message) => {
+  actionId.value = row.id;
+  try {
+    await executeLrAction({ businessId: String(row.id), actionKey });
+    ElMessage.success(`${message}成功`);
+    await loadData();
+  } catch (error) {
+    ElMessage.error(error?.message || `${message}失败`);
+  } finally {
+    actionId.value = 0;
+  }
+};
+
+const submitLr = async (row) => {
+  await ElMessageBox.confirm(`确认提交 LR 表 ${row.billNo} 吗？提交后将不能编辑。`, '提交确认', { type: 'warning' });
+  await executeRowAction(row, 'submit', '提交');
+};
+
+const confirmLr = async (row) => {
+  await ElMessageBox.confirm(`确认通过 LR 表 ${row.billNo} 吗？确认后流程结束。`, '审核确认', { type: 'warning' });
+  await executeRowAction(row, 'confirm', '确认');
+};
+
+const rejectLr = async (row) => {
+  const result = await ElMessageBox.prompt('请输入退回原因', '退回起草', {
+    inputPlaceholder: '请输入原因',
+    inputValidator: value => value?.trim() ? true : '请输入退回原因'
+  });
+  actionId.value = row.id;
+  try {
+    const nodeRes = await getLrCurrentNode(row.id);
+    const node = nodeRes?.data || {};
+    const nodeKey = node.nodeKey || node.node_key || 'submitted';
+    await executeLrAction({ businessId: String(row.id), actionKey: 'reject', remark: result.value.trim() });
+    ElMessage.success('已退回起草');
+    await loadData();
+  } catch (error) {
+    ElMessage.error(error?.message || '退回失败');
+  } finally {
+    actionId.value = 0;
+  }
 };
 
 // ===== 删除 =====

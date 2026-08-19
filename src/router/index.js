@@ -143,7 +143,7 @@ const routes = [
         path: 'order/lr/edit/:billId', 
         name: 'LrEditor', 
         component: () => import('@/views/order/lr-editor.vue'), 
-        meta: { title: 'LR表编辑', icon: '📊', roles: ['factoryOrder', 'admin'] } 
+        meta: { title: 'LR表编辑', icon: '📊', roles: ['factoryOrder', 'factoryAudit', 'admin'] } 
       },
       { 
         path: 'order/lr/list', 
@@ -255,10 +255,12 @@ router.beforeEach(async (to, from, next) => {
   }
 
   // 角色权限检查
-  if (to.meta.roles && !to.meta.roles.includes(userStore.userType)) {
-    ElMessage.warning('您没有访问该页面的权限');
-    next('/dashboard');
-    return;
+  const currentRole = String(userStore.userType || '').trim().replace(/[_-]/g, '').toLowerCase();
+  const allowedRoles = (to.meta.roles || []).map(role => String(role).replace(/[_-]/g, '').toLowerCase());
+  if (allowedRoles.length > 0 && !allowedRoles.includes(currentRole)) {
+     ElMessage.warning('您没有访问该页面的权限');
+     next('/dashboard');
+     return;
   }
 
   next();

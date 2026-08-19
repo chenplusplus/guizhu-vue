@@ -1,6 +1,19 @@
 // src/stores/user.js
 import { defineStore } from 'pinia';
 
+const getNormalizedUserType = (state) => {
+  const rawType = state?.user?.userType || state?.user?.user_type || state?.user?.UserType || state?.user?.roleCode || '';
+  const normalized = String(rawType).trim().replace(/[_-]/g, '').toLowerCase();
+  return {
+    factoryaudit: 'factoryAudit',
+    factoryorder: 'factoryOrder',
+    customeraudit: 'customerAudit',
+    businessaudit: 'businessAudit',
+    admin: 'admin',
+    customer: 'customer'
+  }[normalized] || rawType;
+};
+
 export const useUserStore = defineStore('user', {
   state: () => ({
     user: null,
@@ -11,7 +24,7 @@ export const useUserStore = defineStore('user', {
     userId: (state) => state?.user?.userId || 0,
     userName: (state) => state?.user?.username || '',
     realName: (state) => state?.user?.realName || '',
-    userType: (state) => state?.user?.userType || '',
+    userType: (state) => getNormalizedUserType(state),
     userTypeName: (state) => {
       const map = {
         customer: '客户下单员',
@@ -20,7 +33,8 @@ export const useUserStore = defineStore('user', {
         factoryAudit: '工厂审核员',
         admin: '管理员',
       };
-      return map[state?.user?.userType] || state?.user?.userType || '未知角色';
+      const type = getNormalizedUserType(state);
+      return map[type] || type || '未知角色';
     },
     customerId: (state) => state?.user?.customerId || null,
     customerName: (state) => state?.user?.customerName || '',
@@ -29,20 +43,20 @@ export const useUserStore = defineStore('user', {
     // ============================================================
     // ⭐ 角色判断 getters
     // ============================================================
-    isCustomer: (state) => state?.user?.userType === 'customer',
-    isCustomerAudit: (state) => state?.user?.userType === 'customerAudit',  // ⭐ 新增
-    isFactoryOrder: (state) => state?.user?.userType === 'factoryOrder',
-    isFactoryAudit: (state) => state?.user?.userType === 'factoryAudit',
-    isAdmin: (state) => state?.user?.userType === 'admin',
+    isCustomer: (state) => getNormalizedUserType(state) === 'customer',
+    isCustomerAudit: (state) => getNormalizedUserType(state) === 'customerAudit',
+    isFactoryOrder: (state) => getNormalizedUserType(state) === 'factoryOrder',
+    isFactoryAudit: (state) => getNormalizedUserType(state) === 'factoryAudit',
+    isAdmin: (state) => getNormalizedUserType(state) === 'admin',
     
     // ⭐ 客户类型（包含客户下单员和客户审核员）
     isCustomerType: (state) => {
-      const type = state?.user?.userType;
+      const type = getNormalizedUserType(state);
       return type === 'customer' || type === 'customerAudit';
     },
     // ⭐ 工厂类型（包含工厂操作员和工厂审核员）
     isFactoryType: (state) => {
-      const type = state?.user?.userType;
+      const type = getNormalizedUserType(state);
       return type === 'factoryOrder' || type === 'factoryAudit';
     },
   },

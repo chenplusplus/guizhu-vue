@@ -179,7 +179,7 @@
         <template #default="{ row }">
           <!-- 待接单 → 接单 -->
           <el-button
-            v-if="row.flowStatus === 'customerAudited'"
+            v-if="normalizeStatus(row.flowStatus) === 'customerAudited'"
             size="small"
             type="success"
             @click.stop="handleAccept(row)"
@@ -189,7 +189,7 @@
 
           <!-- ⭐ 更新状态：制作中状态显示 -->
           <el-button
-            v-if="isInProduction(row.flowStatus)|| row.flowStatus === 'factory_edit'"
+            v-if="isInProduction(row.flowStatus)|| normalizeStatus(row.flowStatus) === 'factory_edit'"
             size="small"
             type="primary"
             @click.stop="openStatusDialog(row)"
@@ -199,7 +199,7 @@
 
           <!-- 制作完成 → 生成账单 -->
           <el-button
-            v-if="row.flowStatus === 'polishing'"
+            v-if="normalizeStatus(row.flowStatus) === 'polishing'"
             size="small"
             type="warning"
             @click.stop="handleGenerateBill(row)"
@@ -209,7 +209,7 @@
 
           <!-- 编辑 -->
           <el-button
-            v-if="row.flowStatus === 'factory_edit'"
+            v-if="normalizeStatus(row.flowStatus) === 'factory_edit'||normalizeStatus(row.flowStatus) === 'polishing'"
             size="small"
             type="primary"
             link
@@ -379,11 +379,26 @@ const productionStatuses = [
   'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
 ];
 
-const getStatusText = (status) => statusMap[status]?.text || status || '-';
-const getStatusType = (status) => statusMap[status]?.type || 'info';
+const normalizeStatus = (status) => {
+  const value = String(status || '').trim();
+  const normalized = value.replace(/[_-]/g, '').toLowerCase();
+  const aliases = {
+    customeraudited: 'customerAudited',
+    factoryedit: 'factory_edit',
+    billpending: 'billPending',
+    billconfirmed: 'billConfirmed',
+    stonecutting: 'stoneCutting',
+    microinlay: 'microInlay',
+    handinlay: 'handInlay'
+  };
+  return aliases[normalized] || value;
+};
+
+const getStatusText = (status) => statusMap[normalizeStatus(status)]?.text || status || '-';
+const getStatusType = (status) => statusMap[normalizeStatus(status)]?.type || 'info';
 
 const isInProduction = (status) => {
-  return productionStatuses.includes(status);
+  return productionStatuses.includes(normalizeStatus(status));
 };
 
 // ============================================================
@@ -465,6 +480,9 @@ const loadData = async () => {
     if (Array.isArray(responseData)) {
       data = responseData;
       total = responseData.length;
+    } else if (Array.isArray(responseData.data)) {
+      data = responseData.data;
+      total = responseData.total || data.length;
     } else if (responseData.items && Array.isArray(responseData.items)) {
       data = responseData.items;
       total = responseData.total || data.length;
@@ -480,8 +498,10 @@ const loadData = async () => {
       'handInlay', 'polishing', 'billPending', 'billConfirmed', 'completed'
     ];
     
-    tableData.value = data.filter(item => factoryStatuses.includes(item.flowStatus));
-    pagination.total = total;
+    tableData.value = data
+      .map(item => ({ ...item, flowStatus: normalizeStatus(item.flowStatus) }))
+      .filter(item => factoryStatuses.includes(item.flowStatus));
+    pagination.total = tableData.value.length || total;
     
   } catch (error) {
     console.error('加载数据失败:', error);

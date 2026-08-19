@@ -9,16 +9,28 @@
         </el-button>
         <h2>📊 成本核对</h2>
         <el-tag type="primary" size="large">{{ lrInfo?.billNo || '' }}</el-tag>
-        <el-tag v-if="lrInfo?.status === 'confirmed'" type="success" size="large">已确认</el-tag>
+        <el-tag v-if="isFinished" type="success" size="large">已确认</el-tag>
+        <el-tag v-else-if="isAuditPending" type="warning" size="large">已提交</el-tag>
+        <el-tag v-else type="info" size="large">起草</el-tag>
       </div>
       <div class="header-right">
-        <el-button type="primary" @click="handleSave" :loading="saving">
+        <el-tag size="small" type="info" effect="plain" style="margin-right:4px;">{{ userStore.userTypeName }}</el-tag>
+        <el-button v-if="canEdit" type="primary" @click="handleSave" :loading="saving">
           <el-icon><Check /></el-icon> 保存
         </el-button>
+        <el-button v-if="canSubmitProduction" type="warning" @click="handleSubmitProduction" :loading="flowLoading">
+          <el-icon><Upload /></el-icon> 提交
+        </el-button>
+        <template v-if="canAudit">
+          <el-button type="success" @click="handleAudit(true)" :loading="flowLoading">
+            <el-icon><Check /></el-icon> 确认
+          </el-button>
+          <el-button type="danger" @click="handleAudit(false)" :loading="flowLoading">驳回</el-button>
+        </template>
         <el-button type="success" @click="handleExport">
           <el-icon><Download /></el-icon> 导出Excel
         </el-button>
-        <el-button type="warning" @click="triggerImport">
+        <el-button v-if="canEdit" type="warning" @click="triggerImport">
           <el-icon><Upload /></el-icon> 导入Excel
         </el-button>
         <input ref="fileInput" type="file" accept=".xlsx,.xls" style="display:none;" @change="handleFileImport" />
@@ -34,8 +46,8 @@
           <el-col :xs="12" :sm="6"><span class="label">客户：</span><span class="value">{{ lrInfo?.customerName || '-' }}</span></el-col>
           <el-col :xs="12" :sm="6"><span class="label">成色：</span><span class="value">{{ lrInfo?.color || 'Au755' }}</span></el-col>
           <el-col :xs="12" :sm="6"><span class="label">状态：</span>
-            <el-tag :type="lrInfo?.status === 'confirmed' ? 'success' : 'warning'" size="small">
-              {{ lrInfo?.status === 'confirmed' ? '已确认' : '编辑中' }}
+            <el-tag :type="isFinished ? 'success' : isAuditPending ? 'warning' : 'info'" size="small">
+              {{ isFinished ? '已确认' : isAuditPending ? '已提交' : '起草' }}
             </el-tag>
           </el-col>
         </el-row>
@@ -71,42 +83,42 @@
 
             <el-table-column prop="totalWeight" label="总重" width="75" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.totalWeight" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.totalWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.totalWeight || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="netWeight" label="净重" width="75" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.netWeight" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.netWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.netWeight || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="lossRate" label="损耗" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.lossRate" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.lossRate" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.lossRate || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="addLossWeight" label="加耗重" width="75" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.addLossWeight" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.addLossWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.addLossWeight || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="goldPrice" label="金价" width="70" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.goldPrice" size="small" class="cell-input" @input="onGoldPriceChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.goldPrice" size="small" class="cell-input" @input="onGoldPriceChange(row)" />
                 <span v-else>{{ row.goldPrice || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.goldMaterialFee" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.goldMaterialFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.goldMaterialFee || '-' }}</span>
               </template>
             </el-table-column>
@@ -115,31 +127,31 @@
             <el-table-column label="主石" align="center">
               <el-table-column prop="stoneQty" label="粒数" width="50" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneQty || 0 }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="stoneWeight" label="石重(ct)" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneWeight || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="stonePrice" label="单价(元)" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stonePrice" size="small" class="cell-input" @input="onStonePriceChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stonePrice" size="small" class="cell-input" @input="onStonePriceChange(row)" />
                   <span v-else>{{ row.stonePrice || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="stoneAmount" label="金额(元)" width="85" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneAmount || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="stoneSettingFee" label="镶石工费" width="80" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.stoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneSettingFee || '-' }}</span>
                 </template>
               </el-table-column>
@@ -149,31 +161,31 @@
             <el-table-column label="副石" align="center">
               <el-table-column prop="subStoneQty" label="粒数" width="50" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneQty || 0 }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="subStoneWeight" label="石重" width="65" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneWeight || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="subStonePrice" label="单价(元)" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStonePrice" size="small" class="cell-input" @input="onSubStonePriceChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStonePrice" size="small" class="cell-input" @input="onSubStonePriceChange(row)" />
                   <span v-else>{{ row.subStonePrice || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneAmount || '-' }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="subStoneSettingFee" label="镶石工费" width="80" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost'" v-model.number="row.subStoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneSettingFee || '-' }}</span>
                 </template>
               </el-table-column>
@@ -181,21 +193,21 @@
 
             <el-table-column prop="packingFee" label="包装证书" width="80" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.packingFee" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.packingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.packingFee || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="moldFee" label="版费" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.moldFee" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.moldFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.moldFee || '-' }}</span>
               </template>
             </el-table-column>
 
             <el-table-column prop="laborFee" label="工费" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost'" v-model.number="row.laborFee" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.laborFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.laborFee || '-' }}</span>
               </template>
             </el-table-column>
@@ -348,18 +360,46 @@
 <script setup>
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { ElMessage, ElLoading } from 'element-plus';
+import { ElMessage, ElLoading, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Download, Upload } from '@element-plus/icons-vue';
-import { getLrTable, saveLr, generateLr, exportLr, getCustomerSummary } from '@/api/lr';
+import { useUserStore } from '@/stores/user';
+import { getLrTable, saveLr, generateLr, exportLr, getCustomerSummary, getLrCurrentNode, getLrNodeActions, executeLrAction } from '@/api/lr';
 import * as XLSX from 'xlsx';
 
 const route = useRoute();
+const userStore = useUserStore();
 const fileInput = ref(null);
 const billId = ref(Number(route.params.billId));
 const lrId = ref(0);
 const lrInfo = ref(null);
 const loading = ref(false);
 const saving = ref(false);
+const flowLoading = ref(false);
+const currentNode = ref(null);
+const flowActions = ref([]);
+const normalizedUserType = computed(() => String(userStore.userType || '').trim().replace(/[_-]/g, '').toLowerCase());
+const isFactoryOrderUser = computed(() => normalizedUserType.value === 'factoryorder');
+const isFactoryAuditUser = computed(() => ['factoryaudit', '工厂审核员'].includes(normalizedUserType.value));
+
+const normalizedStatus = computed(() => lrInfo.value?.status || currentNode.value?.nodeKey || currentNode.value?.node_key || 'draft');
+const isFinished = computed(() => ['completed', 'confirmed', 'finished'].includes(normalizedStatus.value));
+const isAuditPending = computed(() => ['productionCompleted', 'production_completed', 'pendingAudit', 'auditPending', 'pending', 'submitted'].includes(normalizedStatus.value));
+const canEdit = computed(() => (isFactoryOrderUser.value && !isFinished.value && !isAuditPending.value)
+  || (isFactoryAuditUser.value && !isFinished.value));
+const canSubmitProduction = computed(() => {
+  if (!isFactoryOrderUser.value || isFinished.value || isAuditPending.value) return false;
+  return flowActions.value.length === 0 || flowActions.value.some(action => isSubmitAction(action));
+});
+const canAudit = computed(() => {
+  if (!isFactoryAuditUser.value || isFinished.value) return false;
+  return isAuditPending.value || flowActions.value.some(action => isApproveAction(action));
+});
+
+const getActionKey = (action) => action?.actionKey || action?.action_key || action?.key || '';
+const getActionName = (action) => action?.actionName || action?.action_name || '';
+const isSubmitAction = (action) => /submit|提交/i.test(`${getActionKey(action)} ${getActionName(action)}`);
+const isApproveAction = (action) => /approve|audit|confirm|通过|审核/i.test(`${getActionKey(action)} ${getActionName(action)}`) && !/reject|驳回/i.test(`${getActionKey(action)} ${getActionName(action)}`);
+const findAction = (matcher, fallback) => flowActions.value.find(matcher) || { actionKey: fallback };
 
 // ==================== 上单数据（从后端加载） ====================
 const prevData = ref({
@@ -688,11 +728,30 @@ const loadData = async () => {
 
     // 加载上单数据
     await loadPrevData();
+    await loadFlowState();
   } catch (e) {
     console.error(e);
     ElMessage.error('加载失败');
   } finally {
     loading.value = false;
+  }
+};
+
+const loadFlowState = async () => {
+  if (!lrId.value) return;
+  try {
+    const nodeRes = await getLrCurrentNode(lrId.value);
+    currentNode.value = nodeRes?.data || null;
+    const nodeKey = currentNode.value?.nodeKey || currentNode.value?.node_key;
+    if (!nodeKey) {
+      flowActions.value = [];
+      return;
+    }
+    const actionRes = await getLrNodeActions(nodeKey);
+    flowActions.value = actionRes?.data || [];
+  } catch (e) {
+    console.warn('加载LR流程状态失败:', e);
+    flowActions.value = [];
   }
 };
 
@@ -723,13 +782,45 @@ const generateLrTable = async () => {
 
 // ==================== 保存 ====================
 const handleSave = async () => {
+  if (!canEdit.value) {
+    ElMessage.warning(isFinished.value ? 'LR表已结束，不能修改' : '当前状态不允许编辑');
+    return;
+  }
   saving.value = true;
   try {
     displayRows.value.forEach(r => recalcRow(r));
+    
+    // 清洗所有行数据
+    const cleanRows = (rows) => {
+      return rows.map(row => {
+        const cleaned = { ...row };
+        // 所有数字字段默认0
+        const numberFields = [
+          'quantity', 'totalWeight', 'netWeight', 'lossRate', 'addLossWeight',
+          'goldPrice', 'goldMaterialFee', 'stoneQty', 'stoneWeight', 'stonePrice',
+          'stoneAmount', 'stoneSettingFee', 'subStoneQty', 'subStoneWeight',
+          'subStonePrice', 'subStoneAmount', 'subStoneSettingFee', 'packingFee',
+          'moldFee', 'laborFee', 'totalAmount'
+        ];
+        numberFields.forEach(f => {
+          const val = cleaned[f];
+          if (val === undefined || val === null || val === '') {
+            cleaned[f] = 0;
+          } else if (typeof val === 'string') {
+            cleaned[f] = parseFloat(val) || 0;
+          }
+          // 确保是数字
+          cleaned[f] = Number(cleaned[f]);
+        });
+        return cleaned;
+      });
+    };
+
     const allRows = [
-      ...saleRows.value.map(r => ({ ...r, rowType: 'sale' })),
-      ...costRows.value.map(r => ({ ...r, rowType: 'cost' }))
+      ...cleanRows(saleRows.value.map(r => ({ ...r, rowType: 'sale' }))),
+      ...cleanRows(costRows.value.map(r => ({ ...r, rowType: 'cost' })))
     ];
+
     await saveLr({
       lrId: lrId.value,
       rows: allRows
@@ -741,6 +832,38 @@ const handleSave = async () => {
   } finally {
     saving.value = false;
   }
+};
+
+const executeFlowAction = async (action, remark = '') => {
+  const actionKey = getActionKey(action);
+  if (!actionKey || !lrId.value) return;
+  flowLoading.value = true;
+  try {
+    await executeLrAction({ businessId: lrId.value, actionKey, remark });
+    ElMessage.success(actionKey === 'confirm' || actionKey === 'approve' ? '确认成功，LR表流程结束' : '提交成功');
+    await loadData();
+  } catch (e) {
+    ElMessage.error(e.message || '流程操作失败');
+  } finally {
+    flowLoading.value = false;
+  }
+};
+
+const handleSubmitProduction = async () => {
+  await ElMessageBox.confirm('确认提交LR表吗？提交后工厂业务员将不能继续编辑。', '提交确认', { type: 'warning' });
+  await executeFlowAction(findAction(isSubmitAction, 'submit'), 'LR表已提交');
+};
+
+const handleAudit = async (passed) => {
+  if (!passed) {
+    await ElMessageBox.prompt('请输入驳回原因', '驳回LR表', {
+      inputPlaceholder: '驳回时必须填写原因',
+      inputValidator: value => value?.trim() ? true : '请输入驳回原因'
+    }).then(({ value }) => executeFlowAction({ actionKey: 'reject' }, value.trim()));
+    return;
+  }
+  await ElMessageBox.confirm('确认通过吗？确认后LR表流程将结束且不可修改。', '确认', { type: 'warning' });
+  await executeFlowAction(findAction(isApproveAction, 'confirm'), '审核确认通过');
 };
 
 // ==================== 导入导出 ====================
