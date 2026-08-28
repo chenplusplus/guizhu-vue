@@ -38,3 +38,8 @@ export const submitInout = (id) => {
 export const resubmitInout = (id) => {
   return api.post(`/inout/${id}/resubmit`);
 };
+
+// ⭐ 获取页面所需的数据字典选项
+export const getInoutOptions = () => {
+  return api.get('/inout/options');
+};
