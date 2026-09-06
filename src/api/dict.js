@@ -5,27 +5,27 @@ import request from '@/utils/request'
 // =============================================
 export const dictApi = {
   // 分类
-  getCategories: () => request.get('/api/dict/categories'),
-  getCategory: (id) => request.get(`/api/dict/categories/${id}`),
-  createCategory: (data) => request.post('/api/dict/categories', data),
-  updateCategory: (data) => request.put('/api/dict/categories', data),
-  deleteCategory: (id) => request.delete(`/api/dict/categories/${id}`),
+  getCategories: () => request.get('/dict/categories'),
+  getCategory: (id) => request.get(`/dict/categories/${id}`),
+  createCategory: (data) => request.post('/dict/categories', data),
+  updateCategory: (data) => request.put('/dict/categories', data),
+  deleteCategory: (id) => request.delete(`/dict/categories/${id}`),
 
   // 条目
-  getItems: (categoryId) => request.get(`/api/dict/items/${categoryId}`),
+  getItems: (categoryId) => request.get(`/dict/items/${categoryId}`),
   // key: categoryKey，如 'color', 'goldprice', 'lossrate'
-  getItemsByKey: (key) => request.get('/api/dict/items', { params: { key } }),
-  getAllItems: () => request.get('/api/dict/items'),
-  createItem: (data) => request.post('/api/dict/items', data),
-  updateItem: (data) => request.put('/api/dict/items', data),
-  deleteItem: (id) => request.delete(`/api/dict/items/${id}`),
+  getItemsByKey: (key) => request.get('/dict/items', { params: { key } }),
+  getAllItems: () => request.get('/dict/items'),
+  createItem: (data) => request.post('/dict/items', data),
+  updateItem: (data) => request.put('/dict/items', data),
+  deleteItem: (id) => request.delete(`/dict/items/${id}`),
 
   // 初始化
-  initData: () => request.post('/api/dict/init'),
+  initData: () => request.post('/dict/init'),
 
   // ===== 兼容旧接口（供现有页面使用） =====
-  goldPrice: () => request.get('/api/dict/gold-price'),
-  products: () => request.get('/api/dict/product'),
-  colors: () => request.get('/api/dict/color'),
-  lossRates: () => request.get('/api/dict/loss-rate'),
+  goldPrice: () => request.get('/dict/gold-price'),
+  products: () => request.get('/dict/product'),
+  colors: () => request.get('/dict/color'),
+  lossRates: () => request.get('/dict/loss-rate'),
 }

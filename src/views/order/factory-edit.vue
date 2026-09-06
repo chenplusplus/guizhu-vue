@@ -100,10 +100,7 @@
           <el-col :xs="12" :sm="4">
             <el-form-item label="损耗率">
               <el-select v-model="orderData.lossRate" style="width:100%;" @change="calcFactory">
-                <el-option :value="1.08" label="1.08" />
-                <el-option :value="1.10" label="1.10" />
-                <el-option :value="1.12" label="1.12" />
-                <el-option :value="1.15" label="1.15" />
+                <el-option v-for="item in lossRateOptions" :key="item.value" :value="item.value" :label="item.label" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -285,6 +282,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check } from '@element-plus/icons-vue';
 import { getOrderDetail, updateOrder, updateProduction } from '@/api/order';
+import { dictApi } from '@/api/dict';
 
 const route = useRoute();
 const router = useRouter();
@@ -296,6 +294,7 @@ const loading = ref(false);
 const saving = ref(false);
 const statusLoading = ref(false);
 const selectedStatus = ref('');
+const lossRateOptions = ref([]);
 
 // ===== 状态映射 =====
 const statusMap = {
@@ -491,6 +490,14 @@ const formatDate = (date) => {
 };
 
 onMounted(() => {
+  dictApi.getItemsByKey('lossrate').then((res) => {
+    lossRateOptions.value = (res?.data || []).map(item => ({
+      label: item.itemLabel || item.itemValue,
+      value: Number(item.itemValue),
+    }));
+  }).catch(() => {
+    ElMessage.error('加载损耗字典失败');
+  });
   loadData();
 });
 </script>

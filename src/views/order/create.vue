@@ -59,12 +59,8 @@
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12">
-            <el-form-item label="业务员">
-              <el-input
-                :value="userStore.realName || userStore.username || '当前用户'"
-                disabled
-                style="width:100%;"
-              />
+            <el-form-item label="业务员" prop="salesman">
+              <el-input v-model="form.salesman" placeholder="请输入业务员" clearable style="width:100%;" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -129,14 +125,8 @@
         <el-row :gutter="20">
           <el-col :xs="24" :sm="8">
             <el-form-item label="成色" prop="color">
-              <el-select v-model="form.color" placeholder="请选择成色" style="width:100%;">
-                <el-option label="K黄" value="K黄" />
-                <el-option label="K白" value="K白" />
-                <el-option label="红" value="红" />
-                <el-option label="P1" value="P1" />
-                <el-option label="9K" value="9K" />
-                <el-option label="14K" value="14K" />
-                <el-option label="银" value="银" />
+              <el-select v-model="form.color" placeholder="请选择成色" style="width:100%;" filterable>
+                <el-option v-for="item in purityOptions" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -190,6 +180,29 @@
           <el-col :span="24">
             <el-form-item label="备注">
               <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="备注信息" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="24">
+            <el-form-item label="标记预警">
+              <div class="warning-control">
+                <el-switch
+                  v-model="form.warnFlag"
+                  active-text="预警"
+                  inactive-text="正常"
+                  active-color="#f56c6c"
+                  inline-prompt
+                />
+                <el-input
+                  v-if="form.warnFlag"
+                  v-model="form.alertReason"
+                  placeholder="请输入预警说明"
+                  clearable
+                  style="max-width:520px;"
+                />
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -286,7 +299,9 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Document, Check, Search } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { createOrder, updateOrder, getOrderDetail, submitOrder, acceptOrder } from '@/api/order';
+import { createManualAlert } from '@/api/alert';
 import { searchProducts, getProductList, createProduct } from '@/api/product';
+import { dictApi } from '@/api/dict';
 import ImageUpload from '@/components/ImageUpload.vue';
 
 const route = useRoute();
@@ -301,6 +316,7 @@ const formRef = ref();
 const isEdit = ref(false);
 const isCopy = ref(false);
 const orderStatus = ref('');
+const purityOptions = ref([]);
 
 // ===== 产品相关 =====
 const isNewProduct = ref(false);
@@ -315,10 +331,11 @@ const productPage = reactive({ current: 1, pageSize: 10 });
 const form = reactive({
   orderDate: new Date().toISOString().split('T')[0],
   customerId: userStore.customerId || null,
+  salesman: userStore.realName || userStore.username || '',
   productName: '',
   quantity: 1,
   deliveryDays: 7,
-  color: 'K黄',
+  color: '',
   goldPrice: 0,
   size: '',
   widthThick: '',
@@ -330,11 +347,14 @@ const form = reactive({
   imageUrl: '',
   dataImageUrl: '',
   letterImageUrl: '',
+  warnFlag: false,
+  alertReason: '',
 });
 
 // ===== 验证规则 =====
 const rules = {
   orderDate: [{ required: true, message: '请选择订单日期' }],
+  salesman: [{ required: true, message: '请输入业务员' }],
   productName: [{ required: true, message: '请输入品名' }],
   quantity: [{ required: true, message: '请输入数量' }],
   color: [{ required: true, message: '请选择成色' }],
@@ -469,7 +489,7 @@ const fillFormFromProduct = (product) => {
   form.productName = product.productName;
   form.size = product.size || '';
   form.widthThick = product.widthThick || '';
-  form.color = product.color || 'K黄';
+  form.color = product.color || purityOptions.value[0]?.value || '';
   form.goldPrice = product.goldPrice || 0;
   form.diamondLevel = product.diamondLevel || '';
   form.weightRequirement = product.weightRequirement || '';
@@ -497,6 +517,9 @@ const loadOrderData = async () => {
         Object.assign(form, {
           orderDate: new Date().toISOString().split('T')[0],
           productName: data.productName || '',
+          salesman: data.salesman || '',
+          warnFlag: Boolean(data.warnFlag),
+          alertReason: data.alertReason || '',
           quantity: data.quantity || 1,
           deliveryDays: data.deliveryDays || 7,
           color: data.color || 'K黄',
@@ -532,6 +555,9 @@ const loadOrderData = async () => {
       Object.assign(form, {
         orderDate: data.orderDate?.split('T')[0] || '',
         productName: data.productName || '',
+        salesman: data.salesman || '',
+        warnFlag: Boolean(data.warnFlag),
+        alertReason: data.alertReason || '',
         quantity: data.quantity || 1,
         deliveryDays: data.deliveryDays || 7,
         color: data.color || 'K黄',
@@ -600,6 +626,7 @@ const buildPayload = (status) => {
     orderDate: form.orderDate,
     customerId: userStore.customerId,
     customerName: userStore.customerName || '客户',
+    salesman: form.salesman.trim(),
     productName: form.productName.trim(),
     quantity: form.quantity,
     deliveryDays: form.deliveryDays,
@@ -617,7 +644,17 @@ const buildPayload = (status) => {
     dataImageUrl: form.dataImageUrl,
     letterImageUrl: form.letterImageUrl,
     sourceOrderId: route.query.copy || null,
+    warnFlag: form.warnFlag,
   };
+};
+
+const saveWarning = async (orderId) => {
+  if (!form.warnFlag || !form.alertReason.trim() || !orderId) return;
+  await createManualAlert({
+    orderId,
+    reason: form.alertReason.trim(),
+    remark: '订单创建页标记预警',
+  });
 };
 
 // ============================================================
@@ -636,9 +673,11 @@ const handleSave = async () => {
     const payload = buildPayload('draft');
     if (isEdit.value) {
       await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
+      await saveWarning(parseInt(route.params.id));
       ElMessage.success('保存成功');
     } else {
-      await createOrder(payload);
+      const res = await createOrder(payload);
+      await saveWarning(res.data?.orderId || res.orderId);
       ElMessage.success('保存成功');
       // 新建后跳转到列表
       const targetPath = userStore.userType === 'customer' ? '/order/my-list' : '/order/audit';
@@ -686,6 +725,8 @@ const handleSubmit = async () => {
       ElMessage.error('订单ID获取失败');
       return;
     }
+
+    await saveWarning(orderId);
     
     await submitOrder(orderId);
     ElMessage.success('提交审核成功');
@@ -724,6 +765,7 @@ const handleSubmitToFactory = async () => {
     
     const payload = buildPayload('customerAudited');
     await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
+    await saveWarning(parseInt(route.params.id));
     
     // ⭐ 调用审核通过接口（不是接单）
     await auditOrder(parseInt(route.params.id), { 
@@ -756,7 +798,20 @@ onMounted(() => {
   if (!userStore.customerId) {
     ElMessage.warning('当前用户未关联客户，无法下单');
   }
-  loadOrderData();
+  Promise.all([
+    dictApi.getItemsByKey('purity'),
+    loadOrderData(),
+  ]).then(([purityRes]) => {
+    purityOptions.value = (purityRes?.data || []).map(item => ({
+      label: item.itemLabel || item.itemValue,
+      value: item.itemValue,
+    }));
+    if (!form.color && purityOptions.value.length) {
+      form.color = purityOptions.value[0].value;
+    }
+  }).catch(() => {
+    ElMessage.error('加载成色字典失败');
+  });
 });
 </script>
 
@@ -860,6 +915,18 @@ onMounted(() => {
 /* ===== 新产品提示 ===== */
 .new-product-tip {
   margin-top: 6px;
+}
+
+.warning-control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.warning-control :deep(.el-switch.is-checked .el-switch__core) {
+  background-color: #f56c6c;
+  border-color: #f56c6c;
 }
 
 /* ===== 图片区域 ===== */

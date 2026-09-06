@@ -1,38 +1,89 @@
+<!-- src/views/transaction/transaction-list.vue -->
 <template>
   <div class="transaction-list">
     <el-card>
       <template #header>
-        <el-space wrap>
-          <span style="font-weight:bold;font-size:15px">交易记录</span>
-          <el-select v-model="listFilter.status" placeholder="状态筛选" clearable style="width:120px" @change="loadList">
-            <el-option label="草稿" value="draft" />
-            <el-option label="待审核" value="pending" />
-            <el-option label="已生效" value="approved" />
-            <el-option label="已驳回" value="rejected" />
-          </el-select>
-          <el-select v-model="listFilter.bizType" placeholder="业务类型" clearable style="width:130px" @change="loadList">
-            <el-option v-for="item in bizTypeOptions" :key="item.itemKey" :label="item.itemLabel" :value="item.itemKey" />
-          </el-select>
-          <el-select v-model="listFilter.contentCategory" placeholder="内容分类" clearable style="width:150px" @change="loadList">
-            <el-option v-for="item in contentOptions" :key="item.itemKey" :label="item.itemLabel" :value="item.itemKey" />
-          </el-select>
-          <el-select v-model="listFilter.counterpartyId" placeholder="往来单位" clearable filterable style="width:180px" @change="loadList">
-            <el-option v-for="cp in counterparties" :key="cp.id" :label="cp.name" :value="cp.id" />
-          </el-select>
-          <el-select v-model="listFilter.direction" placeholder="方向" clearable style="width:110px" @change="loadList">
-            <el-option label="收入" value="1" />
-            <el-option label="支出" value="0" />
-          </el-select>
-          <el-date-picker
-            v-model="yearMonth"
-            type="month"
-            value-format="YYYY-M"
-            placeholder="选择月份"
-            style="width:130px"
-            @change="loadList"
-          />
-          <el-button type="primary" @click="loadList">刷新</el-button>
-        </el-space>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-weight:bold;font-size:15px">📋 交易记录</span>
+            <el-select
+              v-model="listFilter.status"
+              placeholder="状态"
+              clearable
+              style="width:120px"
+              @change="loadList"
+            >
+              <el-option label="待审核" value="pending" />
+              <el-option label="已生效" value="approved" />
+              <el-option label="已驳回" value="rejected" />
+            </el-select>
+            <el-select
+              v-model="listFilter.bizType"
+              placeholder="业务类型"
+              clearable
+              style="width:130px"
+              @change="loadList"
+            >
+              <el-option
+                v-for="item in bizTypeOptions"
+                :key="item.itemKey"
+                :label="item.itemLabel"
+                :value="item.itemKey"
+              />
+            </el-select>
+            <el-select
+              v-model="listFilter.contentCategory"
+              placeholder="内容分类"
+              clearable
+              style="width:150px"
+              @change="loadList"
+            >
+              <el-option
+                v-for="item in contentOptions"
+                :key="item.itemKey"
+                :label="item.itemLabel"
+                :value="item.itemKey"
+              />
+            </el-select>
+            <el-select
+              v-model="listFilter.counterpartyId"
+              placeholder="往来单位"
+              clearable
+              filterable
+              style="width:180px"
+              @change="loadList"
+            >
+              <el-option
+                v-for="cp in counterparties"
+                :key="cp.id"
+                :label="cp.name"
+                :value="cp.id"
+              />
+            </el-select>
+            <el-select
+              v-model="listFilter.direction"
+              placeholder="方向"
+              clearable
+              style="width:110px"
+              @change="loadList"
+            >
+              <el-option label="收入" value="1" />
+              <el-option label="支出" value="0" />
+            </el-select>
+            <el-date-picker
+              v-model="yearMonth"
+              type="month"
+              value-format="YYYY-M"
+              placeholder="选择月份"
+              style="width:130px"
+              @change="loadList"
+            />
+            <el-button type="primary" @click="loadList">刷新</el-button>
+          </div>
+          <el-button type="success" @click="$router.push('/transaction/input')">
+            + 新增录入
+          </el-button>
+        </div>
       </template>
 
       <!-- 统计栏 -->
@@ -63,72 +114,97 @@
         <el-table-column prop="bizType" label="业务类型" width="80" />
         <el-table-column prop="direction" label="方向" width="70" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.direction==='1'||row.direction===1" type="success" size="small">收入</el-tag>
+            <el-tag v-if="row.direction==='1'||row.direction===1" type="success" size="small">
+              收入
+            </el-tag>
             <el-tag v-else type="danger" size="small">支出</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="contentCategory" label="内容分类" width="110" />
         <el-table-column prop="counterpartyName" label="往来对象" width="140" show-overflow-tooltip />
         <el-table-column label="K金件数" width="100" align="center">
-          <template #default="{ row }">{{ row.kGoldCountPlus > 0 ? '+' + row.kGoldCountPlus : '' }}{{ row.kGoldCountMinus > 0 ? '-' + row.kGoldCountMinus : '' }}</template>
+          <template #default="{ row }">
+            {{ row.kGoldCountPlus > 0 ? '+' + row.kGoldCountPlus : '' }}
+            {{ row.kGoldCountMinus > 0 ? '-' + row.kGoldCountMinus : '' }}
+          </template>
         </el-table-column>
         <el-table-column prop="weight" label="重量" width="80" align="right">
-          <template #default="{ row }">{{ row.weight > 0 ? row.weight.toFixed(2) : '-' }}</template>
+          <template #default="{ row }">
+            {{ row.weight > 0 ? row.weight.toFixed(2) : '-' }}
+          </template>
         </el-table-column>
         <el-table-column prop="transactionAmount" label="交易金额" width="110" align="right">
           <template #default="{ row }">
-            <span v-if="row.transactionAmount > 0" style="color:#67c23a">¥{{ row.transactionAmount.toFixed(2) }}</span>
+            <span v-if="row.transactionAmount > 0" style="color:#67c23a">
+              ¥{{ row.transactionAmount.toFixed(2) }}
+            </span>
             <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="paymentAmount" label="付款金额" width="110" align="right">
           <template #default="{ row }">
-            <span v-if="row.paymentAmount > 0" style="color:#f56c6c">¥{{ row.paymentAmount.toFixed(2) }}</span>
+            <span v-if="row.paymentAmount > 0" style="color:#f56c6c">
+              ¥{{ row.paymentAmount.toFixed(2) }}
+            </span>
             <span v-else>-</span>
           </template>
         </el-table-column>
         <el-table-column prop="orderNo" label="关联订单" width="120" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status==='draft'" type="info" size="small">草稿</el-tag>
-            <el-tag v-else-if="row.status==='pending'" type="warning" size="small">待审核</el-tag>
-            <el-tag v-else-if="row.status==='approved'||row.status==='running'" type="success" size="small">已生效</el-tag>
-            <el-tag v-else type="danger" size="small">{{ row.status }}</el-tag>
+            <el-tag v-if="row.status==='pending'" type="warning" size="small">待审核</el-tag>
+            <el-tag v-else-if="row.status==='approved'||row.status==='running'" type="success" size="small">
+              已生效
+            </el-tag>
+            <el-tag v-else-if="row.status==='rejected'" type="danger" size="small">已驳回</el-tag>
+            <el-tag v-else type="info" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="createdByName" label="经办人" width="80" />
-        <el-table-column label="操作" width="180" fixed="right" align="center">
+        <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
-            <!-- 提交按钮：factoryOrder 自己的草稿 -->
+            <!-- 提交按钮：操作员自己的待审核/已驳回记录 -->
             <el-button
-              v-if="isFactoryOrder && row.status==='draft' && row.createdByName === currentUserName"
+              v-if="isFactoryOrder && (row.status==='pending' || row.status==='rejected') && row.createdByName === currentUserName"
               type="primary"
               size="small"
               :loading="row._submitting"
               @click="handleSubmit(row)"
-            >提交</el-button>
-            <!-- 审核按钮：factoryAudit / admin，待审核状态 -->
+            >
+              提交
+            </el-button>
+
+            <!-- 审核通过：审核员/admin，待审核状态 -->
             <el-button
               v-if="(isFactoryAudit || isAdmin) && row.status==='pending'"
-              type="warning"
+              type="success"
               size="small"
               :loading="row._auditing"
               @click="handleAudit(row, true)"
-            >通过</el-button>
+            >
+              通过
+            </el-button>
+
+            <!-- 审核驳回：审核员/admin，待审核状态 -->
             <el-button
               v-if="(isFactoryAudit || isAdmin) && row.status==='pending'"
               type="danger"
               size="small"
               :loading="row._auditing"
               @click="handleAudit(row, false)"
-            >驳回</el-button>
-            <!-- 编辑：factoryOrder 自己的草稿 -->
+            >
+              驳回
+            </el-button>
+
+            <!-- 编辑：操作员自己的待审核/已驳回记录，或审核员/admin的待审核记录 -->
             <el-button
-              v-if="isFactoryOrder && row.status==='draft' && row.createdByName === currentUserName"
+              v-if="canEdit(row)"
               type="default"
               size="small"
               @click="handleEdit(row)"
-            >编辑</el-button>
+            >
+              编辑
+            </el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -162,7 +238,7 @@
         </el-row>
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="往来对象" prop="counterpartyId">
+            <el-form-item label="往来对象">
               <el-select v-model="editForm.counterpartyId" placeholder="请选择" filterable clearable style="width:100%">
                 <el-option v-for="cp in counterparties" :key="cp.id" :label="cp.name" :value="cp.id" />
               </el-select>
@@ -243,7 +319,13 @@ const total = ref(0)
 const yearMonth = ref(`${new Date().getFullYear()}-${new Date().getMonth() + 1}`)
 const stats = ref({ totalIn: 0, totalOut: 0, balance: 0, count: 0 })
 
-const listFilter = reactive({ status: '', bizType: '', contentCategory: '', counterpartyId: null, direction: '' })
+const listFilter = reactive({
+  status: '',
+  bizType: '',
+  contentCategory: '',
+  counterpartyId: null,
+  direction: ''
+})
 
 const bizTypeOptions = ref([])
 const contentOptions = ref([])
@@ -264,20 +346,34 @@ const editForm = reactive({
   direction: '1', kGoldCountPlus: 0, kGoldCountMinus: 0, weight: 0,
   transactionAmount: 0, paymentAmount: 0, orderNo: '', remark: ''
 })
+
 const rules = {
   recordDate: [{ required: true, message: '请选择业务日期', trigger: 'change' }],
   bizType: [{ required: true, message: '请选择业务类型', trigger: 'change' }],
   contentCategory: [{ required: true, message: '请选择内容分类', trigger: 'change' }]
 }
 
+// ✅ 编辑权限判断
+function canEdit(row) {
+  // 管理员可以编辑待审核记录
+  if (isAdmin.value && row.status === 'pending') return true
+  // 审核员可以编辑待审核记录
+  if (isFactoryAudit.value && row.status === 'pending') return true
+  // 操作员可以编辑自己的待审核或已驳回记录
+  if (isFactoryOrder.value && (row.status === 'pending' || row.status === 'rejected') && row.createdByName === currentUserName.value) {
+    return true
+  }
+  return false
+}
+
 function loadBizTypes() {
-  request({ url: '/api/dict/items', method: 'get', params: { key: 'biz_type' } })
+  request({ url: '/dict/items', method: 'get', params: { key: 'biz_type' } })
     .then(res => { if (res.data) bizTypeOptions.value = res.data })
     .catch(() => {})
 }
 
 function loadContentOptions() {
-  request({ url: '/api/dict/items', method: 'get', params: { key: 'content_category' } })
+  request({ url: '/dict/items', method: 'get', params: { key: 'content_category' } })
     .then(res => { if (res.data) contentOptions.value = res.data })
     .catch(() => {})
 }
@@ -297,18 +393,28 @@ function loadList() {
   const parts = (yearMonth.value || '').split('-')
   const year = parseInt(parts[0])
   const month = parseInt(parts[1])
+
+  // ✅ 默认不显示草稿
+  const status = listFilter.status || undefined
+
   transactionList({
     page: page.value, pageSize: pageSize.value, year, month,
-    status: listFilter.status || undefined,
+    status,
     bizType: listFilter.bizType || undefined,
     contentCategory: listFilter.contentCategory || undefined,
     counterpartyId: listFilter.counterpartyId || undefined,
     direction: listFilter.direction || undefined
   }).then(res => {
-    listData.value = (res.data || []).map(r => ({ ...r, _submitting: false, _auditing: false }))
+    // ✅ 过滤掉草稿（后端如果没过滤的话）
+    let data = res.data || []
+    // 如果后端返回了草稿，前端过滤掉
+    data = data.filter(r => r.status !== 'draft')
+
+    listData.value = data.map(r => ({ ...r, _submitting: false, _auditing: false }))
     total.value = res.total || 0
-    // 简单统计（从当月已生效记录算）
-    const approved = (res.data || []).filter(r => r.status === 'approved' || r.status === 'running')
+
+    // 统计（仅已生效记录）
+    const approved = data.filter(r => r.status === 'approved' || r.status === 'running')
     stats.value.totalIn = approved.reduce((s, r) => s + (r.transactionAmount || 0), 0)
     stats.value.totalOut = approved.reduce((s, r) => s + (r.paymentAmount || 0), 0)
     stats.value.balance = stats.value.totalIn - stats.value.totalOut
@@ -317,6 +423,17 @@ function loadList() {
 }
 
 async function handleSubmit(row) {
+  // 已驳回状态重新提交
+  if (row.status === 'rejected') {
+    try {
+      await ElMessageBox.confirm('该记录已被驳回，确定要重新提交审核吗？', '重新提交', { type: 'warning' })
+    } catch { return }
+  } else {
+    try {
+      await ElMessageBox.confirm('确定提交该记录审核吗？', '提交审核', { type: 'info' })
+    } catch { return }
+  }
+
   row._submitting = true
   try {
     await transactionSubmit(row.id)
@@ -332,7 +449,9 @@ async function handleSubmit(row) {
 async function handleAudit(row, approved) {
   const action = approved ? '通过' : '驳回'
   try {
-    await ElMessageBox.confirm(`确定要${action}该记录吗？`, `审核确认`, { type: approved ? 'success' : 'warning' })
+    await ElMessageBox.confirm(`确定要${action}该记录吗？`, '审核确认', {
+      type: approved ? 'success' : 'warning'
+    })
     row._auditing = true
     await transactionAudit({ id: row.id, approved })
     ElMessage.success(`已${action}`)
@@ -366,7 +485,7 @@ async function handleSave() {
     if (!valid) return
     saving.value = true
     try {
-      await transactionUpdate({ id: editForm.id, ...editForm })
+      await transactionUpdate(editForm)
       ElMessage.success('保存成功')
       editDialogVisible.value = false
       loadList()

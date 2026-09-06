@@ -171,7 +171,10 @@
           </template>
 
           <template v-else-if="col.prop === 'warnFlag'">
-            <el-tag v-if="row.warnFlag" type="danger" size="small">⚠️</el-tag>
+            <el-tooltip v-if="row.alertReason" :content="row.alertReason" placement="top">
+              <el-tag type="danger" size="small">⚠️ {{ row.alertReason }}</el-tag>
+            </el-tooltip>
+            <el-tag v-else-if="row.warnFlag" type="danger" size="small">⚠️</el-tag>
             <span v-else style="color:#ccc;">-</span>
           </template>
 
@@ -201,6 +204,10 @@
             @click.stop="handleReOrder(row)"
           >
             再次下单
+          </el-button>
+
+          <el-button size="small" type="danger" link @click.stop="openAlertDialog(row)">
+            预警
           </el-button>
 
           <!-- ⭐ 只有自己的订单才显示操作按钮 -->
@@ -277,6 +284,24 @@
       </template>
     </el-dialog>
 
+    <el-dialog v-model="alertDialogVisible" title="新增预警" width="460px">
+      <el-form ref="alertFormRef" :model="alertForm" :rules="alertRules" label-width="90px">
+        <el-form-item label="订单号">
+          <el-input :model-value="alertTarget?.orderNo || ''" disabled />
+        </el-form-item>
+        <el-form-item label="预警说明" prop="reason">
+          <el-input v-model="alertForm.reason" type="textarea" :rows="4" placeholder="请输入预警说明" />
+        </el-form-item>
+        <el-form-item label="补充备注">
+          <el-input v-model="alertForm.remark" type="textarea" :rows="2" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="alertDialogVisible = false">取消</el-button>
+        <el-button type="danger" @click="submitAlert" :loading="alertSubmitting">确认预警</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 列设置弹窗 -->
     <el-dialog v-model="columnVisibleDialog" title="📋 列显示设置" width="500px">
       <div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 0;">
@@ -320,6 +345,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, deleteOrder, auditOrder, submitOrder } from '@/api/order';
+import { createManualAlert } from '@/api/alert';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -435,6 +461,7 @@ const getStatusType = (status) => statusMap[status]?.type || 'info';
 
 // ===== ⭐ 行样式 =====
 const getRowClassName = ({ row }) => {
+  if (row.warnFlag || row.alertReason) return 'row-alert';
   return isMine(row) ? 'row-mine' : 'row-other';
 };
 
@@ -485,6 +512,12 @@ const auditDialogVisible = ref(false);
 const auditLoading = ref(false);
 const currentOrder = ref(null);
 const auditRemark = ref('');
+const alertDialogVisible = ref(false);
+const alertSubmitting = ref(false);
+const alertFormRef = ref();
+const alertTarget = ref(null);
+const alertForm = reactive({ reason: '', remark: '' });
+const alertRules = { reason: [{ required: true, message: '请输入预警说明', trigger: 'blur' }] };
 
 // ===== 获取默认日期范围（7天前 ~ 今天） =====
 const getDefaultDateRange = () => {
@@ -519,6 +552,33 @@ const handleRowClick = (row) => {
 // ===== 再次下单 =====
 const handleReOrder = (row) => {
   router.push(`/order/create?copy=${row.orderId}`);
+};
+
+const openAlertDialog = (row) => {
+  alertTarget.value = row;
+  alertForm.reason = '';
+  alertForm.remark = '';
+  alertDialogVisible.value = true;
+};
+
+const submitAlert = async () => {
+  const valid = await alertFormRef.value?.validate().catch(() => false);
+  if (!valid || !alertTarget.value) return;
+  alertSubmitting.value = true;
+  try {
+    await createManualAlert({
+      orderId: alertTarget.value.orderId,
+      reason: alertForm.reason.trim(),
+      remark: alertForm.remark.trim(),
+    });
+    ElMessage.success('预警已创建');
+    alertDialogVisible.value = false;
+    loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '创建预警失败');
+  } finally {
+    alertSubmitting.value = false;
+  }
 };
 
 // ===== 编辑 =====
@@ -820,5 +880,13 @@ onMounted(() => {
 }
 :deep(.el-table .row-other:hover) {
   background-color: #eef1f5 !important;
+}
+:deep(.el-table .row-alert) {
+  background-color: #fff1f0 !important;
+  color: #cf1322;
+  font-weight: 600;
+}
+:deep(.el-table .row-alert:hover) {
+  background-color: #ffccc7 !important;
 }
 </style>

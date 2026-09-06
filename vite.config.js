@@ -14,12 +14,10 @@ export default defineConfig({
     port: 8086,
     proxy: {
       '/api': {
-        target: 'https://localhost:7046',  // 后端地址
+        target: 'https://localhost:7046',
         changeOrigin: true,
-        secure: false,  // 如果是 HTTPS 自签名证书，需要关闭验证
-        rewrite: (path) => path,  // 保持路径不变
+        secure: false,
       },
-      // ⭐ 添加静态文件代理
       '/uploads': {
         target: 'https://localhost:7046',
         changeOrigin: true,
