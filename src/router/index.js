@@ -158,6 +158,12 @@ const routes = [
         meta: { title: '账单详情' }
       },
       {
+        path: 'order/bill/export-detail',
+        name: 'BillExportDetail',
+        component: () => import('@/views/order/bill-export-detail.vue'),
+        meta: { title: '出货明细', hidden: true }
+      },
+      {
         path: 'order/lr/edit/:billId',
         name: 'LrEditor',
         component: () => import('@/views/order/lr-editor.vue'),
@@ -265,6 +271,32 @@ const routes = [
         name: 'Reconciliation',
         component: () => import('@/views/inout/reconciliation.vue'),
         meta: { title: '对账明细', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+
+      // ===== 总进出新模块（26分类×5维度矩阵） =====
+      {
+        path: 'transaction/input',
+        name: 'TransactionInput',
+        component: () => import('@/views/transaction/transaction-input.vue'),
+        meta: { title: '数据录入', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'transaction/list',
+        name: 'TransactionList',
+        component: () => import('@/views/transaction/transaction-list.vue'),
+        meta: { title: '交易列表', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'transaction/factory-summary',
+        name: 'FactorySummary',
+        component: () => import('@/views/transaction/factory-summary.vue'),
+        meta: { title: '全工厂汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'transaction/counterpart-summary',
+        name: 'CounterpartSummary',
+        component: () => import('@/views/transaction/counterpart-summary.vue'),
+        meta: { title: '往来单位汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
         path: 'system/counterparty',

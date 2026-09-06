@@ -93,3 +93,8 @@ export function getBillStats(params) {
     params
   });
 }
+
+// ⭐ 出货明细（按客户汇总）
+export const getBillExportData = (params) => {
+  return api.get('/bill/export-data', { params });
+};

@@ -38,7 +38,7 @@
     <div class="content-table">
       <el-table :data="tableData" border stripe v-loading="loading" show-summary>
         <el-table-column prop="month" label="月份" width="100" align="center">
-          <template #default="{ row }">{{ row.year }年{{ row.month }}月</template>
+          <template #default="{ row }">{{ row.year }}年{{ row.month }}月</template>
         </el-table-column>
         <el-table-column prop="totalIn" label="收入(元)" width="150" align="right">
           <template #default="{ row }"><span class="amount-in">¥{{ (row.totalIn || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span></template>

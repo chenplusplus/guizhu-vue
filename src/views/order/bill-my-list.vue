@@ -4,6 +4,9 @@
     <div class="page-header">
       <h2>📄 我的账单</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <el-button type="warning" plain @click="$router.push('/order/bill/export-detail')">
+          出货明细
+        </el-button>
         <!-- ⭐ 批量审核按钮（工厂审核员可见） -->
         <template v-if="userStore.userType === 'factoryAudit' || userStore.userType === 'admin'">
           <el-button
@@ -582,7 +585,8 @@ const viewDetail = (id) => {
     ElMessage.error('账单ID无效');
     return;
   }
-  router.push(`/order/bill/detail/${id}`);
+  // ✅ 跳转到出货明细页，并传入 billId
+  router.push(`/order/bill/export-detail?billId=${id}`);
 };
 
 // ============================================================

@@ -1,120 +1,61 @@
-// src/api/inventory.js
-import request from '@/utils/request'
+// src/api/inventory.js 盘点管理 API
+import api from './index';
 
 // ==================== 盘点事件 ====================
 
 // 获取待盘点事件列表
-export function getPendingEvents(params) {
-  return request({
-    url: '/inventory/events/pending',
-    method: 'get',
-    params
-  })
-}
+export const getPendingEvents = (params) => api.get('/inventory/events/pending', { params });
 
 // 创建盘点事件（Bill确认后调用 - 内部接口）
-export function createEventFromBill(billId) {
-  return request({
-    url: `/inventory/events/from-bill/${billId}`,
-    method: 'post'
-  })
-}
+export const createEventFromBill = (billId) => api.post(`/inventory/events/from-bill/${billId}`);
 
 // 创建盘点事件（Inout审核后调用 - 内部接口）
-export function createEventFromInout(recordId) {
-  return request({
-    url: `/inventory/events/from-inout/${recordId}`,
-    method: 'post'
-  })
-}
+export const createEventFromInout = (recordId) => api.post(`/inventory/events/from-inout/${recordId}`);
+
+// 创建盘点事件（LR确认后调用 - 内部接口）
+export const createEventFromLr = (lrId) => api.post(`/inventory/events/from-lr/${lrId}`);
+
 
 // ==================== 盘点批次 ====================
 
 // 预览盘点批次
-export function previewBatch(data) {
-  return request({
-    url: '/inventory/batch/preview',
-    method: 'post',
-    data
-  })
-}
+export const previewBatch = (data) => api.post('/inventory/batch/preview', data);
 
 // 创建盘点批次
-export function createBatch(data) {
-  return request({
-    url: '/inventory/batch',
-    method: 'post',
-    data
-  })
-}
+export const createBatch = (data) => api.post('/inventory/batch', data);
 
 // 获取盘点批次列表
-export function getBatchList(params) {
-  return request({
-    url: '/inventory/batch',
-    method: 'get',
-    params
-  })
-}
+export const getBatchList = (params) => api.get('/inventory/batch/list', { params });
 
 // 获取盘点批次详情
-export function getBatchDetail(batchId) {
-  return request({
-    url: `/inventory/batch/${batchId}`,
-    method: 'get'
-  })
-}
+export const getBatchDetail = (batchId) => api.get(`/inventory/batch/${batchId}`);
 
-// 更新实际盘点数据
-export function updateActualSummary(batchId, data) {
-  return request({
-    url: `/inventory/batch/${batchId}/actual`,
-    method: 'put',
-    data
-  })
-}
+// 录入实际盘点数据
+export const updateActualSummary = (batchId, data) => api.put(`/inventory/batch/${batchId}/actual`, data);
 
 // 编辑期初数据
-export function editOpeningSummary(batchId, data) {
-  return request({
-    url: `/inventory/batch/${batchId}/opening`,
-    method: 'put',
-    data
-  })
-}
+export const editOpeningSummary = (batchId, data) => api.put(`/inventory/batch/${batchId}/opening`, data);
 
 // 确认盘点
-export function confirmBatch(batchId) {
-  return request({
-    url: `/inventory/batch/${batchId}/confirm`,
-    method: 'post'
-  })
-}
+export const confirmBatch = (batchId) => api.post(`/inventory/batch/${batchId}/confirm`);
 
-// 反确认
-export function unconfirmBatch(batchId, reason) {
-  return request({
-    url: `/inventory/batch/${batchId}/unconfirm`,
-    method: 'post',
-    data: { reason }
-  })
-}
+// 反确认（回退）
+export const unconfirmBatch = (batchId, data) => api.post(`/inventory/batch/${batchId}/unconfirm`, data);
 
 // 取消盘点
-export function cancelBatch(batchId, reason) {
-  return request({
-    url: `/inventory/batch/${batchId}/cancel`,
-    method: 'post',
-    data: { reason }
-  })
-}
+export const cancelBatch = (batchId, data) => api.post(`/inventory/batch/${batchId}/cancel`, data);
+
+// 导出盘点报告
+export const exportBatchReport = (batchId) => api.get(`/inventory/batch/${batchId}/report`, { responseType: 'blob' });
+
+// 获取操作日志
+export const getBatchLogs = (batchId) => api.get(`/inventory/batch/${batchId}/logs`);
+
 
 // ==================== 上单 ====================
 
-// 获取上单数据
-export function getShangdan() {
-  return request({
-    url: '/inventory/shangdan',
-    method: 'get'
-  })
-}
+// 获取当前上单数据
+export const getShangdan = () => api.get('/inventory/cumulative/current');
+
+// 获取上单历史变化
+export const getShangdanHistory = (params) => api.get('/inventory/cumulative/history', { params });
