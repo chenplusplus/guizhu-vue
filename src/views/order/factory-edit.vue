@@ -295,6 +295,7 @@ const saving = ref(false);
 const statusLoading = ref(false);
 const selectedStatus = ref('');
 const lossRateOptions = ref([]);
+const productionStatuses = ref([]);
 
 // ===== 状态映射 =====
 const statusMap = {
@@ -312,47 +313,28 @@ const statusMap = {
   completed: { text: '已完成', type: 'success', step: 11 },
 };
 
-const getStatusText = (status) => statusMap[status]?.text || status || '-';
+const getStatusText = (status) => {
+  return productionStatuses.value.find(item => item.key === status)?.label
+    || statusMap[status]?.text
+    || status
+    || '-';
+};
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
 // ===== 进度步骤 =====
-const statusSteps = [
-  { key: 'customerAudited', label: '待接单' },
-  { key: 'accepted', label: '已接单' },
-  { key: 'waxing', label: '出蜡' },
-  { key: 'molded', label: '倒模' },
-  { key: 'setting', label: '执模' },
-  { key: 'cnc', label: 'CNC' },
-  { key: 'sweeping', label: '扫镶口' },
-  { key: 'stoneCutting', label: '车石' },
-  { key: 'microInlay', label: '微镶' },
-  { key: 'handInlay', label: '手镶' },
-  { key: 'polishing', label: '抛光' },
-  { key: 'completed', label: '完成' },
-];
+const statusSteps = computed(() => productionStatuses.value);
 
 const currentStep = computed(() => {
   const s = orderData.value?.flowStatus;
-  return statusMap[s]?.step ?? 0;
+  const index = productionStatuses.value.findIndex(item => item.key === s);
+  return index >= 0 ? index : 0;
 });
 
 // ===== 可用状态 =====
 const availableStatuses = computed(() => {
   const current = orderData.value?.flowStatus;
-  const flowMap = {
-    'customerAudited': [{ value: 'accepted', label: '已接单' }],
-    'accepted': [{ value: 'waxing', label: '出蜡' }],
-    'waxing': [{ value: 'molded', label: '倒模' }],
-    'molded': [{ value: 'setting', label: '执模' }],
-    'setting': [{ value: 'cnc', label: 'CNC' }],
-    'cnc': [{ value: 'sweeping', label: '扫镶口' }],
-    'sweeping': [{ value: 'stoneCutting', label: '车石' }],
-    'stoneCutting': [{ value: 'microInlay', label: '微镶' }],
-    'microInlay': [{ value: 'handInlay', label: '手镶' }],
-    'handInlay': [{ value: 'polishing', label: '抛光' }],
-    'polishing': [{ value: 'completed', label: '完成' }],
-  };
-  return flowMap[current] || [];
+  const currentIndex = productionStatuses.value.findIndex(item => item.key === current);
+  return currentIndex >= 0 ? productionStatuses.value.slice(currentIndex + 1) : productionStatuses.value;
 });
 
 // ===== 计算函数 =====
@@ -490,13 +472,21 @@ const formatDate = (date) => {
 };
 
 onMounted(() => {
-  dictApi.getItemsByKey('lossrate').then((res) => {
-    lossRateOptions.value = (res?.data || []).map(item => ({
+  Promise.all([
+    dictApi.getItemsByKey('lossrate'),
+    dictApi.getItemsByKey('production_status'),
+  ]).then(([lossRateRes, productionStatusRes]) => {
+    lossRateOptions.value = (lossRateRes?.data || []).map(item => ({
       label: item.itemLabel || item.itemValue,
       value: Number(item.itemValue),
     }));
+    productionStatuses.value = (productionStatusRes?.data || []).map(item => ({
+      key: item.itemValue,
+      title: item.itemLabel || item.itemValue,
+      label: item.itemLabel || item.itemValue,
+    }));
   }).catch(() => {
-    ElMessage.error('加载损耗字典失败');
+    ElMessage.error('加载制作状态字典失败');
   });
   loadData();
 });

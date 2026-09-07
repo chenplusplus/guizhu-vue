@@ -138,10 +138,7 @@
           <el-col :xs="24" :sm="8">
             <el-form-item label="钻石级别">
               <el-select v-model="form.diamondLevel" placeholder="请选择" style="width:100%;" clearable>
-                <el-option label="VS" value="VS" />
-                <el-option label="VVS" value="VVS" />
-                <el-option label="培育钻" value="培育钻" />
-                <el-option label="塔育钻" value="塔育钻" />
+                <el-option v-for="item in diamondLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -317,6 +314,7 @@ const isEdit = ref(false);
 const isCopy = ref(false);
 const orderStatus = ref('');
 const purityOptions = ref([]);
+const diamondLevelOptions = ref([]);
 
 // ===== 产品相关 =====
 const isNewProduct = ref(false);
@@ -800,8 +798,9 @@ onMounted(() => {
   }
   Promise.all([
     dictApi.getItemsByKey('purity'),
+    dictApi.getItemsByKey('diamondlevel'),
     loadOrderData(),
-  ]).then(([purityRes]) => {
+  ]).then(([purityRes, diamondLevelRes]) => {
     purityOptions.value = (purityRes?.data || []).map(item => ({
       label: item.itemLabel || item.itemValue,
       value: item.itemValue,
@@ -809,6 +808,10 @@ onMounted(() => {
     if (!form.color && purityOptions.value.length) {
       form.color = purityOptions.value[0].value;
     }
+    diamondLevelOptions.value = (diamondLevelRes?.data || []).map(item => ({
+      label: item.itemLabel || item.itemValue,
+      value: item.itemValue,
+    }));
   }).catch(() => {
     ElMessage.error('加载成色字典失败');
   });

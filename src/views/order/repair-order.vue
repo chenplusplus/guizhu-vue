@@ -54,7 +54,11 @@
                 <td class="label-td">出蜡</td>
                 <td><el-checkbox v-model="form.hasWaxOut" size="small">出蜡</el-checkbox></td>
                 <td class="red-bg white-text label-td">钻石级别</td>
-                <td><el-input v-model="form.diamondLevel" size="small"/></td>
+                <td>
+                  <el-select v-model="form.diamondLevel" size="small" style="width:100%" clearable>
+                    <el-option v-for="item in diamondLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
+                  </el-select>
+                </td>
                 <td class="red-text label-td">工费</td>
                 <td><el-input-number v-model="form.laborFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
               </tr>
@@ -171,6 +175,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createRepair, updateRepair, getRepairDetail, getRepairByOrderId } from '../../api/repair'
 import { getCustomerList } from '../../api/customer'
+import { dictApi } from '../../api/dict'
 const router = useRouter()
 const route = useRoute()
 const isEdit = computed(() => route.params.id && route.params.id !== 'create')
@@ -178,6 +183,7 @@ const orderId = computed(() => parseInt(route.query.orderId) || null)
 
 // ==================== 客户列表 ====================
 const customerList = ref([])
+const diamondLevelOptions = ref([])
 const fetchCustomers = async () => {
   try {
     const res = await getCustomerList({ page: 1, pageSize: 100 })
@@ -316,6 +322,14 @@ const handleCancel = () => {
 
 // ==================== 初始化 ====================
 onMounted(() => {
+  dictApi.getItemsByKey('diamondlevel').then((res) => {
+    diamondLevelOptions.value = (res?.data || []).map(item => ({
+      label: item.itemLabel || item.itemValue,
+      value: item.itemValue,
+    }))
+  }).catch(() => {
+    ElMessage.error('加载钻石级别字典失败')
+  })
   fetchCustomers()
   loadData()
 })

@@ -164,10 +164,7 @@
           <el-table-column label="钻石级别" width="110">
             <template #default="{ row }">
               <el-select v-model="row.diamondLevel" size="small" style="width:100%;" clearable>
-                <el-option label="VS" value="VS" />
-                <el-option label="VVS" value="VVS" />
-                <el-option label="培育钻" value="培育钻" />
-                <el-option label="塔育钻" value="塔育钻" />
+                <el-option v-for="item in diamondLevelOptions" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </template>
           </el-table-column>
@@ -230,6 +227,7 @@ import * as XLSX from 'xlsx';
 import { useUserStore } from '@/stores/user';
 import { createOrder } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
+import { dictApi } from '@/api/dict';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -240,6 +238,7 @@ const fileList = ref([]);
 const uploadRef = ref();
 const tableData = ref([]);
 const customerList = ref([]);
+const diamondLevelOptions = ref([]);
 
 // ===== 统计 =====
 const totalQuantity = computed(() => {
@@ -446,6 +445,14 @@ const downloadTemplate = () => {
 // ===== 初始化 =====
 onMounted(() => {
   loadCustomers();
+  dictApi.getItemsByKey('diamondlevel').then((res) => {
+    diamondLevelOptions.value = (res?.data || []).map(item => ({
+      label: item.itemLabel || item.itemValue,
+      value: item.itemValue,
+    }));
+  }).catch(() => {
+    ElMessage.error('加载钻石级别字典失败');
+  });
   // 默认添加一行空行
   tableData.value.push(getDefaultRow());
 });

@@ -316,6 +316,7 @@ import { Refresh, Search, RefreshRight, Tools } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, acceptOrder, updateProduction } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
+import { dictApi } from '@/api/dict';
 import { createBill } from '@/api/bill';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
@@ -331,6 +332,7 @@ const filterStatus = ref('');
 const filterCustomerId = ref('');
 const selectedOrders = ref([]);
 const customerList = ref([]);
+const productionStatuses = ref([]);
 
 const dateRange = ref([]);
 
@@ -378,12 +380,6 @@ const statusMap = {
   completed: { text: '已完成', type: 'success' },
 };
 
-// 制作中状态（显示"更新状态"按钮）
-const productionStatuses = [
-  'accepted', 'waxing', 'molded', 'setting', 'cnc',
-  'sweeping', 'stoneCutting', 'microInlay', 'handInlay'
-];
-
 const normalizeStatus = (status) => {
   const value = String(status || '').trim();
   const normalized = value.replace(/[_-]/g, '').toLowerCase();
@@ -399,11 +395,17 @@ const normalizeStatus = (status) => {
   return aliases[normalized] || value;
 };
 
-const getStatusText = (status) => statusMap[normalizeStatus(status)]?.text || status || '-';
+const getStatusText = (status) => {
+  const normalized = normalizeStatus(status);
+  return productionStatuses.value.find(item => item.value === normalized)?.label
+    || statusMap[normalized]?.text
+    || status
+    || '-';
+};
 const getStatusType = (status) => statusMap[normalizeStatus(status)]?.type || 'info';
 
 const isInProduction = (status) => {
-  return productionStatuses.includes(normalizeStatus(status));
+  return productionStatuses.value.some(item => item.value === normalizeStatus(status));
 };
 
 // ============================================================
@@ -411,23 +413,11 @@ const isInProduction = (status) => {
 // ============================================================
 const statusOptions = computed(() => {
   const current = currentOrder.value?.flowStatus;
-  const allOptions = [
-    { value: 'waxing', label: '出蜡' },
-    { value: 'molded', label: '倒模' },
-    { value: 'setting', label: '执模' },
-    { value: 'cnc', label: 'CNC' },
-    { value: 'sweeping', label: '扫镶口' },
-    { value: 'stoneCutting', label: '车石' },
-    { value: 'microInlay', label: '微镶' },
-    { value: 'handInlay', label: '手镶' },
-    { value: 'polishing', label: '制作完成' },
-  ];
-  
-  const currentIndex = allOptions.findIndex(s => s.value === current);
+  const currentIndex = productionStatuses.value.findIndex(s => s.value === current);
   if (currentIndex >= 0) {
-    return allOptions.slice(currentIndex + 1);
+    return productionStatuses.value.slice(currentIndex + 1);
   }
-  return allOptions;
+  return productionStatuses.value;
 });
 
 // ============================================================
@@ -499,11 +489,10 @@ const loadData = async () => {
     }
 
     // 只显示工厂相关状态
-    const factoryStatuses = [
-      'customerAudited', 'accepted', 'factory_edit', 'waxing', 'molded', 
-      'setting', 'cnc', 'sweeping', 'stoneCutting', 'microInlay', 
-      'handInlay', 'polishing', 'billPending', 'billConfirmed', 'completed'
-    ];
+    const factoryStatuses = new Set([
+      'customerAudited', 'factory_edit', 'billPending', 'billConfirmed', 'completed',
+      ...productionStatuses.value.map(item => item.value),
+    ]);
     
     tableData.value = data
       .map(item => ({ ...item, flowStatus: normalizeStatus(item.flowStatus) }))
@@ -713,7 +702,16 @@ onMounted(() => {
   // ⭐ 默认最近一个月
   dateRange.value = getDateRange();
   loadCustomers();
-  loadData();
+  dictApi.getItemsByKey('production_status').then((res) => {
+    productionStatuses.value = (res?.data || []).map(item => ({
+      value: normalizeStatus(item.itemValue),
+      label: item.itemLabel || item.itemValue,
+    }));
+    loadData();
+  }).catch(() => {
+    ElMessage.error('加载制作状态字典失败');
+    loadData();
+  });
 });
 </script>
 
