@@ -163,6 +163,26 @@ const routes = [
         component: () => import('@/views/order/bill-export-detail.vue'),
         meta: { title: '出货明细', hidden: true }
       },
+
+      // router/index.js
+      {
+        path: '/repair/create',
+        name: 'RepairCreate',
+        component: () => import('@/views/order/repair-order.vue'),
+        meta: { title: '新建维修单' }
+      },
+      {
+        path: '/repair',
+        name: 'RepairList',
+        redirect: '/order/factory-list',
+        meta: { title: '维修单' }
+      },
+      {
+        path: '/repair/edit/:id',
+        name: 'RepairEdit',
+        component: () => import('@/views/order/repair-order.vue'),
+        meta: { title: '编辑维修单' }
+      },
       {
         path: 'order/lr/edit/:billId',
         name: 'LrEditor',

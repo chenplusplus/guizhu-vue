@@ -238,8 +238,19 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="300" align="center" fixed="right">
+      <!-- 操作列 - 完整代码 -->
+      <el-table-column label="操作" width="340" align="center" fixed="right">
         <template #default="{ row }">
+          <!-- ⭐ 预览按钮：打开 bill-view 风格弹窗 -->
+          <el-button 
+            size="small" 
+            type="info" 
+            plain
+            @click.stop="openPreviewDialog(row.billId)"
+          >
+            <el-icon><View /></el-icon> 预览
+          </el-button>
+
           <el-button size="small" type="primary" @click.stop="viewDetail(row.billId)">
             查看
           </el-button>
@@ -314,6 +325,11 @@
       />
     </div>
   </div>
+
+  <BillPreviewDialog
+    v-model:visible="previewDialogVisible"
+    :bill-id="previewBillId"
+  />
 </template>
 
 <script setup>
@@ -323,7 +339,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getBillList, confirmBill, auditBill, getCustomerList, submitBillAudit } from '@/api/bill';
-
+import { View } from '@element-plus/icons-vue';
+import BillPreviewDialog from '@/components/BillPreviewDialog.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -577,6 +594,14 @@ const handleReturn = (row) => {
   router.push(`/order/bill/detail/${row.billId}`);
 };
 
+// ===== 预览弹窗 =====
+const previewDialogVisible = ref(false);
+const previewBillId = ref(null);
+
+const openPreviewDialog = (billId) => {
+  previewBillId.value = billId;
+  previewDialogVisible.value = true;
+};
 // ============================================================
 // 查看详情
 // ============================================================

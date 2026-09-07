@@ -101,7 +101,8 @@
       @row-click="handleRowClick"
       row-key="orderId"
     >
-      <el-table-column type="selection" width="45" align="center" />
+      <!-- 选择列 -->
+      <el-table-column type="selection" width="45" align="center" @click.stop />
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
@@ -111,7 +112,7 @@
         </template>
       </el-table-column>
 
-      <!-- ⭐ 状态列移到前面 -->
+      <!-- 状态列 -->
       <el-table-column prop="flowStatus" label="状态" width="110" align="center" fixed>
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
@@ -121,15 +122,12 @@
       </el-table-column>
 
       <el-table-column prop="customerName" label="客户" width="120" />
-
       <el-table-column prop="orderDate" label="订单日期" width="110" align="center">
         <template #default="{ row }">
           {{ formatDate(row.orderDate) }}
         </template>
       </el-table-column>
-
       <el-table-column prop="productName" label="品名" min-width="120" />
-
       <el-table-column label="图片" width="70" align="center">
         <template #default="{ row }">
           <el-image
@@ -144,7 +142,6 @@
           <span v-else style="color: #ccc; font-size: 12px;">无图</span>
         </template>
       </el-table-column>
-
       <el-table-column prop="size" label="手寸" width="80" align="center" />
       <el-table-column prop="quantity" label="数量" width="70" align="center" />
       <el-table-column prop="color" label="成色" width="80" align="center" />
@@ -165,7 +162,6 @@
       <el-table-column prop="laborFee" label="工费" width="85" align="right">
         <template #default="{ row }">{{ row.laborFee || '-' }}</template>
       </el-table-column>
-
       <el-table-column prop="totalAmount" label="金额" width="110" align="right">
         <template #default="{ row }">
           <span style="color: #E6A23C; font-weight: bold;">
@@ -174,8 +170,8 @@
         </template>
       </el-table-column>
 
-      <!-- ⭐ 操作列 -->
-      <el-table-column label="操作" width="320" fixed="right" align="center">
+      <!-- 操作列 -->
+      <el-table-column label="操作" width="340" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 待接单 → 接单 -->
           <el-button
@@ -187,14 +183,23 @@
             接单
           </el-button>
 
-          <!-- ⭐ 更新状态：制作中状态显示 -->
+          <!-- 更新状态 -->
           <el-button
-            v-if="isInProduction(row.flowStatus)|| normalizeStatus(row.flowStatus) === 'factory_edit'"
+            v-if="isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit'"
             size="small"
             type="primary"
             @click.stop="openStatusDialog(row)"
           >
             更新状态
+          </el-button>
+
+          <!-- 维修单按钮 -->
+          <el-button 
+            size="small" 
+            type="warning"
+            @click.stop="goRepair(row)"
+          >
+            <el-icon><Tools /></el-icon> 维修单
           </el-button>
 
           <!-- 制作完成 → 生成账单 -->
@@ -209,7 +214,7 @@
 
           <!-- 编辑 -->
           <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'factory_edit'||normalizeStatus(row.flowStatus) === 'polishing'"
+            v-if="normalizeStatus(row.flowStatus) === 'factory_edit' || normalizeStatus(row.flowStatus) === 'polishing'"
             size="small"
             type="primary"
             link
@@ -246,7 +251,7 @@
       />
     </div>
 
-    <!-- ⭐ 更新制作状态弹窗 -->
+    <!-- 更新制作状态弹窗 -->
     <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="450px" destroy-on-close>
       <div style="margin-bottom: 16px;">
         <p><strong>订单号：</strong>{{ currentOrder?.orderNo }}</p>
@@ -307,7 +312,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
+import { Refresh, Search, RefreshRight, Tools } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, acceptOrder, updateProduction } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
@@ -402,7 +407,7 @@ const isInProduction = (status) => {
 };
 
 // ============================================================
-// ⭐ 状态选项
+// 状态选项
 // ============================================================
 const statusOptions = computed(() => {
   const current = currentOrder.value?.flowStatus;
@@ -422,7 +427,6 @@ const statusOptions = computed(() => {
   if (currentIndex >= 0) {
     return allOptions.slice(currentIndex + 1);
   }
-  // 如果当前状态不在列表中（如 factory_edit），显示全部
   return allOptions;
 });
 
@@ -439,18 +443,21 @@ const loadCustomers = async () => {
 };
 
 // ============================================================
-// 获取今天日期字符串
+// 获取日期范围（最近一个月）
 // ============================================================
-const getTodayStr = () => {
+const getDateRange = () => {
   const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const endDate = today.toISOString().split('T')[0];
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30);
+  const startDateStr = startDate.toISOString().split('T')[0];
+  
+  return [startDateStr, endDate];
 };
 
 // ============================================================
-// 加载数据（后端筛选）
+// 加载数据
 // ============================================================
 const loadData = async () => {
   loading.value = true;
@@ -462,7 +469,7 @@ const loadData = async () => {
       pageSize: pagination.pageSize,
     };
 
-   if (filterStatus.value) {
+    if (filterStatus.value) {
       params.status = filterStatus.value;
     }
 
@@ -522,7 +529,7 @@ const resetSearch = () => {
   keyword.value = '';
   filterStatus.value = '';
   filterCustomerId.value = '';
-  dateRange.value = [getTodayStr(), getTodayStr()];
+  dateRange.value = getDateRange();
   pagination.current = 1;
   loadData();
 };
@@ -537,12 +544,27 @@ const handleSelectionChange = (selection) => {
 // ============================================================
 // 行点击
 // ============================================================
-const handleRowClick = (row) => {
+const handleRowClick = (row, column) => {
+  // 如果点击的是 selection 列，不处理
+  if (column.type === 'selection') return
+  // 如果点击的是操作列，不处理
+  if (column.label === '操作') return
+  // 否则打开流程抽屉
   currentFlowOrderId.value = row.orderId;
   currentFlowOrderNo.value = row.orderNo;
   currentFlowStatus.value = row.flowStatus;
   flowDrawerVisible.value = true;
 };
+
+// ============================================================
+// 跳转维修单
+// ============================================================
+const goRepair = (row) => {
+  router.push({
+    name: 'RepairCreate',
+    query: { orderId: row.orderId }
+  })
+}
 
 // ============================================================
 // 打开状态更新弹窗
@@ -688,7 +710,8 @@ const formatDate = (date) => {
 // 初始化
 // ============================================================
 onMounted(() => {
-  dateRange.value = [getTodayStr(), getTodayStr()];
+  // ⭐ 默认最近一个月
+  dateRange.value = getDateRange();
   loadCustomers();
   loadData();
 });
