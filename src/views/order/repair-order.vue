@@ -101,7 +101,7 @@
                 <td><el-input-number v-model="form.moldWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
                 <td class="label-td">实际石重</td>
                 <td><el-input-number v-model="form.realStoneWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
-                <td class="label-td">宝石重</td>
+                <td class="label-td">实际宝石重</td>
                 <td><el-input-number v-model="form.gemWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
               </tr>
 
@@ -113,7 +113,7 @@
                 <td><el-input-number v-model="form.moldFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
                 <td class="label-td">实际粒数</td>
                 <td><el-input-number v-model="form.realStoneCount" :min="0" style="width:100%" size="small"/></td>
-                <td class="label-td">宝石粒数</td>
+                <td class="label-td">实际宝石粒数</td>
                 <td><el-input-number v-model="form.gemCount" :min="0" style="width:100%" size="small"/></td>
               </tr>
 

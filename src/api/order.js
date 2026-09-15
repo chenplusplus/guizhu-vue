@@ -82,8 +82,23 @@ export const cancelOrder = (id, remark) => {
 };
 
 // ===== 标记紧急 =====
+// 标记紧急（加急，与预警 warnFlag 分离）
 export const markUrgent = (id, isUrgent) => {
   return api.post(`/order/${id}/urgent`, null, { params: { isUrgent } });
+};
+
+// ===== 申请修改 / 同意修改 =====
+// 客户审核通过后申请修改（进入生产/账单阶段均可）
+export const applyModify = (id, reason) => {
+  return api.post(`/order/${id}/apply-modify`, { reason });
+};
+// 客户审核员同意修改（订单退回草稿）
+export const approveModify = (id) => {
+  return api.post(`/order/${id}/approve-modify`);
+};
+// 订单操作日志（字段级改动记录）
+export const getOrderLogs = (id) => {
+  return api.get(`/order/${id}/logs`);
 };
 
 // ===== 统计 =====

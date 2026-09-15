@@ -201,6 +201,16 @@
               驳回
             </el-button>
           </template>
+
+          <!-- ⭐ 同意修改：客户已申请修改（仅客户审核员） -->
+          <el-button
+            v-if="userStore.userType === 'customerAudit' && row.modifyRequested"
+            size="small"
+            type="primary"
+            @click.stop="handleApproveModify(row)"
+          >
+            同意修改
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -253,7 +263,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, auditOrder } from '@/api/order';
+import { getOrderList, auditOrder, approveModify } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -401,6 +411,22 @@ const handleSelectionChange = (selection) => {
 // ===== 查看详情 =====
 const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
+};
+
+// ===== 同意修改（客户申请修改后） =====
+const handleApproveModify = async (row) => {
+  try {
+    await ElMessageBox.confirm('同意客户修改申请后，订单将回到草稿状态，由客户重新编辑并提交。', '同意修改', {
+      confirmButtonText: '同意修改',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+    await approveModify(row.orderId);
+    ElMessage.success('已同意修改，订单已回到草稿');
+    loadData();
+  } catch {
+    return;
+  }
 };
 
 // ===== 单个审核 =====

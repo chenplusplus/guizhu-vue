@@ -496,7 +496,6 @@ const loadData = async () => {
     
     tableData.value = data
       .map(item => ({ ...item, flowStatus: normalizeStatus(item.flowStatus) }))
-      .filter(item => factoryStatuses.includes(item.flowStatus));
     pagination.total = tableData.value.length || total;
     
   } catch (error) {

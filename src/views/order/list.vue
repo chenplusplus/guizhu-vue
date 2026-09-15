@@ -71,6 +71,10 @@
           <el-button @click="resetQuery">
             <el-icon><RefreshRight /></el-icon> 重置
           </el-button>
+
+         <el-button type="primary" @click="openAuditPreview">
+          全屏审核
+        </el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -698,6 +702,10 @@ const handleSingleSubmit = async (row) => {
     }
   }
 };
+//审核预览
+const openAuditPreview = () => {
+  window.open('/audit-preview', '_blank', `width=${screen.availWidth},height=${screen.availHeight},menubar=no,toolbar=no,location=no`)
+}
 
 // ============================================================
 // 删除
@@ -712,6 +720,11 @@ const handleDelete = (row) => {
     .catch(() => {});
 };
 
+//审核预览
+const openPreview = (row) => {
+  // 打开新窗口，去掉菜单栏、工具栏、地址栏
+ window.open('/audit-preview', '_blank')
+}
 // ============================================================
 // 审核
 // ============================================================

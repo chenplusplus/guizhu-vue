@@ -10,6 +10,15 @@ const routes = [
     component: () => import('@/views/login/index.vue'),
     meta: { title: '登录', requiresAuth: false },
   },
+
+  // ⭐⭐⭐ 独立全屏页面（不走 Layout，无菜单、无导航）⭐⭐⭐
+  {
+    path: '/audit-preview',
+    name: 'AuditPreview',
+    component: () => import('@/views/order/audit-preview.vue'),
+    meta: { title: '待审核预览', requiresAuth: true }
+  },
+
   {
     path: '/',
     component: () => import('@/components/Layout.vue'),
@@ -108,6 +117,7 @@ const routes = [
         component: () => import('@/views/order/import.vue'),
         meta: { title: '导入Excel' }
       },
+      // ⭐ 已移除 audit-preview（移到顶级路由）
 
       // 退货记录
       {
@@ -132,7 +142,6 @@ const routes = [
         component: () => import('@/views/order/bill-create.vue'),
         meta: { title: '生成账单' }
       },
-      // ⭐ 只保留一个 BillEdit,使用可选参数 :id?
       {
         path: 'order/bill/edit/:id?',
         name: 'BillEdit',
@@ -164,7 +173,7 @@ const routes = [
         meta: { title: '出货明细', hidden: true }
       },
 
-      // router/index.js
+      // 维修单
       {
         path: '/repair/create',
         name: 'RepairCreate',
@@ -183,6 +192,8 @@ const routes = [
         component: () => import('@/views/order/repair-order.vue'),
         meta: { title: '编辑维修单' }
       },
+
+      // LR表
       {
         path: 'order/lr/edit/:billId',
         name: 'LrEditor',
@@ -247,14 +258,13 @@ const routes = [
         component: () => import('@/views/system/operation-log.vue'),
         meta: { title: '操作日志', roles: ['admin'] }
       },
-
-      // 在路由配置中添加流程管理相关路由
       {
         path: '/system/flow-config',
         name: 'FlowConfig',
         component: () => import('@/views/system/FlowConfig.vue'),
         meta: { title: '流程配置', icon: 'Setting', roles: ['admin'] }
       },
+
       // ===== 总进出模块 =====
       {
         path: 'inout/list',
@@ -389,6 +399,77 @@ const routes = [
         name: 'ProcessStats',
         component: () => import('@/views/process/process-stats.vue'),
         meta: { title: '全局统计', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+
+      // ===== 进销存（金/钻石/费用）新模块 =====
+      // 金：入库 / 出库
+      {
+        path: 'inout/gold/in',
+        name: 'GoldIn',
+        component: () => import('@/views/inout/gold-input.vue'),
+        meta: { title: '金入库', direction: 1, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'inout/gold/out',
+        name: 'GoldOut',
+        component: () => import('@/views/inout/gold-input.vue'),
+        meta: { title: '金出库', direction: 0, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: '/inout/gold-list',
+        name: 'InoutGoldList',
+        component: () => import('@/views/inout/gold-list.vue'),
+        meta: { title: '金录入列表', requiresAuth: true }
+      },
+      // 钻石：入库 / 出库
+      {
+        path: 'inout/diamond/in',
+        name: 'DiamondIn',
+        component: () => import('@/views/inout/diamond-input.vue'),
+        meta: { title: '钻石入库', direction: 1, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'inout/diamond/out',
+        name: 'DiamondOut',
+        component: () => import('@/views/inout/diamond-input.vue'),
+        meta: { title: '钻石出库', direction: 0, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: '/inout/diamond-list',
+        name: 'InoutDiamondList',
+        component: () => import('@/views/inout/diamond-list.vue'),
+        meta: { title: '钻石录入列表', requiresAuth: true }
+      },
+      // 费用：入 / 出
+      {
+        path: 'inout/expense/in',
+        name: 'ExpenseIn',
+        component: () => import('@/views/inout/expense-input.vue'),
+        meta: { title: '费用入', direction: 1, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'inout/expense/out',
+        name: 'ExpenseOut',
+        component: () => import('@/views/inout/expense-input.vue'),
+        meta: { title: '费用出', direction: 0, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: '/inout/expense-list',
+        name: 'InoutExpenseList',
+        component: () => import('@/views/inout/expense-list.vue'),
+        meta: { title: '费用录入列表', requiresAuth: true }
+      },
+      {
+        path: 'inout/material-loss-config',
+        name: 'MaterialLossConfig',
+        component: () => import('@/views/inout/material-loss-config.vue'),
+        meta: { title: '供应商损耗率配置', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'inout/report-summary',
+        name: 'InoutReportSummary',
+        component: () => import('@/views/inout/report-summary.vue'),
+        meta: { title: '进销存报表汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
     ],
   },

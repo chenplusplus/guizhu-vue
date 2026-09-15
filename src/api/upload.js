@@ -18,3 +18,17 @@ export const uploadImage = (file, type = 'product') => {
 export const deleteImage = (url) => {
   return api.delete('/upload/image', { params: { url } });
 };
+
+// 上传文件（3D模型等）
+export const uploadFile = (formData, type = 'dataPackage') => {
+  return api.post('/upload/file', formData, {
+    params: { type },
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
+  });
+};
+
+// 删除文件
+export const deleteFile = (url) => {
+  return api.delete('/upload/file', { params: { url } });
+};
