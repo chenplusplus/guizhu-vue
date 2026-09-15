@@ -648,6 +648,7 @@ const loadHistoryList = async () => {
 };
 
 const selectHistoryOrder = async (row) => {
+  historyDialogVisible.value = false;
   try {
     const res = await getOrderDetail(row.orderId);
     const data = res?.data;
@@ -659,7 +660,6 @@ const selectHistoryOrder = async (row) => {
     isCopy.value = true;
     isEdit.value = false;
     orderStatus.value = '';
-    historyDialogVisible.value = false;
     ElMessage.success(`已带入订单「${row.orderNo}」的数据`);
   } catch (e) {
     ElMessage.error(e.message || '带入失败');

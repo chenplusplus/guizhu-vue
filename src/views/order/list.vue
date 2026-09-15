@@ -225,6 +225,14 @@
               提交
             </el-button>
             <el-button
+              v-if="row.flowStatus === 'pending'"
+              size="small"
+              type="warning"
+              @click.stop="handleWithdraw(row)"
+            >
+              撤回
+            </el-button>
+            <el-button
               v-if="canEdit(row)"
               size="small"
               type="warning"
@@ -348,7 +356,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, deleteOrder, auditOrder, submitOrder } from '@/api/order';
+import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit } from '@/api/order';
 import { createManualAlert } from '@/api/alert';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
@@ -594,6 +602,17 @@ const goEdit = (id) => {
 const canEdit = (row) => {
   const status = row.flowStatus;
   return status === 'draft' || status === 'rejected';
+};
+
+const handleWithdraw = async (row) => {
+  try {
+    await ElMessageBox.confirm(`确定撤回订单 ${row.orderNo} 吗？撤回后可修改并重新提交。`, '撤回审核', { type: 'warning' });
+    await withdrawSubmit(row.orderId);
+    ElMessage.success('订单已撤回，可修改后重新提交');
+    loadData();
+  } catch (error) {
+    if (error !== 'cancel') ElMessage.error(error.message || '撤回失败');
+  }
 };
 
 const canDelete = (row) => {

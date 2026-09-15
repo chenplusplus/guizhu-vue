@@ -14,6 +14,9 @@
         <el-tag v-if="orderData?.modifyRequested" type="info" size="small">✏️ 待同意修改</el-tag>
       </div>
       <div class="header-right">
+        <el-button v-if="canWithdraw" type="warning" size="small" @click="handleWithdraw">
+          撤回审核
+        </el-button>
         <el-button v-if="canApplyModify" type="warning" size="small" @click="handleApplyModify">
           申请修改
         </el-button>
@@ -288,7 +291,8 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Right } from '@element-plus/icons-vue';
-import { getOrderDetail, applyModify, approveModify, getOrderLogs } from '@/api/order';
+import { getOrderDetail, applyModify, approveModify, getOrderLogs, withdrawSubmit } from '@/api/order';
+import { getValueChangeLogs } from '@/api/valueChangeLog';
 import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
 
@@ -310,13 +314,32 @@ const isCustomerAudit = computed(() => userStore.userType === 'customerAudit');
 const ALLOW_MODIFY_STATUS = ['customeraudited', 'accepted', 'DataConfirm', 'Waxing', 'Molded', 'CNC', 'PartsMissing', 'StoneReady', 'Setting', 'Glue', 'Inlay', 'Assembly', 'Polishing', 'billPending'];
 const canApplyModify = computed(() => isCustomer.value && ALLOW_MODIFY_STATUS.includes(orderData.value?.flowStatus));
 const canApproveModify = computed(() => isCustomerAudit.value && orderData.value?.modifyRequested);
+const canWithdraw = computed(() => isCustomer.value
+  && orderData.value?.flowStatus === 'pending'
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId));
 
 // ===== 修改记录 =====
 const loadLogs = async () => {
   if (!orderId.value) return;
   try {
-    const res = await getOrderLogs(orderId.value);
-    operationLogs.value = res?.data || [];
+    const [operationRes, changeRes] = await Promise.all([
+      getOrderLogs(orderId.value),
+      getValueChangeLogs('order', String(orderId.value)),
+    ]);
+    const operationItems = operationRes?.data || [];
+    const changeItems = (changeRes?.data || []).map(log => ({
+      id: `change-${log.id}`,
+      createdAt: log.createdAt,
+      operatorName: log.operatorName,
+      operatorRole: log.operatorRole,
+      operationType: '保存变更',
+      fieldName: '变更字段',
+      oldValue: '',
+      newValue: log.summary || '',
+      remark: log.remark,
+    }));
+    operationLogs.value = [...operationItems, ...changeItems]
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch {
     operationLogs.value = [];
   }
@@ -331,12 +354,28 @@ const handleApplyModify = async () => {
       inputPlaceholder: '例如：需要更改克重要求 / 钻石级别',
     });
     if (!value || !value.trim()) return;
-    await applyModify(orderId.value, { reason: value.trim() });
+    await applyModify(orderId.value, value.trim());
     ElMessage.success('已提交修改申请，等待客户审核员同意');
     loadData();
     loadLogs();
   } catch (e) {
     if (e !== 'cancel' && e?.name !== 'cancel') return;
+  }
+};
+
+const handleWithdraw = async () => {
+  try {
+    await ElMessageBox.confirm('撤回后订单会回到草稿状态，可以修改后重新提交。', '撤回审核', {
+      confirmButtonText: '确认撤回',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+    await withdrawSubmit(orderId.value);
+    ElMessage.success('订单已撤回，可修改后重新提交');
+    loadData();
+    loadLogs();
+  } catch {
+    return;
   }
 };
 

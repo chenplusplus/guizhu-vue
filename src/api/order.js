@@ -114,6 +114,11 @@ export const submitOrder = (id) => {
   return  api.post(`/order/${id}/submit`);
 }; 
 
+// ===== 撤回待审核订单 =====
+export const withdrawSubmit = (id) => {
+  return api.post(`/order/${id}/withdraw`);
+};
+
 export const getOrderFlowWithBill = (id) => {
   return api.get(`/order/${id}/flow-with-bill`);
 };

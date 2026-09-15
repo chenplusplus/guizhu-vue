@@ -252,8 +252,25 @@ const assignMenus = async (row) => {
     if (!Array.isArray(menuIds)) {
       menuIds = [];
     }
+    const selected = new Set(menuIds.map(Number));
+    const normalizeCheckedKeys = (nodes) => {
+      const keys = [];
+      nodes.forEach(node => {
+        const key = Number(node.menuId);
+        const children = Array.isArray(node.children) ? node.children : [];
+        if (children.length > 0) {
+          const childKeys = normalizeCheckedKeys(children);
+          const allChildrenSelected = childKeys.every(childKey => selected.has(childKey));
+          if (selected.has(key) && allChildrenSelected) keys.push(key);
+          keys.push(...childKeys);
+        } else if (selected.has(key)) {
+          keys.push(key);
+        }
+      });
+      return keys;
+    };
     await nextTick();
-    menuTreeRef.value?.setCheckedKeys(menuIds);
+    menuTreeRef.value?.setCheckedKeys(normalizeCheckedKeys(menuTree.value));
   } catch {
     // ignore
   }
@@ -261,14 +278,30 @@ const assignMenus = async (row) => {
 
 const saveMenus = async () => {
   const checkedKeys = menuTreeRef.value?.getCheckedKeys() || [];
-  const halfCheckedKeys = menuTreeRef.value?.getHalfCheckedKeys() || [];
-  const allKeys = [...checkedKeys, ...halfCheckedKeys];
+  const menuById = new Map();
+  const collectMenus = (nodes) => {
+    nodes.forEach(node => {
+      menuById.set(Number(node.menuId), node);
+      if (Array.isArray(node.children)) collectMenus(node.children);
+    });
+  };
+  collectMenus(menuTree.value);
+
+  const menuIds = new Set(checkedKeys.map(Number));
+  checkedKeys.forEach(key => {
+    let menu = menuById.get(Number(key));
+    while (menu && Number(menu.parentId) > 0) {
+      const parentId = Number(menu.parentId);
+      menuIds.add(parentId);
+      menu = menuById.get(parentId);
+    }
+  });
 
   menuSubmitting.value = true;
   try {
     await roleApi.saveRoleMenus({
       roleId: currentRoleId.value,
-      menuIds: allKeys,
+      menuIds: [...menuIds],
     });
     ElMessage.success('菜单权限保存成功');
     menuDialogVisible.value = false;
