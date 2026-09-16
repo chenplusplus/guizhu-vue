@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="repair-form-container">
     <el-card class="form-card" shadow="never">
       <template #header>
@@ -116,7 +116,7 @@
                 </td>
                 <td class="label-td">出蜡时间</td>
                 <td>
-                  <el-date-picker v-model="form.waxOutTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width:100%" size="small"/>
+                  <el-date-picker v-model="form.waxOutTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width:100%" size="small"/>
                 </td>
                 <td class="label-td">主石卡重</td>
                 <td>
@@ -427,9 +427,17 @@ const loadData = async () => {
         form.deliveryDate = data.deliveryDate || ''
         form.serialNo = data.serialNo || ''
 
+        // ⭐ 额外带入：钻石 / 石重 / 工费 / 粒数（没有则空着）
+        form.diamondLevel = data.diamondLevel || ''
+        form.mainStoneWeight = data.mainStoneWeight != null ? Number(data.mainStoneWeight) : null
+        form.mainStoneCount = data.mainStoneQty != null ? Number(data.mainStoneQty) : null
+        form.mainStoneLaborFee = data.mainStoneSettingFee != null ? Number(data.mainStoneSettingFee) : null
+        form.diamondPrice = data.mainStonePrice != null ? Number(data.mainStonePrice) : null
+        form.laborFee = data.laborFee != null ? Number(data.laborFee) : null
+
         // 图片
-        imageUrls.product = data.imageUrl || ''
-        imageUrls.letter = data.letterImageUrl || ''
+        imageUrls.product = data.productImage || ''
+        imageUrls.letter = data.letterImage || ''
 
         ElMessage.success('已从订单带入数据')
       } else if (res.success && !res.isNew) {
@@ -455,6 +463,8 @@ const handleSubmit = async () => {
       delete submitData.repairNo
       submitData.productImage = imageUrls.product
       submitData.letterImage = imageUrls.letter
+      submitData.customerName = customerName.value || '' 
+      submitData.waxOutTime = submitData.waxOutTime || null
 
       let res
       if (isEdit.value) {

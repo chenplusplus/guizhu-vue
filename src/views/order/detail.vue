@@ -1,4 +1,4 @@
-<!-- src/views/order/detail.vue -->
+﻿<!-- src/views/order/detail.vue -->
 <template>
   <div class="page-container" v-loading="loading">
     <!-- ===== 页面头部 ===== -->
@@ -41,128 +41,74 @@
         />
       </div>
 
-      <!-- ===== 基本信息 + 产品信息（合并成一块） ===== -->
+      <!-- ===== 基本信息 + 产品信息（表格形式） ===== -->
       <div class="info-section">
-        <el-row :gutter="12">
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">订单编号</span>
-              <span class="value">{{ orderData?.orderNo || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">客户名称</span>
-              <span class="value">{{ orderData?.customerName || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">业务员</span>
-              <span class="value">{{ orderData?.salesman || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">下单日期</span>
-              <span class="value">{{ formatDate(orderData?.orderDate) }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">创建时间</span>
-              <span class="value">{{ formatDateTime(orderData?.createdAt) }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">订单状态</span>
+        <h4 class="detail-block-title">基本信息</h4>
+        <el-table :data="[orderData]" border size="small" class="detail-table">
+          <el-table-column prop="orderNo" label="订单编号" min-width="170" />
+          <el-table-column prop="customerName" label="客户名称" min-width="140" />
+          <el-table-column prop="salesman" label="业务员" min-width="100" />
+          <el-table-column label="下单日期" min-width="120">
+            <template #default="{ row }">{{ formatDate(row.orderDate) }}</template>
+          </el-table-column>
+          <el-table-column label="创建时间" min-width="170">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" min-width="110" align="center">
+            <template #default="{ row }">
               <el-tag :type="statusTagType" size="small">{{ statusText }}</el-tag>
-            </div>
-          </el-col>
+            </template>
+          </el-table-column>
+          <el-table-column label="网址" min-width="120">
+            <template #default="{ row }">
+              <a v-if="row.url" :href="row.url" target="_blank" class="url-link">查看链接</a>
+              <span v-else>-</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="remark" label="备注" min-width="160" show-overflow-tooltip />
+        </el-table>
 
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">品名</span>
-              <span class="value">{{ orderData?.productName || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">成色</span>
-              <span class="value">
+        <h4 class="detail-block-title">产品信息</h4>
+        <el-table :data="[orderData]" border size="small" class="detail-table">
+          <el-table-column prop="productName" label="品名" min-width="120" />
+          <el-table-column label="成色" min-width="110">
+            <template #default="{ row }">
+              <span class="purity-cell">
                 <span class="color-dot" :style="{ background: currentPurityColor }"></span>
-                {{ orderData?.color || '-' }}
+                {{ row.color || '-' }}
               </span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">颜色</span>
-              <span class="value">{{ orderData?.gemColor || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">数量</span>
-              <span class="value">{{ orderData?.quantity || 1 }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">手寸/长度</span>
-              <span class="value">{{ orderData?.size || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">宽/厚度</span>
-              <span class="value">{{ orderData?.widthThick || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">克重要求</span>
-              <span class="value">{{ orderData?.weightRequirement || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">钻石级别</span>
-              <span class="value">{{ orderData?.diamondLevel || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">LOGO文字</span>
-              <span class="value">{{ orderData?.logoText || '-' }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">工期</span>
-              <span class="value">{{ orderData?.deliveryDays || '-' }} 天</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4">
-            <div class="info-item">
-              <span class="label">金额</span>
-              <span class="value">¥{{ formatMoney(orderData?.amount) }}</span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="8" :md="6" :lg="4" v-if="orderData?.url">
-            <div class="info-item">
-              <span class="label">网址</span>
-              <a :href="orderData.url" target="_blank" class="value url-link">查看链接</a>
-            </div>
-          </el-col>
-          <el-col :xs="24" :sm="24" :md="24" :lg="24">
-            <div class="info-item">
-              <span class="label">备注</span>
-              <span class="value">{{ orderData?.remark || '-' }}</span>
-            </div>
-          </el-col>
-        </el-row>
+            </template>
+          </el-table-column>
+          <el-table-column prop="gemColor" label="颜色" min-width="90" />
+          <el-table-column prop="quantity" label="数量" min-width="70" align="center" />
+          <el-table-column prop="size" label="手寸/长度" min-width="100" />
+          <el-table-column prop="widthThick" label="宽/厚度" min-width="90" />
+          <el-table-column prop="weightRequirement" label="克重要求" min-width="110" />
+          <el-table-column prop="diamondLevel" label="钻石级别" min-width="100" />
+          <el-table-column prop="logoText" label="LOGO文字" min-width="120" />
+          <el-table-column label="工期(天)" min-width="90" align="center">
+            <template #default="{ row }">{{ row.deliveryDays || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="金额" min-width="120">
+            <template #default="{ row }">¥{{ formatMoney(row.amount) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- ===== 数据包 ===== -->
+      <div v-if="dataPackages.length > 0" class="info-section" style="margin-top:16px;">
+        <h4 class="detail-block-title">📦 数据包</h4>
+        <el-table :data="dataPackages" border size="small">
+          <el-table-column prop="fileName" label="文件名" min-width="220" show-overflow-tooltip />
+          <el-table-column label="大小" width="120" align="center">
+            <template #default="{ row }">{{ row.fileSize ? (row.fileSize / 1024 / 1024).toFixed(2) + ' MB' : '-' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="{ row }">
+              <el-button type="primary" size="small" link @click="downloadFile(row.fileUrl || row.url, row.fileName)">下载</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
 
       <!-- ===== 图片附件 ===== -->
@@ -434,6 +380,8 @@ const letterRefImages = computed(() =>
   (orderData.value?.images || []).filter(x => x.imageType === 'letter_ref')
 );
 
+const dataPackages = computed(() => orderData.value?.dataPackages || []);
+
 const hasImages = computed(() => {
   return productImages.value.length > 0
     || dataImages.value.length > 0
@@ -505,6 +453,18 @@ const loadData = async () => {
   } finally {
     loading.value = false;
   }
+};
+
+// ===== 数据包下载 =====
+const downloadFile = (url, name) => {
+  if (!url) return;
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name || (url.split('/').pop()) || 'file';
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 };
 
 // ===== 工具 =====

@@ -23,6 +23,9 @@
         <el-button type="primary" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
+        <el-button type="warning" @click="openAuditPreview">
+          <el-icon><FullScreen /></el-icon> 全屏审核
+        </el-button>
       </div>
     </div>
 
@@ -261,13 +264,18 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
+import { Refresh, Search, RefreshRight, FullScreen } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, auditOrder, approveModify } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
+
+// 全屏审核：在新窗口打开审核预览页
+const openAuditPreview = () => {
+  window.open('/audit-preview', '_blank', `width=${screen.availWidth},height=${screen.availHeight},menubar=no,toolbar=no,location=no`);
+};
 const tableRef = ref();
 
 const loading = ref(false);

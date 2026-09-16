@@ -89,6 +89,12 @@ const routes = [
         meta: { title: '工厂订单' }
       },
       {
+        path: '/order/factory-batch-edit',
+        name: 'FactoryBatchEdit',
+        component: () => import('../views/order/factory-batch-edit.vue'),
+        meta: { title: '批量编辑工厂订单', requiresAuth: true }
+      },
+      {
         path: '/order/factory-history',
         component: () => import('@/views/order/factory-history.vue'),
         meta: { title: '历史订单'}

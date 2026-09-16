@@ -82,14 +82,14 @@ export const executeLrAction = (data) => {
 
 export const getLrCustomers = () => {
   return request({
-    url: '/api/lr/customers',
+    url: '/lr/customers',
     method: 'get'
   });
 };
 // 获取客户累计数据
 export const getCustomerLrSummary = (customerId) => {
   return request({
-    url: `/api/lr/customer-summary/${customerId}`,
+    url: `/lr/customer-summary/${customerId}`,
     method: 'get'
   })
 }
@@ -97,7 +97,7 @@ export const getCustomerLrSummary = (customerId) => {
 // 获取客户累计数据（上单）
 export const getCustomerSummary = (customerId) => {
   return request({
-    url: `/api/lr/customer-summary/${customerId}`,
+    url: `/lr/customer-summary/${customerId}`,
     method: 'get'
   });
 };

@@ -52,7 +52,7 @@
           </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="业务员" prop="salesman">
-              <el-input v-model="form.salesman" placeholder="请输入业务员" clearable style="width:100%;" />
+              <el-input v-model="form.salesman" placeholder="请输入业务员" disabled style="width:100%;" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -65,6 +65,7 @@
                 <el-autocomplete
                   v-model="form.productName"
                   :fetch-suggestions="querySearch"
+                  :disabled="lockCore"
                   placeholder="输入品名搜索，不存在则自动新增"
                   style="flex:1;"
                   clearable
@@ -92,26 +93,31 @@
           </el-col>
         </el-row>
 
-        <!-- 第三行：规格参数 -->
+        <!-- 第三行：规格参数（含金价） -->
         <el-row :gutter="20">
-          <el-col :xs="24" :sm="8">
+          <el-col :xs="24" :sm="6">
             <el-form-item label="手寸/长度">
-              <el-input v-model="form.size" placeholder="如 17# 或 45cm" />
+              <el-input v-model="form.size" placeholder="如 17# 或 45cm" :disabled="lockCore" />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="8">
+          <el-col :xs="24" :sm="6">
             <el-form-item label="宽/厚度">
-              <el-input v-model="form.widthThick" placeholder="如 2.5mm" />
+              <el-input v-model="form.widthThick" placeholder="如 2.5mm" :disabled="lockCore" />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="8">
+          <el-col :xs="24" :sm="6">
             <el-form-item label="数量" prop="quantity">
-              <el-input-number v-model="form.quantity" :min="1" style="width:100%;" />
+              <el-input-number v-model="form.quantity" :min="1" style="width:100%;" :disabled="lockCore" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <el-form-item label="金价(元/克)">
+              <el-input-number v-model="form.goldPrice" :precision="2" :min="0" placeholder="金价" style="width:100%;" :disabled="isAuditRestricted" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <!-- 第四行：材质（成色 / 金价 / 钻石级别 / 颜色） -->
+        <!-- 第四行：材质（成色 / 颜色 / 钻石级别） -->
         <el-row :gutter="20">
           <el-col :xs="24" :sm="6">
             <el-form-item label="成色" prop="purityId">
@@ -131,8 +137,13 @@
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="6">
-            <el-form-item label="金价(元/克)">
-              <el-input-number v-model="form.goldPrice" :precision="2" :min="0" placeholder="金价" style="width:100%;" :disabled="isAuditRestricted" />
+            <el-form-item label="颜色">
+              <el-input v-model="form.gemColor" placeholder="如 红色 / 蓝色" :disabled="isAuditRestricted" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <el-form-item label="克重要求">
+              <el-input v-model="form.weightRequirement" placeholder="如 2.5-3.0g" :disabled="isAuditRestricted" />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="6">
@@ -142,20 +153,10 @@
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="6">
-            <el-form-item label="颜色">
-              <el-input v-model="form.gemColor" placeholder="如 红色 / 蓝色" :disabled="isAuditRestricted" />
-            </el-form-item>
-          </el-col>
         </el-row>
 
-        <!-- 第五行：克重要求 + 工期 + LOGO -->
+        <!-- 第五行：克重要求 + 工期 + LOGO + 字印要求图 -->
         <el-row :gutter="20">
-          <el-col :xs="24" :sm="6">
-            <el-form-item label="克重要求">
-              <el-input v-model="form.weightRequirement" placeholder="如 2.5-3.0g" :disabled="isAuditRestricted" />
-            </el-form-item>
-          </el-col>
           <el-col :xs="24" :sm="6">
             <el-form-item label="工期(天)" prop="deliveryDays">
               <el-input-number v-model="form.deliveryDays" :min="1" style="width:100%;" :disabled="isAuditRestricted" />
@@ -164,6 +165,24 @@
           <el-col :xs="24" :sm="6">
             <el-form-item label="LOGO">
               <el-input v-model="form.logoText" placeholder="LOGO文字" :disabled="isAuditRestricted" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12">
+            <el-form-item label="字印要求图">
+              <div class="letter-compact">
+                <el-image
+                  v-if="letterImages.length"
+                  :src="letterImages[0].imageUrl"
+                  fit="cover"
+                  class="letter-thumb"
+                  :preview-src-list="letterImages.map(x => x.imageUrl)"
+                  :initial-index="0"
+                  preview-teleported
+                />
+                <span v-else class="letter-empty">无图</span>
+                <el-button size="small" type="primary" link @click="pickLetterImage">上传/替换</el-button>
+                <input ref="letterFileInput" type="file" accept="image/*" multiple style="display:none" @change="handleLetterFile" />
+              </div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -217,12 +236,6 @@
               <div class="upload-card">
                 <div class="upload-card-label">数据图</div>
                 <MultiImageUpload v-model="dataImages" :max-count="10" type="data" />
-              </div>
-            </el-col>
-            <el-col :xs="24" :sm="8">
-              <div class="upload-card">
-                <div class="upload-card-label">字印要求图</div>
-                <MultiImageUpload v-model="letterImages" :max-count="10" type="letter" />
               </div>
             </el-col>
           </el-row>
@@ -364,6 +377,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Document, Check, Search, Clock } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { createOrder, updateOrder, getOrderDetail, submitOrder, auditOrder, acceptOrder, getOrderList } from '@/api/order';
+import { uploadImage } from '@/api/upload';
 import { createManualAlert } from '@/api/alert';
 import { searchProducts, getProductList, createProduct } from '@/api/product';
 import { dictApi } from '@/api/dict';
@@ -389,6 +403,28 @@ const diamondLevelOptions = ref([]);
 const productImages = ref([]);
 const dataImages = ref([]);
 const letterImages = ref([]);
+
+const letterFileInput = ref(null);
+const pickLetterImage = () => { if (letterFileInput.value) letterFileInput.value.click(); };
+const handleLetterFile = async (e) => {
+  const files = Array.from(e.target.files || []);
+  for (const file of files) {
+    if (letterImages.value.length >= 10) { ElMessage.warning('最多上传 10 张'); break; }
+    if (file.size > 5 * 1024 * 1024) { ElMessage.warning(file.name + ' 超过 5MB'); continue; }
+    try {
+      const res = await uploadImage(file, 'letter');
+      if (res && res.success) {
+        const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace('/api', '');
+        const rawUrl = (res.url || (res.data && res.data.url)) || '';
+        const url = rawUrl.startsWith('http') ? rawUrl : baseUrl + rawUrl;
+        letterImages.value.push({ id: null, imageType: 'letter', imageUrl: url, imageName: file.name, sortOrder: letterImages.value.length, remark: '' });
+      }
+    } catch (err) {
+      ElMessage.error('字印图上传失败');
+    }
+  }
+  e.target.value = '';
+};
 const dataPackages = ref([]);
 
 // ===== 产品相关 =====
@@ -478,6 +514,8 @@ const showSubmitToFactory = computed(() => {
 
 // ⭐ 客户审核员编辑限制：仅可改 备注/网址/图片，重要字段禁用
 const isAuditRestricted = computed(() => isEdit.value && userStore.userType === 'customerAudit');
+// 订单审核等编辑场景：核心规格（品名/手寸/宽厚/数量）不允许修改
+const lockCore = computed(() => isEdit.value && userStore.userType !== 'customer');
 
 // ============================================================
 // 成色
@@ -706,7 +744,7 @@ const fillFromOrderData = (data, isCopyMode) => {
 
   form.orderDate = isCopyMode ? new Date().toISOString().split('T')[0] : (data.orderDate?.split('T')[0] || '');
   form.productName = data.productName || '';
-  form.salesman = data.salesman || '';
+  form.salesman = userStore.realName || userStore.username || '';
   form.warnFlag = Boolean(data.warnFlag);
   form.alertReason = data.alertReason || '';
   form.quantity = data.quantity || 1;
@@ -1017,4 +1055,7 @@ onMounted(() => {
   .product-input-wrapper { flex-wrap: wrap; }
   .upload-card { min-height: 100px; margin-bottom: 12px; }
 }
+.letter-compact { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.letter-thumb { width:56px; height:56px; border-radius:4px; border:1px solid #ebeef5; cursor:zoom-in; }
+.letter-empty { color:#c0c4cc; font-size:12px; }
 </style>

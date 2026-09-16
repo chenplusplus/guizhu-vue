@@ -1,3 +1,14 @@
+
+// 监听折现开关：关闭时清零金料，重新算合计
+watch(() => orderData.value.goldConvertCash, () => {
+  if (!orderData.value.goldConvertCash) {
+    orderData.value.goldMaterialWeight = 0;
+    orderData.value.addLossWeight = 0;
+    orderData.value.goldMaterialFee = 0;
+  }
+  calcTotal();
+});
+
 <!-- src/views/order/factory-edit.vue -->
 <template>
   <div class="page-container" v-loading="loading">
@@ -24,74 +35,32 @@
     <div class="content-body">
       <!-- ===== 订单信息 ===== -->
       <div class="info-section">
-        <el-row :gutter="16">
-          <el-col :xs="12" :sm="6">
-            <div class="info-item">
-              <span class="label">订单号：</span>
-              <el-tooltip placement="top" effect="dark">
-                <template #content>
-                  <div style="font-size:13px;line-height:1.8;max-width:400px;">
-                    <div><b>订单号：</b>{{ orderData?.orderNo || '-' }}</div>
-                    <div><b>品名：</b>{{ orderData?.productName || '-' }}</div>
-                    <div><b>客户：</b>{{ orderData?.customerName || '-' }}</div>
-                    <div><b>钻石级别：</b>{{ orderData?.diamondLevel || '-' }}</div>
-                    <div><b>成色：</b>{{ orderData?.color || '-' }}</div>
-                    <div><b>手寸：</b>{{ orderData?.size || '-' }}</div>
-                    <div><b>数量：</b>{{ orderData?.quantity || '-' }}</div>
-                    <div><b>金价：</b>{{ orderData?.goldPrice || '-' }}</div>
-                    <div><b>备注：</b>{{ orderData?.remark || '-' }}</div>
-                  </div>
-                </template>
-                <span class="value" style="color:#409EFF;cursor:pointer;border-bottom:1px dashed #409EFF;">
-                  {{ orderData?.orderNo || '-' }}
-                </span>
-              </el-tooltip>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item"><span class="label">客户：</span><span class="value">{{ orderData?.customerName || '-' }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item"><span class="label">品名：</span><span class="value">{{ orderData?.productName || '-' }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item">
-              <span class="label">成色：</span>
-              <span class="value" style="color:#E6A23C;font-weight:600;">
-                <span class="color-dot" :style="{ background: currentPurityColor }"></span>
-                {{ orderData?.color || '-' }}
-              </span>
-              <span v-if="currentPurityRate" style="color:#909399;font-size:12px;margin-left:6px;">
-                (折算率 {{ currentPurityRate }})
-              </span>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item"><span class="label">数量：</span><span class="value">{{ orderData?.quantity || '-' }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item"><span class="label">手寸：</span><span class="value">{{ orderData?.size || '-' }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item"><span class="label">下单日期：</span><span class="value">{{ formatDate(orderData?.orderDate) }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="6">
-            <div class="info-item">
-              <span class="label">状态：</span>
-              <el-tag :type="getStatusType(orderData?.flowStatus)" size="small">
-                {{ getStatusText(orderData?.flowStatus) }}
-              </el-tag>
-            </div>
-          </el-col>
-        </el-row>
-        <el-row v-if="orderData?.remark" style="margin-top:8px;">
-          <el-col :span="24">
-            <div class="info-item"><span class="label">备注：</span><span class="value">{{ orderData?.remark }}</span></div>
-          </el-col>
-        </el-row>
+        <el-table :data="[orderData]" border size="small" class="detail-table">
+          <el-table-column prop="orderNo" label="订单号" min-width="140" />
+          <el-table-column prop="customerName" label="客户" min-width="120" />
+          <el-table-column prop="productName" label="品名" min-width="140" />
+          <el-table-column label="成色" min-width="120">
+            <template #default="{ row }">
+              <span class="color-dot" :style="{ background: currentPurityColor }"></span>
+              {{ row.color || '-' }}
+              <span v-if="currentPurityRate" style="color:#909399;font-size:12px;margin-left:6px;">(折算率 {{ currentPurityRate }})</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="quantity" label="数量" width="80" align="center" />
+          <el-table-column prop="size" label="手寸" width="90" align="center" />
+          <el-table-column label="下单日期" width="120" align="center">
+            <template #default="{ row }">{{ formatDate(row.orderDate) }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="getStatusType(row.flowStatus)" size="small">{{ getStatusText(row.flowStatus) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="160">
+            <template #default="{ row }">{{ row.remark || '-' }}</template>
+          </el-table-column>
+        </el-table>
       </div>
-
-      <div class="section-divider"></div>
 
       <!-- ===== 工厂数据 ===== -->
       <div class="form-section">
@@ -139,6 +108,12 @@
           <el-col :xs="12" :sm="4">
             <el-form-item label="足金料金额">
               <el-input-number v-model="orderData.goldMaterialFee" :precision="2" disabled style="width:100%;" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="12" :sm="6">
+            <el-form-item label="折现金">
+              <el-switch v-model="orderData.goldConvertCash" active-text="是" inactive-text="否" inline-prompt />
+              <span style="margin-left:8px;color:#909399;font-size:12px;">勾选则本单金料不计入统计</span>
             </el-form-item>
           </el-col>
         </el-row>
@@ -260,100 +235,6 @@
           </el-col>
         </el-row>
       </div>
-
-      <div class="section-divider"></div>
-
-      <!-- ===== ⭐ 图片附件（只读展示） ===== -->
-      <div v-if="hasImages" class="form-section">
-        <div class="section-title">🖼️ 图片附件</div>
-
-        <!-- 产品图片 -->
-        <div v-if="productImages.length" class="image-group">
-          <div class="image-group-label">
-            产品图片
-            <span class="badge">{{ productImages.length }}</span>
-          </div>
-          <div class="image-list">
-            <el-image
-              v-for="(img, i) in productImages"
-              :key="img.id || i"
-              :src="img.imageUrl"
-              fit="cover"
-              class="detail-image"
-              :preview-src-list="productImages.map(x => x.imageUrl)"
-              :initial-index="i"
-              preview-teleported
-            />
-          </div>
-        </div>
-
-        <!-- 数据图 -->
-        <div v-if="dataImages.length" class="image-group">
-          <div class="image-group-label">
-            数据图
-            <span class="badge">{{ dataImages.length }}</span>
-          </div>
-          <div class="image-list">
-            <el-image
-              v-for="(img, i) in dataImages"
-              :key="img.id || i"
-              :src="img.imageUrl"
-              fit="cover"
-              class="detail-image"
-              :preview-src-list="dataImages.map(x => x.imageUrl)"
-              :initial-index="i"
-              preview-teleported
-            />
-          </div>
-        </div>
-
-        <!-- 字印相关 -->
-        <div v-if="letterImages.length || letterRefImages.length" class="image-group">
-          <div class="image-group-label">
-            字印相关
-            <span v-if="letterImages.length" class="badge badge-blue">要求图 {{ letterImages.length }}</span>
-            <span v-if="letterRefImages.length" class="badge badge-orange">参考图 {{ letterRefImages.length }}</span>
-          </div>
-          <div class="image-list">
-            <el-image
-              v-for="(img, i) in letterImages"
-              :key="'l-' + (img.id || i)"
-              :src="img.imageUrl"
-              fit="cover"
-              class="detail-image letter-img"
-              :preview-src-list="[...letterImages, ...letterRefImages].map(x => x.imageUrl)"
-              :initial-index="i"
-              preview-teleported
-            />
-            <el-image
-              v-for="(img, i) in letterRefImages"
-              :key="'lr-' + (img.id || i)"
-              :src="img.imageUrl"
-              fit="cover"
-              class="detail-image letter-ref-img"
-              :preview-src-list="[...letterImages, ...letterRefImages].map(x => x.imageUrl)"
-              :initial-index="letterImages.length + i"
-              preview-teleported
-            />
-          </div>
-        </div>
-
-        <!-- 兼容旧数据 -->
-        <div
-          v-if="!productImages.length && !dataImages.length && !letterImages.length && !letterRefImages.length
-                && (orderData?.imageUrl || orderData?.dataImageUrl || orderData?.letterImageUrl)"
-          class="image-group"
-        >
-          <div class="image-group-label">旧版本图片</div>
-          <div class="image-list">
-            <el-image v-if="orderData?.imageUrl" :src="orderData.imageUrl" fit="cover" class="detail-image" :preview-src-list="[orderData.imageUrl]" preview-teleported />
-            <el-image v-if="orderData?.dataImageUrl" :src="orderData.dataImageUrl" fit="cover" class="detail-image" :preview-src-list="[orderData.dataImageUrl]" preview-teleported />
-            <el-image v-if="orderData?.letterImageUrl" :src="orderData.letterImageUrl" fit="cover" class="detail-image" :preview-src-list="[orderData.letterImageUrl]" preview-teleported />
-          </div>
-        </div>
-      </div>
-
-      <div class="section-divider"></div>
 
       <!-- ===== 制作状态 ===== -->
       <div class="form-section">
@@ -536,6 +417,16 @@ const calcFactory = () => {
   const gold = orderData.value.goldPrice || 0;
   const convertRate = currentPurityRate.value || 1;
 
+  // ★ 折现模式：直接 addLossWeight×金价（不用足金料克重路径）；不算料
+  if (orderData.value.goldConvertCash) {
+    const addLossWeight = netWeight * loss;
+    orderData.value.addLossWeight = parseFloat(addLossWeight.toFixed(3));
+    orderData.value.goldMaterialWeight = 0;
+    orderData.value.goldMaterialFee = parseFloat((addLossWeight * gold).toFixed(2));
+    calcTotal();
+    return;
+  }
+
   // 加耗重 = 净重 × 损耗
   const addLossWeight = netWeight * loss;
   orderData.value.addLossWeight = parseFloat(addLossWeight.toFixed(3));
@@ -571,7 +462,10 @@ const calcSubStone = () => {
 
 // 合计
 const calcTotal = () => {
-  const goldMaterial = orderData.value.goldMaterialFee || 0;
+  // 折现模式：goldConvertCash=true时金料金额算入合计；默认（按克计料）不进合计
+  const goldMaterial = orderData.value.goldConvertCash
+    ? (orderData.value.goldMaterialFee || 0)
+    : 0;
   const mainStone = orderData.value.mainStoneAmount || 0;
   const subStone = orderData.value.subStoneAmount || 0;
   const packing = orderData.value.packingFee || 0;

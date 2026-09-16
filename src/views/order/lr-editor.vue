@@ -1,4 +1,3 @@
-<!-- src/views/order/lr-editor.vue -->
 <template>
   <div class="page-container" v-loading="loading">
     <!-- ===== 页面头部 ===== -->
@@ -36,7 +35,6 @@
         <input ref="fileInput" type="file" accept=".xlsx,.xls" style="display:none;" @change="handleFileImport" />
       </div>
     </div>
-
     <!-- ===== 整体内容 ===== -->
     <div class="content-body">
       <!-- 账单信息 -->
@@ -52,16 +50,13 @@
           </el-col>
         </el-row>
       </div>
-
       <div class="section-divider"></div>
-
       <!-- 明细表格 -->
       <div class="table-section">
         <div class="section-title">
           <span>📋 成本核对明细</span>
-          <span class="section-subtitle">销售行（浅蓝）只读 ｜ 成本行（浅灰）可编辑</span>
+          <span class="section-subtitle">销售行（白底）只读 ｜ 成本行（蓝底）可编辑</span>
         </div>
-
         <div class="table-wrapper">
           <el-table
             :data="displayRows"
@@ -71,7 +66,7 @@
             :row-class-name="rowClassName"
             :header-cell-style="headerCellStyle"
             max-height="550"
-          >
+            >
             <el-table-column prop="serialNo" label="流水单号" width="100" align="center" />
             <el-table-column prop="seqDisplay" label="序号" width="55" align="center" />
             <el-table-column prop="productName" label="品名" min-width="110" align="center" />
@@ -80,49 +75,43 @@
             <el-table-column prop="color" label="颜色" width="60" align="center" />
             <el-table-column prop="quantity" label="件数" width="55" align="center" />
             <el-table-column prop="size" label="手寸/长度" width="85" align="center" />
-
             <el-table-column prop="totalWeight" label="总重" width="75" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.totalWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.totalWeight || '-' }}</span>
               </template>
             </el-table-column>
-
             <el-table-column prop="netWeight" label="净重" width="75" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.netWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.netWeight || '-' }}</span>
               </template>
             </el-table-column>
-
             <el-table-column prop="lossRate" label="损耗" width="65" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.lossRate" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.lossRate || '-' }}</span>
               </template>
             </el-table-column>
-
-            <el-table-column prop="addLossWeight" label="加耗重" width="75" align="center">
+            <!-- 加耗重 标红 -->
+            <el-table-column prop="addLossWeight" label="加耗重" width="75" align="center" class-name="col-red">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.addLossWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.addLossWeight || '-' }}</span>
               </template>
             </el-table-column>
-
             <el-table-column prop="goldPrice" label="金价" width="70" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.goldPrice" size="small" class="cell-input" @input="onGoldPriceChange(row)" />
                 <span v-else>{{ row.goldPrice || '-' }}</span>
               </template>
             </el-table-column>
-
             <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.goldMaterialFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.goldMaterialFee || '-' }}</span>
               </template>
             </el-table-column>
-
             <!-- 主石 -->
             <el-table-column label="主石" align="center">
               <el-table-column prop="stoneQty" label="粒数" width="50" align="center">
@@ -143,7 +132,8 @@
                   <span v-else>{{ row.stonePrice || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stoneAmount" label="金额(元)" width="85" align="center">
+              <!-- 主石金额 标红 -->
+              <el-table-column prop="stoneAmount" label="金额(元)" width="85" align="center" class-name="col-red">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneAmount || '-' }}</span>
@@ -156,7 +146,6 @@
                 </template>
               </el-table-column>
             </el-table-column>
-
             <!-- 副石 -->
             <el-table-column label="副石" align="center">
               <el-table-column prop="subStoneQty" label="粒数" width="50" align="center">
@@ -177,7 +166,8 @@
                   <span v-else>{{ row.subStonePrice || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center">
+              <!-- 副石金额 标红 -->
+              <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center" class-name="col-red">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneAmount || '-' }}</span>
@@ -190,34 +180,30 @@
                 </template>
               </el-table-column>
             </el-table-column>
-
             <el-table-column prop="packingFee" label="包装证书" width="80" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.packingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.packingFee || '-' }}</span>
               </template>
             </el-table-column>
-
             <el-table-column prop="moldFee" label="版费" width="65" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.moldFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.moldFee || '-' }}</span>
               </template>
             </el-table-column>
-
             <el-table-column prop="laborFee" label="工费" width="65" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.laborFee" size="small" class="cell-input" @input="onCellChange(row)" />
                 <span v-else>{{ row.laborFee || '-' }}</span>
               </template>
             </el-table-column>
-
-            <el-table-column prop="totalAmount" label="应收金额" width="95" align="center">
+            <!-- 应收金额 标红 -->
+            <el-table-column prop="totalAmount" label="应收金额" width="95" align="center" class-name="col-red">
               <template #default="{ row }">
-                <span style="color:#E6A23C;font-weight:bold;">{{ (row.totalAmount || 0).toFixed(2) }}</span>
+                <span style="font-weight:bold;">{{ (row.totalAmount || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
-
             <el-table-column label="操作" width="55" align="center" fixed="right">
               <template #default="{ row }">
                 <el-tag v-if="row.rowType === 'sale'" type="info" size="small">只读</el-tag>
@@ -227,14 +213,11 @@
           </el-table>
         </div>
       </div>
-
       <div class="section-divider"></div>
-
-      <!-- ===== 汇总统计 ===== -->
+      <!-- ===== 汇总统计（Excel式表格） ===== -->
       <div class="summary-section">
-        <div class="section-title">📊 汇总统计（按成色）</div>
-
-        <!-- 第一部分：净重 + 加耗重（表格样式，按成色） -->
+        <div class="section-title">📊 汇总统计</div>
+        <!-- 第一部分：净重 + 加耗重（保留原有按成色表格） -->
         <div class="summary-table">
           <div class="summary-row header-row">
             <div class="summary-cell" style="width:70px;">成色</div>
@@ -256,102 +239,81 @@
           </div>
         </div>
 
-        <!-- 第二部分：利润（四列卡片样式，全部汇总不分成色） -->
-        <div class="profit-card-section">
-          <!-- 第一行：上单 -->
-          <div class="profit-row">
-            <div class="profit-card">
-              <div class="profit-card-title">💎 上单钻石利润</div>
-              <div class="profit-card-value">{{ prevSummary.diamondProfit }}</div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">🔧 上单镶石利润</div>
-              <div class="profit-card-value">{{ prevSummary.settingProfit }}</div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">🛠 上单工费利润</div>
-              <div class="profit-card-value">{{ prevSummary.laborProfit }}</div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">📊 上单应收总利润</div>
-              <div class="profit-card-value">{{ prevSummary.totalProfit }}</div>
-            </div>
-          </div>
-
-          <!-- 第二行：本单 -->
-          <div class="profit-row">
-            <div class="profit-card">
-              <div class="profit-card-title">💎 本单钻石利润</div>
-              <div class="profit-card-value" :class="getProfitClass(currSummary.diamondProfit)">
-                {{ currSummary.diamondProfit.toFixed(2) }}
-              </div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">🔧 本单镶石利润</div>
-              <div class="profit-card-value" :class="getProfitClass(currSummary.settingProfit)">
-                {{ currSummary.settingProfit.toFixed(2) }}
-              </div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">🛠 本单工费利润</div>
-              <div class="profit-card-value" :class="getProfitClass(currSummary.laborProfit)">
-                {{ currSummary.laborProfit.toFixed(2) }}
-              </div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">📊 本单应收总利润</div>
-              <div class="profit-card-value" :class="getProfitClass(currSummary.totalProfit)">
-                {{ currSummary.totalProfit.toFixed(2) }}
-              </div>
-            </div>
-          </div>
-
-          <!-- 第三行：累计 -->
-          <div class="profit-row">
-            <div class="profit-card">
-              <div class="profit-card-title">💎 累计钻石利润</div>
-              <div class="profit-card-value" :class="getProfitClass(totalSummary.diamondProfit)">
-                {{ totalSummary.diamondProfit.toFixed(2) }}
-              </div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">🔧 累计镶石利润</div>
-              <div class="profit-card-value" :class="getProfitClass(totalSummary.settingProfit)">
-                {{ totalSummary.settingProfit.toFixed(2) }}
-              </div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">🛠 累计工费利润</div>
-              <div class="profit-card-value" :class="getProfitClass(totalSummary.laborProfit)">
-                {{ totalSummary.laborProfit.toFixed(2) }}
-              </div>
-            </div>
-            <div class="profit-card">
-              <div class="profit-card-title">📊 累计应收总利润</div>
-              <div class="profit-card-value" :class="getProfitClass(totalSummary.totalProfit)">
-                {{ totalSummary.totalProfit.toFixed(2) }}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-divider"></div>
-
-      <!-- 底部统计 -->
-      <div class="bottom-stats">
-        <div class="stats-row">
-          <span>上单每日收入：<b>{{ prevSummary.dailyIncome || '-' }}</b></span>
-          <span>本单每日开支：<b>{{ currSummary.dailyExpense || '-' }}</b></span>
-          <span>本单出货件数：<b>{{ currSummary.qty }}</b></span>
-          <span style="color:#F56C6C;">应收总金额：<b>¥{{ currSummary.totalAmount.toFixed(2) }}</b></span>
-        </div>
-        <div class="stats-row">
-          <span>累计收入：<b>¥{{ totalSummary.dailyIncome.toFixed(2) }}</b></span>
-          <span>累计开支：<b>¥{{ totalSummary.dailyExpense.toFixed(2) }}</b></span>
-          <span>累计出货件数：<b>{{ totalSummary.qty }}</b></span>
-          <span style="color:#F56C6C;">支出平衡总金额：<b>¥{{ totalSummary.balance.toFixed(2) }}</b></span>
-        </div>
+        <!-- 第二部分：利润+收支 Excel原生表格 -->
+        <table class="excel-summary-table">
+          <tbody>
+            <!-- 第1行：上单 -->
+            <tr>
+              <td class="label-cell">上单钻石利润：</td>
+              <td class="value-cell">{{ prevSummary.diamondProfit }}</td>
+              <td class="label-cell">上单金利润：</td>
+              <td class="value-cell">{{ prevSummary.goldProfit }}</td>
+              <td class="label-cell">上单镶石利润：</td>
+              <td class="value-cell">{{ prevSummary.settingProfit }}</td>
+              <td class="label-cell">上单工费利润：</td>
+              <td class="value-cell">{{ prevSummary.laborProfit }}</td>
+              <td class="label-cell">上单应收金额总利润：</td>
+              <td class="value-cell">{{ prevSummary.totalProfit }}</td>
+            </tr>
+            <!-- 第2行：本单 -->
+            <tr>
+              <td class="label-cell">本单钻石利润：</td>
+              <td class="value-cell" :class="getProfitClass(currSummary.diamondProfit)">{{ currSummary.diamondProfit.toFixed(2) }}</td>
+              <td class="label-cell">本单金利润：</td>
+              <td class="value-cell" :class="getProfitClass(currSummary.goldProfit)">{{ currSummary.goldProfit.toFixed(2) }}</td>
+              <td class="label-cell">本单镶石利润：</td>
+              <td class="value-cell" :class="getProfitClass(currSummary.settingProfit)">{{ currSummary.settingProfit.toFixed(2) }}</td>
+              <td class="label-cell">本单工费利润：</td>
+              <td class="value-cell" :class="getProfitClass(currSummary.laborProfit)">{{ currSummary.laborProfit.toFixed(2) }}</td>
+              <td class="label-cell">本单应收金额总利润：</td>
+              <td class="value-cell" :class="getProfitClass(currSummary.totalProfit)">{{ currSummary.totalProfit.toFixed(2) }}</td>
+            </tr>
+            <!-- 第3行：累计（蓝色字） -->
+            <tr>
+              <td class="label-cell blue-text">累计钻石利润：</td>
+              <td class="value-cell blue-text" :class="getProfitClass(totalSummary.diamondProfit)">{{ totalSummary.diamondProfit.toFixed(2) }}</td>
+              <td class="label-cell blue-text">累计金利润：</td>
+              <td class="value-cell blue-text" :class="getProfitClass(totalSummary.goldProfit)">{{ totalSummary.goldProfit.toFixed(2) }}</td>
+              <td class="label-cell blue-text">累计镶石利润：</td>
+              <td class="value-cell blue-text" :class="getProfitClass(totalSummary.settingProfit)">{{ totalSummary.settingProfit.toFixed(2) }}</td>
+              <td class="label-cell blue-text">累计工费利润：</td>
+              <td class="value-cell blue-text" :class="getProfitClass(totalSummary.laborProfit)">{{ totalSummary.laborProfit.toFixed(2) }}</td>
+              <td class="label-cell blue-text">累计应收金额利润：</td>
+              <td class="value-cell blue-text" :class="getProfitClass(totalSummary.totalProfit)">{{ totalSummary.totalProfit.toFixed(2) }}</td>
+            </tr>
+            <!-- 第4行：上单每日收入/开支/出货件数 + 应收总金额（跨行2行） -->
+            <tr>
+              <td class="label-cell">上单每日收入：</td>
+              <td class="value-cell">{{ prevSummary.dailyIncome }}</td>
+              <td class="label-cell">上单每日开支：</td>
+              <td class="value-cell">-</td>
+              <td class="label-cell">上单出货件数：</td>
+              <td class="value-cell">-</td>
+              <td rowspan="2" class="label-cell red-text total-amount-cell">应收总金额：</td>
+              <td rowspan="2" class="value-cell red-text total-amount-cell">¥{{ currSummary.totalAmount.toFixed(2) }}</td>
+            </tr>
+            <!-- 第5行：本单每日收入/开支/出货件数 -->
+            <tr>
+              <td class="label-cell">本单每日收入：</td>
+              <td class="value-cell">{{ currSummary.totalAmount.toFixed(2) }}</td>
+              <td class="label-cell">本单每日开支：</td>
+              <td class="value-cell">{{ currSummary.dailyExpense }}</td>
+              <td class="label-cell">本单出货件数：</td>
+              <td class="value-cell">{{ currSummary.qty }}</td>
+            </tr>
+            <!-- 第6行：累计收入/开支/出货件数 + 支出平衡总金额 -->
+            <tr>
+              <td class="label-cell blue-text">累计收入：</td>
+              <td class="value-cell blue-text">¥{{ totalSummary.dailyIncome.toFixed(2) }}</td>
+              <td class="label-cell blue-text">累计开支：</td>
+              <td class="value-cell blue-text">¥{{ totalSummary.dailyExpense.toFixed(2) }}</td>
+              <td class="label-cell blue-text">累计出货件数：</td>
+              <td class="value-cell blue-text">{{ totalSummary.qty }}</td>
+              <td class="label-cell red-text">支出平衡总金额：</td>
+              <td class="value-cell red-text">¥{{ totalSummary.balance.toFixed(2) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -377,10 +339,10 @@ const saving = ref(false);
 const flowLoading = ref(false);
 const currentNode = ref(null);
 const flowActions = ref([]);
+
 const normalizedUserType = computed(() => String(userStore.userType || '').trim().replace(/[_-]/g, '').toLowerCase());
 const isFactoryOrderUser = computed(() => normalizedUserType.value === 'factoryorder');
 const isFactoryAuditUser = computed(() => ['factoryaudit', '工厂审核员'].includes(normalizedUserType.value));
-
 const normalizedStatus = computed(() => lrInfo.value?.status || currentNode.value?.nodeKey || currentNode.value?.node_key || 'draft');
 const isFinished = computed(() => ['completed', 'confirmed', 'finished'].includes(normalizedStatus.value));
 const isAuditPending = computed(() => ['productionCompleted', 'production_completed', 'pendingAudit', 'auditPending', 'pending', 'submitted'].includes(normalizedStatus.value));
@@ -408,19 +370,18 @@ const prevData = ref({
     totalCost: 0,
     totalProfit: 0,
     totalDiamondProfit: 0,
+    totalGoldProfit: 0,
     totalSettingProfit: 0,
     totalLaborProfit: 0,
     totalNetWeight: 0,
     totalAddLossWeight: 0
   },
-  details: [] // [{ color, netWeight, addLossWeight }]
+  details: []
 });
 
 // ==================== 数据 ====================
 const saleRows = ref([]);
 const costRows = ref([]);
-
-// 显示行（销售行 + 成本行交替）
 const displayRows = computed(() => {
   const result = [];
   const maxLen = Math.max(saleRows.value.length, costRows.value.length);
@@ -439,7 +400,6 @@ const displayRows = computed(() => {
 const rowClassName = ({ row }) => {
   return row.rowType === 'sale' ? 'sale-row' : 'cost-row';
 };
-
 const headerCellStyle = {
   background: '#e8f0fe',
   color: '#1d2129',
@@ -452,28 +412,18 @@ const headerCellStyle = {
 // ==================== 核心：自动计算 ====================
 const recalcRow = (row) => {
   if (!row) return;
-
-  // 1. 加耗重 = 净重 × 损耗
   if (row.netWeight && row.lossRate) {
     row.addLossWeight = +(row.netWeight * row.lossRate).toFixed(3);
   }
-
-  // 2. 足金料 = 加耗重 × 金价
   if (row.addLossWeight && row.goldPrice) {
     row.goldMaterialFee = +(row.addLossWeight * row.goldPrice).toFixed(2);
   }
-
-  // 3. 主石金额 = 粒数 × 石重 × 单价
   if (row.stoneQty && row.stoneWeight && row.stonePrice) {
     row.stoneAmount = +(row.stoneQty * row.stoneWeight * row.stonePrice).toFixed(2);
   }
-
-  // 4. 副石金额 = 粒数 × 石重 × 单价
   if (row.subStoneQty && row.subStoneWeight && row.subStonePrice) {
     row.subStoneAmount = +(row.subStoneQty * row.subStoneWeight * row.subStonePrice).toFixed(2);
   }
-
-  // 5. 应收金额
   row.totalAmount = +(
     (row.goldMaterialFee || 0) +
     (row.stoneAmount || 0) +
@@ -486,7 +436,6 @@ const recalcRow = (row) => {
   ).toFixed(2);
 };
 
-// ==================== 单元格变化触发重算 ====================
 const syncRowToSource = (row) => {
   if (row.rowType === 'sale') {
     const idx = saleRows.value.findIndex(r => r.id === row.id);
@@ -494,10 +443,8 @@ const syncRowToSource = (row) => {
       saleRows.value.splice(idx, 1, { ...row });
     }
   } else {
-    // 成本行：先按id匹配，再按位置匹配
     let idx = costRows.value.findIndex(r => r.id === row.id && r.id !== null);
     if (idx === -1) {
-      // 用位置匹配（新行）
       idx = costRows.value.findIndex((r, i) => i === row._rowIndex && r.id === null);
     }
     if (idx === -1 && row._rowIndex < costRows.value.length) {
@@ -509,13 +456,11 @@ const syncRowToSource = (row) => {
   }
 };
 
-// ==================== 单元格变化触发重算 ====================
 const onCellChange = (row) => {
   recalcRow(row);
   syncRowToSource(row);
   nextTick();
 };
-
 const onStonePriceChange = (row) => {
   if (row.stoneQty && row.stoneWeight && row.stonePrice) {
     row.stoneAmount = +(row.stoneQty * row.stoneWeight * row.stonePrice).toFixed(2);
@@ -524,7 +469,6 @@ const onStonePriceChange = (row) => {
   syncRowToSource(row);
   nextTick();
 };
-
 const onSubStonePriceChange = (row) => {
   if (row.subStoneQty && row.subStoneWeight && row.subStonePrice) {
     row.subStoneAmount = +(row.subStoneQty * row.subStoneWeight * row.subStonePrice).toFixed(2);
@@ -533,7 +477,6 @@ const onSubStonePriceChange = (row) => {
   syncRowToSource(row);
   nextTick();
 };
-
 const onGoldPriceChange = (row) => {
   if (row.addLossWeight && row.goldPrice) {
     row.goldMaterialFee = +(row.addLossWeight * row.goldPrice).toFixed(2);
@@ -561,17 +504,13 @@ const getSaleRowsByColor = () => {
 const summaryWeightRows = computed(() => {
   const colorMap = getSaleRowsByColor();
   const colors = Array.from(colorMap.keys()).sort();
-
   return colors.map(color => {
     const rows = colorMap.get(color);
     const currNetWeight = rows.reduce((sum, r) => sum + (Number(r.netWeight) || 0), 0);
     const currAddLoss = rows.reduce((sum, r) => sum + (Number(r.addLossWeight) || 0), 0);
-
-    // 找上单对应成色的数据
     const prevDetail = prevData.value.details.find(d => d.color === color);
     const prevNetWeight = prevDetail?.netWeight ?? 0;
     const prevAddLoss = prevDetail?.addLossWeight ?? 0;
-
     return {
       color,
       prevNetWeight: prevNetWeight > 0 ? prevNetWeight.toFixed(3) : '-',
@@ -584,14 +523,14 @@ const summaryWeightRows = computed(() => {
   });
 });
 
-// ==================== 第二部分：利润（全部汇总） ====================
-// 当前本单数据（从 displayRows 实时计算）
+// ==================== 第二部分：利润汇总 ====================
 const currSummary = computed(() => {
   const saleList = displayRows.value.filter(r => r.rowType === 'sale');
   const costList = displayRows.value.filter(r => r.rowType === 'cost');
-
   const sum = (list, prop) => list.reduce((s, r) => s + (Number(r[prop]) || 0), 0);
 
+  const saleGoldFee = sum(saleList, 'goldMaterialFee');
+  const costGoldFee = sum(costList, 'goldMaterialFee');
   const saleStoneAmount = sum(saleList, 'stoneAmount');
   const saleSubStoneAmount = sum(saleList, 'subStoneAmount');
   const saleStoneSetting = sum(saleList, 'stoneSettingFee');
@@ -608,28 +547,22 @@ const currSummary = computed(() => {
   const costTotal = sum(costList, 'totalAmount');
 
   return {
-    // 钻石利润 = 主石金额 + 副石金额（销售 - 成本）
     diamondProfit: (saleStoneAmount + saleSubStoneAmount) - (costStoneAmount + costSubStoneAmount),
-    // 镶石利润 = 主石镶石工费 + 副石镶石工费（销售 - 成本）
+    goldProfit: saleGoldFee - costGoldFee,
     settingProfit: (saleStoneSetting + saleSubStoneSetting) - (costStoneSetting + costSubStoneSetting),
-    // 工费利润 = 工费（销售 - 成本）
     laborProfit: saleLaborFee - costLaborFee,
-    // 应收总利润 = 应收金额（销售 - 成本）
     totalProfit: saleTotal - costTotal,
-    // 应收总金额
     totalAmount: saleTotal,
-    // 出货件数
     qty: saleQty,
-    // 每日开支（暂用成本总额代替）
     dailyExpense: costTotal.toFixed(2)
   };
 });
 
-// 上单数据（从后端加载）
 const prevSummary = computed(() => {
   const data = prevData.value.summary;
   return {
     diamondProfit: data.totalDiamondProfit > 0 ? data.totalDiamondProfit.toFixed(2) : '-',
+    goldProfit: data.totalGoldProfit > 0 ? data.totalGoldProfit.toFixed(2) : '-',
     settingProfit: data.totalSettingProfit > 0 ? data.totalSettingProfit.toFixed(2) : '-',
     laborProfit: data.totalLaborProfit > 0 ? data.totalLaborProfit.toFixed(2) : '-',
     totalProfit: data.totalProfit > 0 ? data.totalProfit.toFixed(2) : '-',
@@ -637,12 +570,11 @@ const prevSummary = computed(() => {
   };
 });
 
-// 累计 = 上单 + 本单（返回数字）
 const totalSummary = computed(() => {
   const prev = prevData.value.summary;
   const curr = currSummary.value;
-
   const prevDiamond = Number(prev.totalDiamondProfit) || 0;
+  const prevGold = Number(prev.totalGoldProfit) || 0;
   const prevSetting = Number(prev.totalSettingProfit) || 0;
   const prevLabor = Number(prev.totalLaborProfit) || 0;
   const prevProfit = Number(prev.totalProfit) || 0;
@@ -650,6 +582,7 @@ const totalSummary = computed(() => {
   const prevCost = Number(prev.totalCost) || 0;
 
   const currDiamond = Number(curr.diamondProfit) || 0;
+  const currGold = Number(curr.goldProfit) || 0;
   const currSetting = Number(curr.settingProfit) || 0;
   const currLabor = Number(curr.laborProfit) || 0;
   const currProfit = Number(curr.totalProfit) || 0;
@@ -658,6 +591,7 @@ const totalSummary = computed(() => {
 
   return {
     diamondProfit: prevDiamond + currDiamond,
+    goldProfit: prevGold + currGold,
     settingProfit: prevSetting + currSetting,
     laborProfit: prevLabor + currLabor,
     totalProfit: prevProfit + currProfit,
@@ -668,7 +602,6 @@ const totalSummary = computed(() => {
   };
 });
 
-// ==================== 利润颜色 ====================
 const getProfitClass = (value) => {
   const num = typeof value === 'string' ? parseFloat(value) : value;
   if (isNaN(num)) return '';
@@ -679,7 +612,6 @@ const getProfitClass = (value) => {
 const loadPrevData = async () => {
   const customerId = lrInfo.value?.customerId;
   if (!customerId) return;
-
   try {
     const res = await getCustomerSummary(customerId);
     if (res?.success && res?.data) {
@@ -688,6 +620,7 @@ const loadPrevData = async () => {
         totalCost: 0,
         totalProfit: 0,
         totalDiamondProfit: 0,
+        totalGoldProfit: 0,
         totalSettingProfit: 0,
         totalLaborProfit: 0,
         totalNetWeight: 0,
@@ -697,7 +630,6 @@ const loadPrevData = async () => {
     }
   } catch (e) {
     console.error('加载上单数据失败:', e);
-    // 静默失败，不影响主流程
   }
 };
 
@@ -712,12 +644,10 @@ const loadData = async () => {
       if (res.data.rows && res.data.rows.length > 0) {
         saleRows.value = res.data.rows.filter(r => r.rowType === 'sale').map(r => ({ ...r }));
         costRows.value = res.data.rows.filter(r => r.rowType === 'cost').map(r => ({ ...r }));
-        // 补全成本行
         while (costRows.value.length < saleRows.value.length) {
           const idx = costRows.value.length;
           costRows.value.push({ ...saleRows.value[idx], rowType: 'cost', id: null });
         }
-        // 重算所有行
         displayRows.value.forEach(r => recalcRow(r));
       } else {
         await generateLrTable();
@@ -725,8 +655,6 @@ const loadData = async () => {
     } else {
       await generateLrTable();
     }
-
-    // 加载上单数据
     await loadPrevData();
     await loadFlowState();
   } catch (e) {
@@ -790,11 +718,9 @@ const handleSave = async () => {
   try {
     displayRows.value.forEach(r => recalcRow(r));
     
-    // 清洗所有行数据
     const cleanRows = (rows) => {
       return rows.map(row => {
         const cleaned = { ...row };
-        // 所有数字字段默认0
         const numberFields = [
           'quantity', 'totalWeight', 'netWeight', 'lossRate', 'addLossWeight',
           'goldPrice', 'goldMaterialFee', 'stoneQty', 'stoneWeight', 'stonePrice',
@@ -809,18 +735,15 @@ const handleSave = async () => {
           } else if (typeof val === 'string') {
             cleaned[f] = parseFloat(val) || 0;
           }
-          // 确保是数字
           cleaned[f] = Number(cleaned[f]);
         });
         return cleaned;
       });
     };
-
     const allRows = [
       ...cleanRows(saleRows.value.map(r => ({ ...r, rowType: 'sale' }))),
       ...cleanRows(costRows.value.map(r => ({ ...r, rowType: 'cost' })))
     ];
-
     await saveLr({
       lrId: lrId.value,
       rows: allRows
@@ -868,7 +791,6 @@ const handleAudit = async (passed) => {
 
 // ==================== 导入导出 ====================
 const triggerImport = () => fileInput.value?.click();
-
 const handleFileImport = (event) => {
   const file = event.target.files?.[0];
   if (!file) return;
@@ -933,24 +855,19 @@ const handleExport = async () => {
     ElMessage.warning('LR表ID无效');
     return;
   }
-
   const loadingInstance = ElLoading.service({
     fullscreen: true,
     text: '正在导出...',
     background: 'rgba(0, 0, 0, 0.7)'
   });
-
   try {
     const response = await exportLr(lrId.value);
     loadingInstance.close();
-
     const blob = await response.blob();
-
     if (!blob || blob.size === 0) {
       ElMessage.error('导出失败：文件为空');
       return;
     }
-
     if (blob.type === 'application/json') {
       const text = await blob.text();
       try {
@@ -958,10 +875,8 @@ const handleExport = async () => {
         ElMessage.error(json.message || '导出失败');
         return;
       } catch {
-        // 不是 JSON，继续下载
       }
     }
-
     const contentDisposition = response.headers.get('content-disposition');
     let fileName = `支出收入LR表_${lrInfo.value?.billNo || lrId.value}.xlsx`;
     if (contentDisposition) {
@@ -970,7 +885,6 @@ const handleExport = async () => {
         fileName = decodeURIComponent(match[1].replace(/['"]/g, ''));
       }
     }
-
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -978,11 +892,9 @@ const handleExport = async () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
     setTimeout(() => {
       window.URL.revokeObjectURL(url);
     }, 10000);
-
     ElMessage.success('导出成功');
   } catch (error) {
     loadingInstance.close();
@@ -991,9 +903,7 @@ const handleExport = async () => {
   }
 };
 
-// 监听 displayRows 变化，自动重算
 watch(displayRows, () => {
-  // 汇总会自动重新计算
 }, { deep: true });
 
 onMounted(() => loadData());
@@ -1006,7 +916,6 @@ onMounted(() => loadData());
   min-height: 100vh;
 }
 
-/* ===== 页面头部 ===== */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -1034,14 +943,12 @@ onMounted(() => loadData());
   flex-wrap: wrap;
 }
 
-/* ===== 整体内容 ===== */
 .content-body {
   background: #fff;
   border-radius: 0 0 8px 8px;
   padding: 16px 20px;
 }
 
-/* ===== 信息栏 ===== */
 .info-bar {
   padding: 6px 0;
 }
@@ -1055,14 +962,12 @@ onMounted(() => loadData());
   font-weight: 500;
 }
 
-/* ===== 分割线 ===== */
 .section-divider {
   height: 1px;
   background: #e8ecf1;
   margin: 14px 0;
 }
 
-/* ===== 区域标题 ===== */
 .section-title {
   display: flex;
   justify-content: space-between;
@@ -1078,10 +983,10 @@ onMounted(() => loadData());
   color: #909399;
 }
 
-/* ===== 表格 ===== */
 .table-wrapper {
   overflow-x: auto;
 }
+
 :deep(.el-table .cell) {
   padding: 2px 4px;
   text-align: center !important;
@@ -1103,23 +1008,32 @@ onMounted(() => loadData());
   text-align: center;
   font-size: 12px;
 }
+
+/* 明细行颜色：销售白、成本蓝 */
 :deep(.sale-row) {
-  background: #f0f7ff !important;
+  background: #ffffff !important;
 }
 :deep(.sale-row:hover) {
-  background: #e3f0fa !important;
+  background: #fafafa !important;
 }
 :deep(.cost-row) {
-  background: #f8f8f8 !important;
+  background: #e8f0fe !important;
 }
 :deep(.cost-row:hover) {
-  background: #efefef !important;
+  background: #d9e4f8 !important;
 }
+
+/* 金额列标红 */
+:deep(.col-red .cell) {
+  color: #f56c6c !important;
+  font-weight: 600;
+}
+
 :deep(.el-input-number) {
   width: 100%;
 }
 
-/* ===== 汇总小表格 ===== */
+/* ===== 净重汇总表格（保留原有） ===== */
 .summary-section {
   margin-top: 4px;
 }
@@ -1162,61 +1076,47 @@ onMounted(() => loadData());
   color: #303133;
 }
 
-/* ===== 利润卡片（四列） ===== */
-.profit-card-section {
-  margin-top: 4px;
+/* ===== Excel式汇总表格 ===== */
+.excel-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  font-size: 14px;
 }
-.profit-row {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 8px;
+.excel-summary-table td {
+  border: 1px solid #000;
+  padding: 6px 10px;
+  vertical-align: middle;
 }
-.profit-row:last-child {
-  margin-bottom: 0;
+.label-cell {
+  background: #fff;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
 }
-.profit-card {
-  flex: 1;
-  background: #f8f9fa;
-  border: 1px solid #e8ecf1;
-  border-radius: 6px;
-  padding: 10px 12px;
-  text-align: center;
-  min-height: 56px;
+.value-cell {
+  background: #fff;
+  text-align: right;
+  min-width: 100px;
+  font-family: 'Consolas', monospace;
 }
-.profit-card-title {
-  font-size: 12px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.profit-card-value {
-  font-size: 16px;
+.blue-text {
+  color: #409EFF;
   font-weight: 600;
-  color: #303133;
+}
+.red-text {
+  color: #f56c6c;
+  font-weight: 600;
+}
+.total-amount-cell {
+  text-align: center !important;
+  font-size: 16px;
 }
 .profit-positive {
   color: #f56c6c;
 }
 .profit-negative {
   color: #909399;
-}
-
-/* ===== 底部统计 ===== */
-.bottom-stats {
-  padding: 8px 0;
-}
-.stats-row {
-  display: flex;
-  justify-content: space-around;
-  padding: 4px 0;
-  font-size: 13px;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.stats-row b {
-  color: #303133;
-}
-.stats-row span {
-  color: #606266;
 }
 
 /* ===== 响应式 ===== */
@@ -1230,16 +1130,11 @@ onMounted(() => loadData());
   .page-header {
     padding: 10px 14px;
   }
-  .stats-row {
-    justify-content: flex-start;
-    gap: 12px;
+  .excel-summary-table {
+    font-size: 12px;
   }
-  .profit-row {
-    flex-wrap: wrap;
-  }
-  .profit-card {
-    flex: 1 1 calc(50% - 6px);
-    min-width: 120px;
+  .excel-summary-table td {
+    padding: 4px 6px;
   }
 }
 </style>

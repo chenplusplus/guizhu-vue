@@ -156,8 +156,13 @@
       <el-table-column prop="netWeight" label="净重" width="85" align="right">
         <template #default="{ row }">{{ row.netWeight || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="lossRate" label="损耗" width="70" align="center">
-        <template #default="{ row }">{{ row.lossRate || '-' }}</template>
+      <el-table-column prop="lossRate" label="损耗" width="84" align="center">
+        <template #default="{ row }">
+          <span v-if="isAbnormalLoss(row.lossRate)" class="loss-abnormal" title="非标准损耗（1.08 / 1.10）">
+            {{ row.lossRate }}
+          </span>
+          <span v-else>{{ row.lossRate || '-' }}</span>
+        </template>
       </el-table-column>
       <el-table-column prop="laborFee" label="工费" width="85" align="right">
         <template #default="{ row }">{{ row.laborFee || '-' }}</template>
@@ -170,68 +175,48 @@
         </template>
       </el-table-column>
 
-      <!-- 操作列 -->
-      <el-table-column label="操作" width="340" fixed="right" align="center">
+      <!-- 操作列：悬浮下拉，减少占宽 -->
+      <el-table-column label="操作" width="96" fixed="right" align="center">
         <template #default="{ row }">
-          <!-- 待接单 → 接单 -->
-          <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'customerAudited'"
-            size="small"
-            type="success"
-            @click.stop="handleAccept(row)"
+          <el-dropdown
+            trigger="hover"
+            placement="left-start"
+            @command="(cmd) => handleRowAction(cmd, row)"
+            @visible-change="(v) => { if (v) ensurePackage(row); }"
           >
-            接单
-          </el-button>
+            <el-button size="small" type="primary" plain @click.stop>
+              操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-if="normalizeStatus(row.flowStatus) === 'customerAudited'"
+                  command="accept"
+                >接单</el-dropdown-item>
 
-          <!-- 更新状态 -->
-          <el-button
-            v-if="isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit'"
-            size="small"
-            type="primary"
-            @click.stop="openStatusDialog(row)"
-          >
-            更新状态
-          </el-button>
+                <el-dropdown-item
+                  v-if="isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit'"
+                  command="status"
+                >更新状态</el-dropdown-item>
 
-          <!-- 维修单按钮 -->
-          <el-button 
-            size="small" 
-            type="warning"
-            @click.stop="goRepair(row)"
-          >
-            <el-icon><Tools /></el-icon> 维修单
-          </el-button>
+                <el-dropdown-item command="repair">维修单</el-dropdown-item>
 
-          <!-- 制作完成 → 生成账单 -->
-          <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'polishing'"
-            size="small"
-            type="warning"
-            @click.stop="handleGenerateBill(row)"
-          >
-            生成账单
-          </el-button>
+                <el-dropdown-item
+                  v-if="normalizeStatus(row.flowStatus) === 'polishing'"
+                  command="bill"
+                >生成账单</el-dropdown-item>
 
-          <!-- 编辑 -->
-          <el-button
-            v-if="normalizeStatus(row.flowStatus) === 'factory_edit' || normalizeStatus(row.flowStatus) === 'polishing'"
-            size="small"
-            type="primary"
-            link
-            @click.stop="goFactoryEdit(row.orderId)"
-          >
-            编辑
-          </el-button>
+                <el-dropdown-item
+                  v-if="canEditRow(row)"
+                  command="edit"
+                >编辑</el-dropdown-item>
 
-          <!-- 查看 -->
-          <el-button
-            size="small"
-            type="primary"
-            link
-            @click.stop="viewDetail(row.orderId)"
-          >
-            查看
-          </el-button>
+                <el-dropdown-item v-if="row._hasPackage" command="downloadPackage">数据包下载</el-dropdown-item>
+
+                <el-dropdown-item command="view" divided>查看</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -312,9 +297,9 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh, Search, RefreshRight, Tools } from '@element-plus/icons-vue';
+import { Refresh, Search, RefreshRight, Tools, ArrowDown } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, acceptOrder, updateProduction } from '@/api/order';
+import { getOrderList, acceptOrder, updateProduction, getOrderDetail } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
 import { dictApi } from '@/api/dict';
 import { createBill } from '@/api/bill';
@@ -406,6 +391,47 @@ const getStatusType = (status) => statusMap[normalizeStatus(status)]?.type || 'i
 
 const isInProduction = (status) => {
   return productionStatuses.value.some(item => item.value === normalizeStatus(status));
+};
+
+// ============================================================
+// ⭐ 损耗异常判断：非 1.08 / 1.10 视为非标准损耗（列表加红框标注）
+// ============================================================
+const isAbnormalLoss = (lossRate) => {
+  if (lossRate === null || lossRate === undefined || lossRate === '') return false;
+  const n = Number(lossRate);
+  if (isNaN(n)) return false;
+  return Math.abs(n - 1.08) > 1e-9 && Math.abs(n - 1.10) > 1e-9;
+};
+
+// ============================================================
+// ⭐ 编辑按钮权限
+//   工厂操作员：账单待审核之前一直可编辑（不受制作状态约束）
+//   工厂审核员：出账单之后（账单待审核及以后）仍可编辑
+//   管理员：始终可编辑
+// ============================================================
+const BILL_STAGE_STATUSES = ['billPending', 'billRejected', 'billConfirmed', 'completed'];
+
+const canEditRow = (row) => {
+  const st = normalizeStatus(row.flowStatus);
+  if (userStore.isAdmin) return true;
+  if (userStore.isFactoryAudit) return BILL_STAGE_STATUSES.includes(st);
+  if (userStore.isFactoryOrder) return !BILL_STAGE_STATUSES.includes(st);
+  return false;
+};
+
+// ============================================================
+// ⭐ 操作列下拉分发
+// ============================================================
+const handleRowAction = (cmd, row) => {
+  switch (cmd) {
+    case 'accept': handleAccept(row); break;
+    case 'status': openStatusDialog(row); break;
+    case 'repair': goRepair(row); break;
+    case 'bill': handleGenerateBill(row); break;
+    case 'edit': goFactoryEdit(row.orderId); break;
+    case 'downloadPackage': downloadOrderPackage(row); break;
+    case 'view': viewDetail(row.orderId); break;
+  }
 };
 
 // ============================================================
@@ -552,6 +578,45 @@ const goRepair = (row) => {
     name: 'RepairCreate',
     query: { orderId: row.orderId }
   })
+}
+
+// 下拉展开时按需确认该订单是否含数据包，避免无包订单显示下载入口
+const ensurePackage = async (row) => {
+  if (row._pkgChecked) return;
+  try {
+    const res = await getOrderDetail(row.orderId);
+    const pkgs = (res && res.data && res.data.dataPackages) || [];
+    row._hasPackage = pkgs.length > 0;
+  } catch (e) {
+    row._hasPackage = false;
+  }
+  row._pkgChecked = true;
+};
+
+// 数据包下载
+const downloadOrderPackage = async (row) => {
+  try {
+    const res = await getOrderDetail(row.orderId)
+    const pkgs = res?.data?.dataPackages || []
+    if (!pkgs.length) {
+      ElMessage.info('该订单暂无数据包')
+      return
+    }
+    pkgs.forEach(pkg => {
+      const url = pkg.fileUrl || pkg.url
+      const name = pkg.fileName || pkg.name || 'package'
+      if (!url) return
+      const a = document.createElement('a')
+      a.href = url
+      a.download = name
+      a.target = '_blank'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    })
+  } catch {
+    ElMessage.error('获取数据包失败')
+  }
 }
 
 // ============================================================
@@ -758,4 +823,17 @@ onMounted(() => {
 
 :deep(.el-image) { transition: transform 0.3s; }
 :deep(.el-image:hover) { transform: scale(2.5); z-index: 10; position: relative; }
+
+/* ⭐ 非标准损耗（非 1.08/1.10）：红框标注，不使用红色字体 */
+.loss-abnormal {
+  display: inline-block;
+  min-width: 50px;
+  padding: 1px 6px;
+  border: 1px solid #F56C6C;
+  border-radius: 4px;
+  background: #fef0f0;
+  color: #606266;
+  font-weight: 600;
+  font-size: 12px;
+}
 </style>

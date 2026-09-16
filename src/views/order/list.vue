@@ -72,9 +72,6 @@
             <el-icon><RefreshRight /></el-icon> 重置
           </el-button>
 
-         <el-button type="primary" @click="openAuditPreview">
-          全屏审核
-        </el-button>
         </el-form-item>
       </el-form>
     </div>
