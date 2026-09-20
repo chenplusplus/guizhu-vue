@@ -87,15 +87,6 @@ export const markUrgent = (id, isUrgent) => {
   return api.post(`/order/${id}/urgent`, null, { params: { isUrgent } });
 };
 
-// ===== 申请修改 / 同意修改 =====
-// 客户审核通过后申请修改（进入生产/账单阶段均可）
-export const applyModify = (id, reason) => {
-  return api.post(`/order/${id}/apply-modify`, { reason });
-};
-// 客户审核员同意修改（订单退回草稿）
-export const approveModify = (id) => {
-  return api.post(`/order/${id}/approve-modify`);
-};
 // 订单操作日志（字段级改动记录）
 export const getOrderLogs = (id) => {
   return api.get(`/order/${id}/logs`);
@@ -134,9 +125,9 @@ export const auditOrderModify = (requestId, data) => {
   return api.post(`/order/${requestId}/modify/audit`, data);
 };
 
-// 工厂操作员：确认修改生效 / 驳回
-export const confirmOrderModify = (requestId, data) => {
-  return api.post(`/order/${requestId}/modify/confirm`, data);
+// 工厂操作员：确认修改生效
+export const confirmOrderModify = (orderId) => {
+  return api.post(`/order/${orderId}/modify/confirm`);
 };
 
 // 撤回修改申请
@@ -144,9 +135,9 @@ export const withdrawOrderModify = (requestId) => {
   return api.post(`/order/${requestId}/modify/withdraw`);
 };
 
-// 待我处理的修改申请列表
-export const getPendingModifyList = () => {
-  return api.get('/order/modify/pending');
+// 待我处理的修改申请列表（支持分页 + status 过滤）
+export const getPendingModifyList = (params) => {
+  return api.get('/order/modify/pending', { params });
 };
 
 // 查看某次申请改了什么

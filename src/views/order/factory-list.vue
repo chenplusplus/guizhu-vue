@@ -108,6 +108,22 @@
       <!-- 选择列 -->
       <el-table-column type="selection" width="45" align="center" @click.stop />
 
+      <el-table-column label="标记" width="48" fixed align="center">
+        <template #default="{ row }">
+          <el-tooltip
+            v-if="row.warnFlag || row.alertReason || row.urgentFlag"
+            :content="getFlagTooltip(row)"
+            placement="top"
+          >
+            <span class="order-flags">
+              <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">⚠️</span>
+              <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
+            </span>
+          </el-tooltip>
+          <span v-else class="order-flag-placeholder">-</span>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
           <el-link type="primary" @click.stop="viewDetail(row.orderId)">
@@ -395,6 +411,13 @@ const getStatusText = (status) => {
     || '-';
 };
 const getStatusType = (status) => statusMap[normalizeStatus(status)]?.type || 'info';
+
+const getFlagTooltip = (row) => {
+  const messages = [];
+  if (row.warnFlag || row.alertReason) messages.push(`注意：${row.alertReason || '请关注该订单'}`);
+  if (row.urgentFlag) messages.push('紧急');
+  return messages.join('；');
+};
 
 const isInProduction = (status) => {
   return productionStatuses.value.some(item => item.value === normalizeStatus(status));
@@ -843,6 +866,28 @@ onMounted(() => {
   color: #606266;
   font-weight: 600;
   font-size: 12px;
+}
+
+.order-flag {
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.order-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.order-warning-flag,
+.order-urgent-flag {
+  color: #f56c6c;
+}
+
+.order-flag-placeholder {
+  color: #c0c4cc;
 }
 /* ===== 全屏模式 ===== */
 .page-container.is-fullscreen {

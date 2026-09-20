@@ -22,23 +22,16 @@
               <!-- 第1行：客户 | B | 维修单 | 编号 -->
               <tr>
                 <td class="label-td">客户</td>
-                <td class="order-field">
+                <td class="order-field"  colspan="2">
                   <span v-if="isOrderLoaded" class="readonly-value">{{ customerName }}</span>
                   <el-select v-else v-model="form.customerId" placeholder="请选择客户" filterable style="width:100%" size="small">
                     <el-option v-for="item in customerList" :key="item.customerId" :label="item.customerName" :value="item.customerId" />
                   </el-select>
                 </td>
-                <td class="label-td">B</td>
                 <td colspan="4" class="title-cell">维修单</td>
                 <td class="red-text label-td">编号</td>
-                <td colspan="4"><el-input v-model="form.repairNo" disabled size="small"/></td>
+                <td colspan="4"></td>
               </tr>
-
-              <!-- 第2行：空行 -->
-              <tr class="empty-row">
-                <td colspan="12"></td>
-              </tr>
-
               <!-- 第3行：品名 | 订单日期 | 出货日期 | 流水单号 -->
               <tr>
                 <td class="label-td">品名</td>
@@ -82,7 +75,8 @@
                 </td>
                 <td class="label-td">出蜡</td>
                 <td>
-                  <el-checkbox v-model="form.hasWaxOut" size="small">出蜡</el-checkbox>
+                  <span v-if="isOrderLoaded" class="readonly-value">{{ form.hasWaxOut || '-' }}</span>
+                  <el-input v-else v-model="form.hasWaxOut" size="small"/>
                 </td>
                 <td class="red-bg white-text label-td">钻石级别</td>
                 <td class="order-field">
@@ -151,7 +145,7 @@
 
               <!-- 第7-11行：左侧图片区(跨5行4列) + 右侧字段 + 备注 -->
               <tr>
-                <td colspan="4" rowspan="5" class="img-cell">
+                <td colspan="4" rowspan="6" class="img-cell">
                   <div class="img-group">
                     <div class="img-item">
                       <div class="img-label">产品图片</div>
@@ -217,10 +211,6 @@
                 <td><el-input-number v-model="form.polishOtherFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
                 <td class="label-td">CNC费</td>
                 <td><el-input-number v-model="form.cncFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
-                <td colspan="4" class="label-td remark-cell">
-                  <div class="remark-title">备注</div>
-                  <el-input v-model="form.remark2" type="textarea" :rows="3" size="small"/>
-                </td>
               </tr>
             </tbody>
           </table>
@@ -267,17 +257,17 @@
                 <td class="label-td">报废重量</td>
               </tr>
 
-              <tr class="process-row"><td class="label-td">执模/有耗</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td class="label-td" rowspan="2" >执模/有耗</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="process-row"><td class="label-td">扣链</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="process-row"><td class="label-td">扣链</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="process-row"><td class="label-td">CNC</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td class="label-td">微镶</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td class="label-td">手镶</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td class="label-td">抛光有耗</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td class="label-td"  rowspan="2">微镶</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td class="label-td"  rowspan="2">手镶</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td class="label-td"  rowspan="2">抛光有耗</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+              <tr class="process-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="process-row"><td class="label-td">磨石/滴胶</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="process-row"><td class="label-td">抛光无耗</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
               <tr class="process-row"><td class="label-td">扫相口</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>

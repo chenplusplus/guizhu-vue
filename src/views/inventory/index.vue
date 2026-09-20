@@ -1,4 +1,4 @@
-<!-- src/views/inventory/index.vue -->
+﻿<!-- src/views/inventory/index.vue -->
 <template>
   <div class="inventory-page">
     <!-- ===== 页面头部 ===== -->
@@ -241,14 +241,18 @@
     <!-- ===== 新建盘点对话框 ===== -->
     <el-dialog v-model="createDialogVisible" title="新建盘点批次" width="600px">
       <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="120px" size="default">
+        <el-form-item label="选择月份" prop="selectedMonth" required>
+          <el-date-picker
+            v-model="createForm.selectedMonth"
+            type="month"
+            value-format="YYYY-MM"
+            placeholder="选择月份"
+            style="width:180px;"
+            @change="onMonthChange"
+          />
+        </el-form-item>
         <el-form-item label="批次名称" prop="batchName">
-          <el-input v-model="createForm.batchName" placeholder="如：2024年08月盘点" style="width:300px;" />
-        </el-form-item>
-        <el-form-item label="盘点日期" prop="inventoryDate" required>
-          <el-date-picker v-model="createForm.inventoryDate" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:180px;" />
-        </el-form-item>
-        <el-form-item label="截止日期" prop="cutoffDate" required>
-          <el-date-picker v-model="createForm.cutoffDate" value-format="YYYY-MM-DD" placeholder="截止日期" style="width:180px;" />
+          <el-input v-model="createForm.batchName" placeholder="自动生成" style="width:300px;" readonly />
         </el-form-item>
         <el-divider content-position="left">预览（将纳入的单据）</el-divider>
         <el-alert v-if="previewData.eventCount !== undefined" :title="`共 ${previewData.eventCount} 条单据，销售额 ${formatMoney(previewData.systemSummary?.sale)}`" type="info" :closable="false" />
@@ -267,7 +271,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getShangdan, getBatchList, getBatchDetail, getPendingEvents, previewBatch, createBatch, confirmBatch, unconfirmBatch, cancelBatch } from '@/api/inventory'
+import { getShangdan, getBatchList, getBatchDetail, getPendingEvents, previewBatch, previewMonthBatch, createBatch, confirmBatch, unconfirmBatch, cancelBatch } from '@/api/inventory'
 
 // ===== 状态 =====
 const activeTab = ref('batches')
@@ -294,8 +298,29 @@ const eventTotal = ref(0)
 // 新建盘点
 const createDialogVisible = ref(false)
 const createFormRef = ref()
-const createForm = ref({ batchName: '', inventoryDate: '', cutoffDate: '' })
+const createForm = ref({ selectedMonth: '', batchName: '', inventoryDate: '', cutoffDate: '' })
 const createLoading = ref(false)
+
+const onMonthChange = async (monthVal) => {
+  if (!monthVal) {
+    createForm.value.batchName = ''
+    createForm.value.inventoryDate = ''
+    createForm.value.cutoffDate = ''
+    previewData.value = {}
+    return
+  }
+  const [year, month] = monthVal.split('-')
+  createForm.value.batchName = `${year}年${month}月盘点`
+  try {
+    previewLoading.value = true
+    const res = await previewMonthBatch({ year: parseInt(year), month: parseInt(month) })
+    if (res.success) {
+      previewData.value = res.data || {}
+    }
+  } catch {} finally {
+    previewLoading.value = false
+  }
+}
 const previewLoading = ref(false)
 const previewData = ref({})
 
@@ -364,7 +389,7 @@ async function loadPendingEvents() {
 
 // ===== 操作 =====
 function openCreateDialog() {
-  createForm.value = { batchName: '', inventoryDate: '', cutoffDate: '' }
+  createForm.value = { selectedMonth: '', batchName: '', inventoryDate: '', cutoffDate: '' }
   previewData.value = {}
   createDialogVisible.value = true
 }

@@ -22,13 +22,13 @@
         <el-button @click="handleSave" :loading="saving">
           <el-icon><Document /></el-icon> 保存
         </el-button>
-        <el-button
+       <el-button
           v-if="userStore.userType === 'customer' && showSubmitButton"
           type="primary"
           @click="handleSubmit"
           :loading="submitting"
         >
-          <el-icon><Check /></el-icon> 提交审核
+          <el-icon><Check /></el-icon> '提交审核'
         </el-button>
         <el-button
           v-if="userStore.userType === 'customerAudit' && showSubmitToFactory"
@@ -447,10 +447,8 @@ const rules = {
 const statusMap = {
   draft: { text: '草稿', type: 'info' },
   pending: { text: '待客户审核', type: 'warning' },
-  customerAudited: { text: '客户已审核', type: 'success' },
   customeraudited: { text: '待工厂接单', type: 'success' },
   factory_edit: { text: '工厂编辑中', type: 'primary' },
-  accepted: { text: '已接单', type: 'primary' },
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
   billConfirmed: { text: '客户已确认', type: 'success' },
@@ -825,6 +823,8 @@ const handleSave = async () => {
   try {
     await saveProductIfNew();
     const payload = buildPayload('draft');
+
+ 
     if (isEdit.value) {
       await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
       await saveWarning(parseInt(route.params.id));
@@ -885,7 +885,6 @@ const handleSubmit = async () => {
     submitting.value = false;
   }
 };
-
 // ============================================================
 // 提交到工厂
 // ============================================================

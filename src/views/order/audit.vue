@@ -57,7 +57,7 @@
         <el-form-item label="状态">
           <el-select v-model="search.status" placeholder="全部状态" clearable style="width: 140px;" @change="loadData">
             <el-option label="待审核" value="pending" />
-            <el-option label="已审核" value="customerAudited" />
+            <el-option label="已审核" value="customeraudited" />
             <el-option label="已驳回" value="rejected" />
           </el-select>
         </el-form-item>
@@ -95,10 +95,18 @@
       </el-table-column>
 
       <!-- 状态列 -->
-      <el-table-column prop="flowStatus" label="状态" width="110" align="center">
+      <el-table-column prop="flowStatus" label="状态" width="120" align="center">
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
             {{ getStatusText(row.flowStatus) }}
+          </el-tag>
+          <el-tag
+            v-if="row.modifyTracking === true"
+            type="warning"
+            size="small"
+            style="margin-left: 4px;"
+          >
+            ✏️ 待改
           </el-tag>
         </template>
       </el-table-column>
@@ -109,7 +117,6 @@
         </template>
       </el-table-column>
 
-      <!-- 创建人 -->
       <el-table-column prop="salesman" label="创建人" width="100" align="center">
         <template #default="{ row }">
           {{ row.salesman || row.submittedByName || '-' }}
@@ -135,11 +142,8 @@
       </el-table-column>
 
       <el-table-column prop="size" label="手寸" width="80" align="center" />
-
       <el-table-column prop="widthThick" label="宽/厚度" width="90" align="center" />
-
       <el-table-column prop="quantity" label="数量" width="65" align="center" />
-
       <el-table-column prop="color" label="成色" width="80" align="center" />
 
       <el-table-column prop="goldPrice" label="金价" width="85" align="right">
@@ -147,11 +151,8 @@
       </el-table-column>
 
       <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center" />
-
       <el-table-column prop="weightRequirement" label="克重要求" width="105" align="center" />
-
       <el-table-column prop="logoText" label="LOGO" width="100" align="center" />
-
       <el-table-column prop="deliveryDays" label="工期" width="65" align="center" />
 
       <el-table-column prop="url" label="网址" min-width="120">
@@ -177,14 +178,14 @@
       </el-table-column>
 
       <!-- ⭐ 操作列 -->
-      <el-table-column label="操作" width="280" fixed="right" align="center">
+      <el-table-column label="操作" width="300" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 查看 -->
           <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
             查看
           </el-button>
 
-          <!-- ⭐ 编辑：待审核 或 已驳回 状态可编辑 -->
+          <!-- 编辑：待审核 或 已驳回 -->
           <el-button
             v-if="row.flowStatus === 'pending' || row.flowStatus === 'rejected'"
             size="small"
@@ -205,14 +206,14 @@
             </el-button>
           </template>
 
-          <!-- ⭐ 同意修改：客户已申请修改（仅客户审核员） -->
+          <!-- ⭐ 同意修改：客户已申请修改（仅客户审核员）→ 跳转待办列表 -->
           <el-button
-            v-if="userStore.userType === 'customerAudit' && row.modifyRequested"
+            v-if="userStore.userType === 'customerAudit' && row.modifyTracking === true"
             size="small"
             type="primary"
             @click.stop="handleApproveModify(row)"
           >
-            同意修改
+            处理修改
           </el-button>
         </template>
       </el-table-column>
@@ -266,7 +267,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight, FullScreen } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, auditOrder, approveModify } from '@/api/order';
+import { getOrderList, auditOrder } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -311,17 +312,34 @@ const pagination = reactive({
   total: 0,
 });
 
-// ===== 状态映射 =====
+// ===== 状态映射（全量） =====
 const statusMap = {
-  pending: { text: '待审核', type: 'warning' },
+  draft: { text: '草稿', type: 'info' },
+  pending: { text: '待客户审核', type: 'warning' },
   customeraudited: { text: '待接单', type: 'success' },
+  factory_edit: { text: '工厂编辑中', type: 'primary' },
+  dataConfirm: { text: '数据确认', type: 'primary' },
+  waxing: { text: '出蜡', type: 'primary' },
+  molded: { text: '已倒模', type: 'primary' },
+  cnc: { text: 'CNC', type: 'primary' },
+  partsMissing: { text: '配件缺失', type: 'warning' },
+  stoneReady: { text: '配石完成', type: 'primary' },
+  setting: { text: '执模', type: 'primary' },
+  glue: { text: '滴胶/磨石', type: 'primary' },
+  inlay: { text: '镶嵌', type: 'primary' },
+  assembly: { text: '组装', type: 'primary' },
+  polishing: { text: '制作完成', type: 'primary' },
+  billPending: { text: '账单待审核', type: 'warning' },
+  billRejected: { text: '账单驳回', type: 'danger' },
+  billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
-  draft: { text: '草稿', type: 'info' },
+  scrapped: { text: '报废', type: 'danger' },
+  unqualifiedReturn: { text: '不合格退回', type: 'danger' },
 };
 
-const getStatusText = (status) => statusMap[status]?.text || status;
+const getStatusText = (status) => statusMap[status]?.text || status || '-';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
 // ===== 行点击 - 打开流程抽屉 =====
@@ -337,7 +355,7 @@ const checkSelectable = (row) => {
   return row.flowStatus === 'pending';
 };
 
-// ===== 获取默认日期范围（7天前 ~ 今天） =====
+// ===== 默认日期范围（7天前 ~ 今天） =====
 const getDefaultDateRange = () => {
   const today = new Date();
   const sevenDaysAgo = new Date(today);
@@ -421,20 +439,10 @@ const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
 };
 
-// ===== 同意修改（客户申请修改后） =====
-const handleApproveModify = async (row) => {
-  try {
-    await ElMessageBox.confirm('同意客户修改申请后，订单将回到草稿状态，由客户重新编辑并提交。', '同意修改', {
-      confirmButtonText: '同意修改',
-      cancelButtonText: '取消',
-      type: 'warning',
-    });
-    await approveModify(row.orderId);
-    ElMessage.success('已同意修改，订单已回到草稿');
-    loadData();
-  } catch {
-    return;
-  }
+// ===== 处理修改申请（跳转待办列表） =====
+// A 方案：同意/驳回操作统一在「修改订单」待办页处理，那里能拿到 requestId
+const handleApproveModify = (row) => {
+  router.push('/order/modify-list');
 };
 
 // ===== 单个审核 =====

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="inout-input-page">
     <el-card shadow="never">
       <template #header>
@@ -35,6 +35,16 @@
               <el-select v-model="form.materialType" placeholder="请选择" filterable allow-create style="width:100%" @change="onMaterialChange">
                 <el-option v-for="m in materialOptions" :key="m" :label="m" :value="m" />
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="产品名称">
+              <el-input v-model="form.productName" placeholder="请输入产品名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="内容">
+              <el-input v-model="form.content" placeholder="请输入内容" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -176,12 +186,6 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="产品名称">
-          <el-input v-model="form.productName" placeholder="请输入产品名称" />
-        </el-form-item>
-        <el-form-item label="内容">
-          <el-input v-model="form.content" placeholder="请输入内容" />
-        </el-form-item>
         <el-form-item label="备注" style="margin-top:16px;">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
@@ -198,7 +202,8 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { createGold, getGoldLastTotal } from '@/api/inout'
+import { createGold, getGoldLastTotal, getGoldById } from '@/api/inout'
+import { useRoute } from 'vue-router'
 import { getCounterpartyAll } from '@/api/counterparty'
 import { getMaterialLossList } from '@/api/materialLoss'
 
@@ -301,7 +306,7 @@ const loadCounterparties = async () => {
 
 const loadLastTotal = async () => {
   try {
-    const res = await getGoldLastTotal(form.recordDate)
+    const res = await getGoldLastTotal(form.recordDate, form.counterpartyId)
     if (res.success) {
       const d = res.data || {}
       lastTotal.lastTotalFold = Number(d.lastTotalFold) || 0
@@ -323,6 +328,7 @@ const onCounterpartyChange = async (cpId) => {
     counterpartyConfigs.value = res.data || []
   } catch {}
   if (form.materialType) applyConfig()
+  loadLastTotal()
 }
 
 // ==================== 材质变更 ====================
@@ -419,8 +425,15 @@ const handleReset = () => {
   form.content = ''
 }
 
-onMounted(() => {
+onMounted(async () => {
+  const route = useRoute()
   loadCounterparties()
+  if (route.query.id) {
+    try {
+      const res = await getGoldById(route.query.id)
+      if (res.success) Object.assign(form, res.data)
+    } catch {}
+  }
   loadLastTotal()
 })
 </script>

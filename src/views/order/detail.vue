@@ -11,17 +11,22 @@
         <el-tag :type="statusTagType" size="small">{{ statusText }}</el-tag>
         <el-tag v-if="orderData?.warnFlag" type="danger" size="small">⚠️ 紧急</el-tag>
         <el-tag v-if="orderData?.urgentFlag" type="warning" size="small">🔥 加急</el-tag>
-        <el-tag v-if="orderData?.modifyRequested" type="info" size="small">✏️ 待同意修改</el-tag>
+        <el-tag v-if="orderData?.modifyTracking" type="info" size="small">✏️ 修改追踪中</el-tag>
       </div>
       <div class="header-right">
         <el-button v-if="canWithdraw" type="warning" size="small" @click="handleWithdraw">
           撤回审核
         </el-button>
-        <el-button v-if="canApplyModify" type="warning" size="small" @click="handleApplyModify">
+       <el-button v-if="canApplyModify" type="warning" size="small" @click="handleApplyModify">
           申请修改
         </el-button>
-        <el-button v-if="canApproveModify" type="primary" size="small" @click="handleApproveModify">
-          同意修改
+        <el-button
+          v-if="canConfirmModify"
+          type="success"
+          size="small"
+          @click="handleConfirmModify"
+        >
+          ✓ 确认修改生效
         </el-button>
         <el-button size="small" @click="flowDrawerVisible = true">🕐 流程记录</el-button>
       </div>
@@ -203,23 +208,43 @@
       </div>
 
       <!-- ===== 待处理的修改申请（新链路） ===== -->
-      <div v-if="orderData?.modifyStatus && orderData.modifyStatus !== 'none'" class="pending-modify-section">
-        <div class="modify-log-title">
-          ✏️ 待处理的修改申请
-          <el-tag :type="orderData.modifyStatus === 'pendingAudit' ? 'warning' : 'primary'" size="small">
-            {{ orderData.modifyStatus === 'pendingAudit' ? '待客户审核' : '待工厂确认' }}
-          </el-tag>
-        </div>
-        <div class="change-list">
-          <div v-for="(d, i) in pendingDiffs" :key="i" class="change-row">
-            <span class="modify-log-field">{{ d.fieldLabel }}</span>
-            <span class="modify-log-old">{{ d.oldValue || '空' }}</span>
-            <el-icon><Right /></el-icon>
-            <span class="modify-log-new">{{ d.newValue || '空' }}</span>
-          </div>
-        </div>
-      </div>
+     <div v-if="orderData?.modifyTracking === true" class="pending-modify-section">
+  <div class="modify-log-title">
+    ✏️ {{ orderData.modifyStatus === 'pendingAudit' ? '待客户审核' : '修改追踪中' }}
+    <el-tag :type="orderData.modifyStatus === 'pendingAudit' ? 'warning' : 'primary'" size="small">
+      {{ orderData.modifyStatus === 'pendingAudit' ? '待客户审核' :
+         (orderData.modifyOriginStage === 'customer' ? '等待客户重新编辑' : '等待工厂确认') }}
+    </el-tag>
+  </div>
 
+  <div v-if="orderData.modifyReason" class="modify-reason">
+    <span class="modify-reason-label">申请原因：</span>
+    <span>{{ orderData.modifyReason }}</span>
+  </div>
+
+  <div v-if="pendingDiffs.length > 0" class="change-list">
+    <div v-for="(d, i) in pendingDiffs" :key="i" class="change-row">
+      <span class="modify-log-field">{{ d.fieldLabel }}</span>
+      <span class="modify-log-old">{{ d.oldValue || '空' }}</span>
+      <el-icon><Right /></el-icon>
+      <span class="modify-log-new">{{ d.newValue || '空' }}</span>
+    </div>
+  </div>
+
+  <div style="margin-top: 12px; display: flex; gap: 8px;">
+    <template v-if="isCustomerAudit && canApproveModify">
+      <el-button type="success" size="small" @click="handleAuditModify(true)">同意修改</el-button>
+      <el-button type="danger" size="small" @click="handleAuditModify(false)">驳回</el-button>
+    </template>
+    <el-button
+      v-if="canWithdrawModify"
+      type="warning" size="small" plain
+      @click="handleWithdrawModify"
+    >
+      撤回申请
+    </el-button>
+  </div>
+</div>
       <!-- ===== 修改记录（字段级改动明细；仅撤回/同意修改后重提期间的改动） ===== -->
       <div class="modify-log-section" v-if="changeLogs.length > 0">
         <div class="modify-log-title">📝 修改记录</div>
@@ -267,7 +292,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Right } from '@element-plus/icons-vue';
-import { getOrderDetail, applyModify, approveModify, getOrderLogs, withdrawSubmit, getOrderModifyDiff } from '@/api/order';
+import { getOrderDetail, getOrderLogs, withdrawSubmit, getOrderModifyDiff, auditOrderModify, withdrawOrderModify, applyOrderModify, confirmOrderModify } from '@/api/order';
 import { getValueChangeLogs } from '@/api/valueChangeLog';
 import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
@@ -288,11 +313,90 @@ const flowDrawerVisible = ref(false);
 // ===== 当前用户角色 =====
 const isCustomer = computed(() => userStore.userType === 'customer');
 const isCustomerAudit = computed(() => userStore.userType === 'customerAudit');
+const isFactoryOrder = computed(() => userStore.userType === 'factoryOrder');
 
-// 允许申请修改的状态（客户已审核 → 账单确认之间）
-const ALLOW_MODIFY_STATUS = ['customeraudited', 'accepted', 'DataConfirm', 'Waxing', 'Molded', 'CNC', 'PartsMissing', 'StoneReady', 'Setting', 'Glue', 'Inlay', 'Assembly', 'Polishing', 'billPending'];
-const canApplyModify = computed(() => isCustomer.value && ALLOW_MODIFY_STATUS.includes(orderData.value?.flowStatus));
-const canApproveModify = computed(() => isCustomerAudit.value && orderData.value?.modifyRequested);
+// ⭐ 工厂可编辑阶段（跟后端 FlowStatus.FactoryEditableStatuses 对齐）
+const FACTORY_EDITABLE = [
+  'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
+  'stoneReady', 'setting', 'glue', 'inlay', 'assembly', 'polishing', 'billRejected'
+];
+
+const canApplyModify = computed(() =>
+  isCustomer.value
+  && FACTORY_EDITABLE.includes(orderData.value?.flowStatus)
+  && orderData.value?.modifyTracking !== true // ⭐ 追踪中不能再申请
+);
+
+const canApproveModify = computed(() =>
+  isCustomerAudit.value && orderData.value?.modifyStatus === 'pendingAudit'
+);
+
+const canWithdrawModify = computed(() =>
+  isCustomer.value
+  && orderData.value?.modifyTracking === true
+  && orderData.value?.modifyStatus === 'pendingAudit'
+);
+
+// ⭐ 工厂操作员：追踪中 + 发起时是工厂/账单阶段 → 可确认生效
+const canConfirmModify = computed(() =>
+  isFactoryOrder.value
+  && orderData.value?.modifyTracking === true
+  && (orderData.value?.modifyOriginStage === 'factory'
+      || orderData.value?.modifyOriginStage === 'bill')
+);
+
+const handleConfirmModify = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确认后该修改将生效，订单号不再标记。',
+      '确认修改生效',
+      { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' }
+    );
+    await confirmOrderModify(orderId.value);
+    ElMessage.success('已确认');
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败');
+  }
+};
+
+const handleAuditModify = async (approved) => {
+  if (!orderData.value?.modifyRequestId) {
+    ElMessage.error('修改申请ID不存在');
+    return;
+  }
+  try {
+    if (!approved) {
+      const { value } = await ElMessageBox.prompt('请输入驳回原因', '驳回修改', {
+        inputValidator: v => v?.trim() ? true : '请输入驳回原因'
+      });
+      await auditOrderModify(orderData.value.modifyRequestId, { approved: false, remark: value });
+      ElMessage.success('已驳回');
+    } else {
+      await ElMessageBox.confirm('同意后订单将退回草稿，客户可重新编辑并提交。', '同意修改', { type: 'warning' });
+      await auditOrderModify(orderData.value.modifyRequestId, { approved: true, remark: '同意修改' });
+      ElMessage.success('已同意，订单已退回草稿');
+    }
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败');
+  }
+};
+
+const handleWithdrawModify = async () => {
+  if (!orderData.value?.modifyRequestId) return;
+  try {
+    await ElMessageBox.confirm('确定撤回修改申请吗？', '撤回', { type: 'warning' });
+    await withdrawOrderModify(orderData.value.modifyRequestId);
+    ElMessage.success('已撤回');
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '撤回失败');
+  }
+};
 const canWithdraw = computed(() => isCustomer.value
   && orderData.value?.flowStatus === 'pending'
   && Number(orderData.value?.submittedBy) === Number(userStore.userId));
@@ -349,16 +453,29 @@ const loadLogs = async () => {
 
 const handleApplyModify = async () => {
   try {
-    const { value } = await ElMessageBox.prompt('请填写申请修改的原因', '申请修改', {
-      confirmButtonText: '下一步',
-      cancelButtonText: '取消',
-      inputType: 'textarea',
-      inputPlaceholder: '例如：需要更改克重要求 / 钻石级别',
-    });
+    const { value } = await ElMessageBox.prompt(
+      '请填写申请修改的原因（提交后由客户审核员审批，同意后订单退回草稿可重新编辑）',
+      '申请修改',
+      {
+        confirmButtonText: '提交申请',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputPlaceholder: '例如：需要更改克重要求 / 钻石级别',
+        inputValidator: v => v?.trim() ? true : '请填写原因'
+      }
+    );
     if (!value || !value.trim()) return;
-    // ⭐ 跳转到编辑页，带上原因（整单改完后再提交修改申请）
-    router.push(`/order/create/${orderId.value}?modify=1&reason=${encodeURIComponent(value.trim())}`);
-  } catch {}
+
+    await applyOrderModify(orderId.value, {
+      data: {},
+      reason: value.trim()
+    });
+    ElMessage.success('修改申请已提交，等待客户审核员审批');
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
 };
 
 const handleWithdraw = async () => {
@@ -377,35 +494,33 @@ const handleWithdraw = async () => {
   }
 };
 
-const handleApproveModify = async () => {
-  try {
-    await ElMessageBox.confirm('同意客户修改申请后，订单将回到草稿状态，由客户重新编辑并提交。', '同意修改', {
-      confirmButtonText: '同意修改',
-      cancelButtonText: '取消',
-      type: 'warning',
-    });
-    await approveModify(orderId.value);
-    ElMessage.success('已同意修改，订单已回到草稿');
-    loadData();
-    loadLogs();
-  } catch {
-    return;
-  }
-};
 
-// ===== 状态映射 =====
+
+// ===== 状态映射（全量） =====
 const statusMap = {
   draft: { text: '草稿', type: 'info' },
   pending: { text: '待客户审核', type: 'warning' },
-  customerAudited: { text: '客户已审核', type: 'success' },
+  customeraudited: { text: '待接单', type: 'success' },
   factory_edit: { text: '工厂编辑中', type: 'primary' },
+  dataConfirm: { text: '数据确认', type: 'primary' },
+  waxing: { text: '出蜡', type: 'primary' },
+  molded: { text: '已倒模', type: 'primary' },
+  cnc: { text: 'CNC', type: 'primary' },
+  partsMissing: { text: '配件缺失', type: 'warning' },
+  stoneReady: { text: '配石完成', type: 'primary' },
+  setting: { text: '执模', type: 'primary' },
+  glue: { text: '滴胶/磨石', type: 'primary' },
+  inlay: { text: '镶嵌', type: 'primary' },
+  assembly: { text: '组装', type: 'primary' },
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
+  billRejected: { text: '账单驳回', type: 'danger' },
   billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
-  scrapped: { text: '已报废', type: 'danger' }
+  scrapped: { text: '报废', type: 'danger' },
+  unqualifiedReturn: { text: '不合格退回', type: 'danger' },
 };
 
 const statusText = computed(() => {
@@ -812,5 +927,17 @@ onMounted(async () => {
   font-weight: 600;
   margin-bottom: 8px;
   color: #303133;
+}
+.modify-reason {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #606266;
+}
+.modify-reason-label {
+  color: #909399;
+  margin-right: 4px;
 }
 </style>

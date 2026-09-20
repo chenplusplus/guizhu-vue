@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="inout-input-page">
     <el-card shadow="never">
       <template #header>
@@ -25,7 +25,7 @@
           </el-col>
           <el-col :span="6">
             <el-form-item label="供应商">
-              <el-select v-model="form.counterpartyId" placeholder="请选择" filterable clearable style="width:100%">
+              <el-select v-model="form.counterpartyId" placeholder="请选择" filterable clearable style="width:100%" @change="onCounterpartyChange">
                 <el-option v-for="cp in counterparties" :key="cp.id" :label="cp.name" :value="cp.id" />
               </el-select>
             </el-form-item>
@@ -35,6 +35,16 @@
               <el-select v-model="form.expenseCategory" placeholder="请选择" style="width:100%">
                 <el-option v-for="c in expenseCategories" :key="c.value" :label="c.label" :value="c.value" />
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="产品名称">
+              <el-input v-model="form.productName" placeholder="请输入产品名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="内容">
+              <el-input v-model="form.content" placeholder="请输入内容" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -60,16 +70,6 @@
         </el-row>
 
         <el-row :gutter="16">
-          <el-col :span="8">
-            <el-form-item label="产品名称">
-              <el-input v-model="form.productName" placeholder="请输入产品名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="内容">
-              <el-input v-model="form.content" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
           <el-col :span="8">
             <el-form-item label="备注">
               <el-input v-model="form.remark" type="textarea" :rows="2" />
@@ -107,7 +107,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createExpense, getExpenseLastTotal } from '@/api/inout'
+import { createExpense, getExpenseLastTotal, getExpenseById } from '@/api/inout'
 import { getCounterpartyAll } from '@/api/counterparty'
 
 const route = useRoute()
@@ -176,9 +176,13 @@ const loadCounterparties = async () => {
 
 const loadLastTotal = async () => {
   try {
-    const res = await getExpenseLastTotal(form.recordDate)
+    const res = await getExpenseLastTotal(form.recordDate, form.counterpartyId)
     if (res.success) Object.assign(lastTotal, res.data)
   } catch {}
+}
+
+const onCounterpartyChange = (cpId) => {
+  loadLastTotal()
 }
 
 const handleSubmit = async () => {
@@ -211,8 +215,14 @@ const handleReset = () => {
   form.content = ''
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadCounterparties()
+  if (route.query.id) {
+    try {
+      const res = await getExpenseById(route.query.id)
+      if (res.success) Object.assign(form, res.data)
+    } catch {}
+  }
   loadLastTotal()
   applyDirectionPreset()
 })

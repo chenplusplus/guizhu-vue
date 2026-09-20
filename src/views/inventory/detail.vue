@@ -1,4 +1,4 @@
-<!-- src/views/inventory/detail.vue -->
+﻿<!-- src/views/inventory/detail.vue -->
 <template>
   <div class="inventory-detail-page">
     <!-- ===== 返回 + 头部 ===== -->
@@ -44,57 +44,105 @@
             <el-descriptions-item label="确认时间">{{ formatTime(batch.confirmedAt) }}</el-descriptions-item>
           </el-descriptions>
 
-          <!-- 金额汇总 -->
-          <el-divider content-position="left">金额汇总</el-divider>
-          <el-table :data="summaryRows" border size="small" style="margin-bottom:12px;">
-            <el-table-column label="项目" width="120" />
-            <el-table-column label="期初结余" align="right">
-              <template #default="{ row }"><span class="num">{{ formatMoney(row.opening) }}</span></template>
-            </el-table-column>
-            <el-table-column label="系统金额" align="right">
-              <template #default="{ row }"><span class="num">{{ formatMoney(row.system) }}</span></template>
-            </el-table-column>
-            <el-table-column label="实际盘点" align="right">
-              <template #default="{ row }">
-                <span class="num" :class="{ editable: canEditActual }" @click="canEditActual && openActualDialog()">
-                  {{ formatMoney(row.actual) }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="差异" align="right">
-              <template #default="{ row }">
-                <span class="num" :class="getVarianceClass(row.variance)">
-                  {{ formatMoney(row.variance) }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="期末结余" align="right">
-              <template #default="{ row }"><span class="num">{{ formatMoney(row.closing) }}</span></template>
-            </el-table-column>
-          </el-table>
+          <!-- 汇总 tabs -->
+          <el-divider content-position="left">汇总明细</el-divider>
+          <el-tabs v-model="activeSummaryTab">
+            <!-- 金额 tab -->
+            <el-tab-pane label="金额" name="amount">
+              <el-table :data="summaryRows" border size="small" style="margin-bottom:12px;">
+                <el-table-column label="项目" width="120" />
+                <el-table-column label="期初结余" align="right">
+                  <template #default="{ row }"><span class="num">{{ formatMoney(row.opening) }}</span></template>
+                </el-table-column>
+                <el-table-column label="系统金额" align="right">
+                  <template #default="{ row }"><span class="num">{{ formatMoney(row.system) }}</span></template>
+                </el-table-column>
+                <el-table-column label="实际盘点" align="right">
+                  <template #default="{ row }">
+                    <span class="num" :class="{ editable: canEditActual }" @click="canEditActual && openActualDialog()">
+                      {{ formatMoney(row.actual) }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="差异" align="right">
+                  <template #default="{ row }">
+                    <span class="num" :class="getVarianceClass(row.variance)">{{ formatMoney(row.variance) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="期末结余" align="right">
+                  <template #default="{ row }"><span class="num">{{ formatMoney(row.closing) }}</span></template>
+                </el-table-column>
+              </el-table>
+              <el-table :data="materialRows" border size="small">
+                <el-table-column label="材料" width="120" />
+                <el-table-column label="期初(g)" align="right">
+                  <template #default="{ row }">{{ row.opening?.toFixed(4) || '0.0000' }}</template>
+                </el-table-column>
+                <el-table-column label="系统(g)" align="right">
+                  <template #default="{ row }">{{ row.system?.toFixed(4) || '0.0000' }}</template>
+                </el-table-column>
+                <el-table-column label="实际(g)" align="right">
+                  <template #default="{ row }">{{ row.actual?.toFixed(4) || '0.0000' }}</template>
+                </el-table-column>
+                <el-table-column label="差异(g)" align="right">
+                  <template #default="{ row }">
+                    <span :class="getVarianceClass(row.variance)">{{ row.variance?.toFixed(4) || '0.0000' }}</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <!-- 利润 tab -->
+            <el-tab-pane label="利润" name="profit">
+              <el-table :data="profitRows" border size="small">
+                <el-table-column label="项目" width="120" />
+                <el-table-column label="上单利润" align="right">
+                  <template #default="{ row }"><span class="num">{{ formatMoney(row.prev) }}</span></template>
+                </el-table-column>
+                <el-table-column label="本单利润" align="right">
+                  <template #default="{ row }"><span class="num">{{ formatMoney(row.curr) }}</span></template>
+                </el-table-column>
+                <el-table-column label="累计利润" align="right">
+                  <template #default="{ row }"><span class="num">{{ formatMoney(row.total) }}</span></template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <!-- 账单 tab -->
+            <el-tab-pane label="账单" name="bills">
+              <el-table :data="batchReport?.bills || []" border size="small" max-height="400">
+                <el-table-column type="index" label="#" width="40" align="center" />
+                <el-table-column label="账单号" min-width="140" prop="billNo" />
+                <el-table-column label="客户" min-width="120" prop="customerName" />
+                <el-table-column label="金额" width="100" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.totalAmount || 0) }}</template>
+                </el-table-column>
+                <el-table-column label="状态" width="80" prop="status" />
+                <el-table-column label="日期" width="90" prop="createdAt">
+                  <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="!(batchReport?.bills?.length)" description="暂无账单" />
+            </el-tab-pane>
+            <!-- 进出 tab -->
+            <el-tab-pane label="进出" name="inouts">
+              <el-table :data="batchReport?.inouts || []" border size="small" max-height="400">
+                <el-table-column type="index" label="#" width="40" align="center" />
+                <el-table-column label="类型" width="60" prop="module" />
+                <el-table-column label="单据号" min-width="140" prop="recordNo" />
+                <el-table-column label="供应商" min-width="120" prop="counterpartyName" />
+                <el-table-column label="金额" width="100" align="right">
+                  <template #default="{ row }">{{ formatMoney(row.totalAmount || row.foldWeight || 0) }}</template>
+                </el-table-column>
+                <el-table-column label="状态" width="80" prop="status" />
+                <el-table-column label="日期" width="90" prop="recordDate">
+                  <template #default="{ row }">{{ formatDate(row.recordDate) }}</template>
+                </el-table-column>
+              </el-table>
+              <el-empty v-if="!(batchReport?.inouts?.length)" description="暂无进出记录" />
+            </el-tab-pane>
+          </el-tabs>
 
           <!-- 差异原因 -->
           <el-alert v-if="batch.varianceReason" :title="`差异原因：${batch.varianceReason}`" type="warning" :closable="false" />
-
-          <!-- 材料明细 -->
-          <el-divider content-position="left">材料明细</el-divider>
-          <el-table :data="materialRows" border size="small">
-            <el-table-column label="材料" width="120" />
-            <el-table-column label="期初(g)" align="right">
-              <template #default="{ row }">{{ row.opening?.toFixed(4) || '0.0000' }}</template>
-            </el-table-column>
-            <el-table-column label="系统(g)" align="right">
-              <template #default="{ row }">{{ row.system?.toFixed(4) || '0.0000' }}</template>
-            </el-table-column>
-            <el-table-column label="实际(g)" align="right">
-              <template #default="{ row }">{{ row.actual?.toFixed(4) || '0.0000' }}</template>
-            </el-table-column>
-            <el-table-column label="差异(g)" align="right">
-              <template #default="{ row }">
-                <span :class="getVarianceClass(row.variance)">{{ row.variance?.toFixed(4) || '0.0000' }}</span>
-              </template>
-            </el-table-column>
-          </el-table>
         </el-card>
       </el-col>
 
@@ -208,12 +256,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getBatchDetail, updateActualSummary, editOpeningSummary, confirmBatch, unconfirmBatch, cancelBatch } from '@/api/inventory'
+import { getBatchDetail, getBatchReport, updateActualSummary, editOpeningSummary, confirmBatch, unconfirmBatch, cancelBatch } from '@/api/inventory'
 
 const route = useRoute()
 const router = useRouter()
 
 const batch = ref({})
+const batchReport = ref(null)
+const activeSummaryTab = ref('amount')
 const actualDialogVisible = ref(false)
 const openingDialogVisible = ref(false)
 const saveLoading = ref(false)
@@ -232,6 +282,17 @@ const summaryRows = computed(() => [
   { name: '出金额', opening: batch.value.openingSummary?.outAmount, system: batch.value.systemSummary?.outAmount, actual: batch.value.actualSummary?.outAmount, variance: batch.value.varianceSummary?.outAmount, closing: batch.value.closingSummary?.outAmount },
   { name: '单据数量', opening: batch.value.openingSummary?.quantity, system: batch.value.systemSummary?.quantity, actual: batch.value.actualSummary?.quantity, variance: batch.value.varianceSummary?.quantity, closing: batch.value.closingSummary?.quantity }
 ])
+
+// 利润汇总 computed
+const profitRows = computed(() => {
+  const p = batchReport.value?.profitSummary || {}
+  return [
+    { item: '合计利润', prev: p.prevTotalProfit, curr: p.currTotalProfit, total: p.totalTotalProfit },
+    { item: '钻石利润', prev: p.prevDiamondProfit, curr: p.currDiamondProfit, total: p.totalDiamondProfit },
+    { item: '配石利润', prev: p.prevSettingProfit, curr: p.currSettingProfit, total: p.totalSettingProfit },
+    { item: '工费利润', prev: p.prevLaborProfit, curr: p.currLaborProfit, total: p.totalLaborProfit },
+  ]
+})
 
 const materialRows = computed(() => {
   const allKeys = new Set([
@@ -258,6 +319,11 @@ async function loadDetail(id) {
     const res = await getBatchDetail(id)
     if (res.success) {
       batch.value = res.data || {}
+      // Also load full report for tabs
+      try {
+        const r2 = await getBatchReport(id)
+        if (r2.success) batchReport.value = r2.data
+      } catch {}
     }
   } catch (e) {
     ElMessage.error('加载失败')

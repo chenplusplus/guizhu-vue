@@ -47,8 +47,8 @@ export const getInoutOptions = () => {
 
 // ===================== 进销存录入（金/钻石/费用） =====================
 // 黄金
-export const getGoldLastTotal = (recordDate) => {
-  return api.get('/inout/gold/last-total', { params: { recordDate } });
+export const getGoldLastTotal = (recordDate, counterpartyId) => {
+  return api.get('/inout/gold/last-total', { params: { recordDate, counterpartyId } });
 };
 export const createGold = (data) => {
   return api.post('/inout/gold', data);
@@ -57,8 +57,8 @@ export const getGoldList = (params) => {
   return api.get('/inout/gold/list', { params });
 };
 // 钻石
-export const getDiamondLastTotal = (recordDate) => {
-  return api.get('/inout/diamond/last-total', { params: { recordDate } });
+export const getDiamondLastTotal = (recordDate, counterpartyId) => {
+  return api.get('/inout/diamond/last-total', { params: { recordDate, counterpartyId } });
 };
 export const createDiamond = (data) => {
   return api.post('/inout/diamond', data);
@@ -67,8 +67,8 @@ export const getDiamondList = (params) => {
   return api.get('/inout/diamond/list', { params });
 };
 // 费用
-export const getExpenseLastTotal = (recordDate) => {
-  return api.get('/inout/expense/last-total', { params: { recordDate } });
+export const getExpenseLastTotal = (recordDate, counterpartyId) => {
+  return api.get('/inout/expense/last-total', { params: { recordDate, counterpartyId } });
 };
 export const createExpense = (data) => {
   return api.post('/inout/expense', data);
@@ -103,3 +103,7 @@ export const auditDiamond = (id, approved, remark) => api.post(`/inout/diamond/$
 
 export const submitExpense = (id) => api.post(`/inout/expense/${id}/submit`);
 export const auditExpense = (id, approved, remark) => api.post(`/inout/expense/${id}/audit`, { approved, remark });
+
+// ===================== 盘点总表 =====================
+export const getBatchReport = (batchId) => api.get(`/inventory/batch/${batchId}/report`);
+export const previewMonthBatch = (data) => api.post('/inventory/batch/preview-month', data);

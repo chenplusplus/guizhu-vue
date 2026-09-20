@@ -1,4 +1,4 @@
-// src/api/inventory.js 盘点管理 API
+﻿// src/api/inventory.js 盘点管理 API
 import api from './index';
 
 // ==================== 盘点事件 ====================
@@ -19,6 +19,8 @@ export const createEventFromLr = (lrId) => api.post(`/inventory/events/from-lr/$
 // ==================== 盘点批次 ====================
 
 // 预览盘点批次
+export const previewMonthBatch = (data) => api.post('/inventory/batch/preview-month', data);
+
 export const previewBatch = (data) => api.post('/inventory/batch/preview', data);
 
 // 创建盘点批次
@@ -46,6 +48,8 @@ export const unconfirmBatch = (batchId, data) => api.post(`/inventory/batch/${ba
 export const cancelBatch = (batchId, data) => api.post(`/inventory/batch/${batchId}/cancel`, data);
 
 // 导出盘点报告
+export const getBatchReport = (batchId) => api.get(`/inventory/batch/${batchId}/report`);
+
 export const exportBatchReport = (batchId) => api.get(`/inventory/batch/${batchId}/report`, { responseType: 'blob' });
 
 // 获取操作日志

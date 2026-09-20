@@ -97,6 +97,22 @@
       <!-- 多选列 -->
       <el-table-column type="selection" width="40" align="center" />
 
+      <el-table-column label="标记" width="48" fixed align="center">
+        <template #default="{ row }">
+          <el-tooltip
+            v-if="row.warnFlag || row.alertReason || row.urgentFlag"
+            :content="getFlagTooltip(row)"
+            placement="top"
+          >
+            <span class="order-flags">
+              <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">⚠️</span>
+              <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
+            </span>
+          </el-tooltip>
+          <span v-else class="order-flag-placeholder">-</span>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
           <el-link
@@ -180,14 +196,6 @@
             <span v-else style="color:#ccc;">-</span>
           </template>
 
-          <template v-else-if="col.prop === 'warnFlag'">
-            <el-tooltip v-if="row.alertReason" :content="row.alertReason" placement="top">
-              <el-tag type="danger" size="small">⚠️ {{ row.alertReason }}</el-tag>
-            </el-tooltip>
-            <el-tag v-else-if="row.warnFlag" type="danger" size="small">⚠️</el-tag>
-            <span v-else style="color:#ccc;">-</span>
-          </template>
-
           <template v-else-if="col.prop === 'createdAt'">
             {{ formatDateTime(row.createdAt) }}
           </template>
@@ -219,7 +227,15 @@
           <el-button size="small" type="danger" link @click.stop="openAlertDialog(row)">
             预警
           </el-button>
-
+          <el-button
+            v-if="canApplyModifyRow(row)"
+            size="small"
+            type="warning"
+            link
+            @click.stop="handleApplyModify(row)"
+          >
+            申请修改
+          </el-button>
           <!-- ⭐ 只有自己的订单才显示操作按钮 -->
           <template v-if="isMine(row)">
             <el-button
@@ -362,7 +378,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit } from '@/api/order';
+import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit ,applyOrderModify } from '@/api/order';
 import { createManualAlert } from '@/api/alert';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
@@ -388,8 +404,6 @@ const allColumns = ref([
   { prop: 'deliveryDays', label: '工期', width: 70, visible: true },
   { prop: 'url', label: '网址', minWidth: 120, visible: true },
   { prop: 'remark', label: '备注', minWidth: 100, visible: true },
-  { prop: 'flowStatus', label: '状态', width: 110, visible: true },
-  { prop: 'warnFlag', label: '紧急', width: 70, visible: true },
   { prop: 'createdAt', label: '创建时间', width: 160, visible: true, sortable: true },
 ]);
 
@@ -637,6 +651,50 @@ const canDelete = (row) => {
   return status === 'draft' || status === 'rejected';
 };
 
+
+
+// ============================================================
+// ⭐ 工厂可编辑阶段（跟后端 FlowStatus.FactoryEditableStatuses 对齐）
+const FACTORY_EDITABLE = [
+  'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
+  'stoneReady', 'setting', 'glue', 'inlay', 'assembly', 'polishing', 'billRejected'
+];
+
+const canApplyModifyRow = (row) => {
+  if (userStore.userType !== 'customer') return false;
+  if (Number(row.submittedBy) !== Number(userStore.userId)) return false;
+  if (!row.flowStatus) return false;
+  if (!FACTORY_EDITABLE.includes(row.flowStatus)) return false;
+  if (row.modifyStatus && row.modifyStatus !== 'none') return false;
+  return true;
+};
+
+const handleApplyModify = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '请填写申请修改的原因（提交后由客户审核员审批，同意后订单退回草稿可重新编辑）',
+      '申请修改',
+      {
+        confirmButtonText: '提交申请',
+        cancelButtonText: '取消',
+        inputType: 'textarea',
+        inputPlaceholder: '例如：需要更改克重要求 / 钻石级别',
+        inputValidator: v => v?.trim() ? true : '请填写原因'
+      }
+    );
+    if (!value || !value.trim()) return;
+
+    await applyOrderModify(row.orderId, {
+      data: {},
+      reason: value.trim()
+    });
+    ElMessage.success('修改申请已提交，等待客户审核员审批');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
+};
+
 // ===== 分页切换 =====
 const onPageChange = () => {
   loadData();
@@ -811,6 +869,13 @@ const hasPendingModify = (row) => {
   return row.modifyStatus && row.modifyStatus !== 'none';
 };
 
+const getFlagTooltip = (row) => {
+  const messages = [];
+  if (row.warnFlag || row.alertReason) messages.push(`注意：${row.alertReason || '请关注该订单'}`);
+  if (row.urgentFlag) messages.push('紧急');
+  return messages.join('；');
+};
+
 // ============================================================
 // 时间格式化
 // ============================================================
@@ -946,6 +1011,28 @@ onUnmounted(() => {
 }
 :deep(.el-table .row-alert:hover) {
   background-color: #ffccc7 !important;
+}
+
+.order-flag {
+  font-weight: 600;
+  white-space: nowrap;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.order-flags {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.order-warning-flag,
+.order-urgent-flag {
+  color: #f56c6c;
+}
+
+.order-flag-placeholder {
+  color: #c0c4cc;
 }
 
 /* ⭐ 待处理修改申请：订单号闪烁 */

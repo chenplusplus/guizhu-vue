@@ -1046,4 +1046,99 @@ onMounted(() => {
 :deep(.el-table .cell) {
   padding: 4px 6px;
 }
+
+/* ========== Excel预览样式 ========== */
+.excel-preview {
+  font-family: '宋体', SimSun, sans-serif;
+  font-size: 12px;
+  color: #000;
+  overflow-x: auto;
+}
+.excel-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #000;
+  min-width: 1200px;
+}
+.excel-table th,
+.excel-table td {
+  border: 1px solid #000;
+  padding: 3px 5px;
+  vertical-align: middle;
+  font-weight: normal;
+}
+.excel-title {
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+  padding: 10px 0;
+  letter-spacing: 4px;
+}
+.info-row th {
+  border: none;
+  padding: 5px;
+  font-weight: normal;
+}
+.info-label {
+  text-align: right;
+  font-weight: 500;
+}
+.info-value {
+  text-align: left;
+}
+.excel-header {
+  background: #f0f0f0;
+  text-align: center;
+  font-weight: 500;
+}
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.red-text { color: #f56c6c; }
+.blue-text { color: #409eff; }
+.bold { font-weight: bold; }
+
+.sale-row {
+  background: #fff;
+}
+.cost-row {
+  background: #f8f8f8;
+}
+.total-row {
+  background: #f5f5f5;
+  font-weight: 500;
+}
+
+.empty-gap {
+  height: 15px;
+}
+
+/* 汇总表样式 */
+.summary-table {
+  margin-top: 5px;
+}
+.summary-table .header-cell {
+  background: #f0f0f0;
+  text-align: center;
+  font-weight: 500;
+}
+.summary-table .color-cell {
+  font-weight: 600;
+  color: #409eff;
+  text-align: center;
+}
+.summary-table .label-cell {
+  text-align: right;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.summary-table .value-cell {
+  text-align: right;
+  min-width: 80px;
+  font-family: 'Consolas', monospace;
+}
+.summary-table .profit-val {
+  color: #f56c6c;
+}
+
 </style>
