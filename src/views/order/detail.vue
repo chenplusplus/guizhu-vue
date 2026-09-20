@@ -23,6 +23,7 @@
         <el-button v-if="canApproveModify" type="primary" size="small" @click="handleApproveModify">
           同意修改
         </el-button>
+        <el-button size="small" @click="flowDrawerVisible = true">🕐 流程记录</el-button>
       </div>
     </div>
 
@@ -201,12 +202,30 @@
         </div>
       </div>
 
-      <!-- ===== 修改记录（日志框） ===== -->
-      <div class="modify-log-section" v-if="operationLogs.length > 0">
+      <!-- ===== 待处理的修改申请（新链路） ===== -->
+      <div v-if="orderData?.modifyStatus && orderData.modifyStatus !== 'none'" class="pending-modify-section">
+        <div class="modify-log-title">
+          ✏️ 待处理的修改申请
+          <el-tag :type="orderData.modifyStatus === 'pendingAudit' ? 'warning' : 'primary'" size="small">
+            {{ orderData.modifyStatus === 'pendingAudit' ? '待客户审核' : '待工厂确认' }}
+          </el-tag>
+        </div>
+        <div class="change-list">
+          <div v-for="(d, i) in pendingDiffs" :key="i" class="change-row">
+            <span class="modify-log-field">{{ d.fieldLabel }}</span>
+            <span class="modify-log-old">{{ d.oldValue || '空' }}</span>
+            <el-icon><Right /></el-icon>
+            <span class="modify-log-new">{{ d.newValue || '空' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== 修改记录（字段级改动明细；仅撤回/同意修改后重提期间的改动） ===== -->
+      <div class="modify-log-section" v-if="changeLogs.length > 0">
         <div class="modify-log-title">📝 修改记录</div>
         <el-timeline>
           <el-timeline-item
-            v-for="(log, idx) in operationLogs"
+            v-for="(log, idx) in changeLogs"
             :key="log.id || idx"
             :timestamp="formatDateTime(log.createdAt)"
             placement="top"
@@ -215,19 +234,30 @@
               <div class="modify-log-meta">
                 <span class="modify-log-user">{{ log.operatorName || '-' }}</span>
                 <span class="modify-log-role">{{ log.operatorRole || '' }}</span>
-                <span class="modify-log-op">{{ log.operationType || '' }}</span>
+                <span class="modify-log-op">修改订单</span>
               </div>
-              <div class="modify-log-detail" v-if="log.fieldName">
-                <span class="modify-log-field">{{ log.fieldName }}</span>
-                <span class="modify-log-old">{{ log.oldValue || '-' }}</span>
-                <el-icon><Right /></el-icon>
-                <span class="modify-log-new">{{ log.newValue || '-' }}</span>
+              <div class="change-list">
+                <div v-for="(c, i) in log.changeList" :key="i" class="change-row">
+                  <span class="modify-log-field">{{ c.label }}</span>
+                  <span class="modify-log-old">{{ c.old }}</span>
+                  <el-icon><Right /></el-icon>
+                  <span class="modify-log-new">{{ c.new }}</span>
+                </div>
               </div>
               <div class="modify-log-remark" v-if="log.remark">{{ log.remark }}</div>
             </div>
           </el-timeline-item>
         </el-timeline>
       </div>
+
+      <!-- ===== 流程抽屉（含申请修改/同意修改事件） ===== -->
+      <FlowDrawer
+        v-model="flowDrawerVisible"
+        :order-id="orderId"
+        :order-no="orderData?.orderNo || ''"
+        :current-status="orderData?.flowStatus || ''"
+        @refresh="loadData"
+      />
     </div>
   </div>
 </template>
@@ -237,10 +267,11 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Right } from '@element-plus/icons-vue';
-import { getOrderDetail, applyModify, approveModify, getOrderLogs, withdrawSubmit } from '@/api/order';
+import { getOrderDetail, applyModify, approveModify, getOrderLogs, withdrawSubmit, getOrderModifyDiff } from '@/api/order';
 import { getValueChangeLogs } from '@/api/valueChangeLog';
 import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
+import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const userStore = useUserStore();
 const route = useRoute();
@@ -250,7 +281,9 @@ const orderId = computed(() => Number(route.params.id));
 const loading = ref(false);
 const orderData = ref({});
 const purityDict = ref([]);
-const operationLogs = ref([]);
+const changeLogs = ref([]);
+const pendingDiffs = ref([]);
+const flowDrawerVisible = ref(false);
 
 // ===== 当前用户角色 =====
 const isCustomer = computed(() => userStore.userType === 'customer');
@@ -264,49 +297,68 @@ const canWithdraw = computed(() => isCustomer.value
   && orderData.value?.flowStatus === 'pending'
   && Number(orderData.value?.submittedBy) === Number(userStore.userId));
 
-// ===== 修改记录 =====
+// ===== 修改记录（字段级改动明细，来自 value_change_logs） =====
+// 字段标签：与后端 ChangeLogHelper.OrderFieldLabels 对应
+const CHANGE_FIELD_LABELS = {
+  salesman: '业务员', orderDate: '订单日期', imageUrl: '产品图片', dataImageUrl: '数据图',
+  letterImageUrl: '字印要求图', productName: '品名', quantity: '数量', color: '成色',
+  gemColor: '颜色', purityId: '成色ID', diamondLevel: '钻石级别', params: '参数', amount: '金额',
+  logoUrl: 'LOGO图片', size: '手寸', widthThick: '宽/厚度', weightRequirement: '克重要求',
+  logoText: 'LOGO文字', url: '网址', remark: '备注', deliveryDays: '工期', warnFlag: '预警',
+  urgentFlag: '加急', totalAmount: '总金额', goldMaterialFee: '足金料', laborFee: '工费',
+  moldFee: '版费', totalWeight: '总重', netWeight: '净重', lossRate: '损耗率',
+  addLossWeight: '加耗重', goldPrice: '金价', mainStoneAmount: '主石金额', subStoneAmount: '副石金额',
+  packingFee: '包装费', certificateFee: '证书费', postageFee: '邮费', costPrice: '内部成本',
+  profit: '利润', mainStoneQty: '主石粒数', mainStoneWeight: '主石重量', mainStonePrice: '主石单价',
+  mainStoneSettingFee: '主石镶石工费', subStoneQty: '副石粒数', subStoneWeight: '副石重量',
+  subStonePrice: '副石单价', subStoneSettingFee: '副石镶石工费',
+};
+
+const formatChangeVal = (v) => {
+  if (v === true) return '是';
+  if (v === false) return '否';
+  if (v === null || v === undefined || v === '') return '空';
+  return String(v);
+};
+
 const loadLogs = async () => {
   if (!orderId.value) return;
   try {
-    const [operationRes, changeRes] = await Promise.all([
-      getOrderLogs(orderId.value),
-      getValueChangeLogs('order', String(orderId.value)),
-    ]);
-    const operationItems = operationRes?.data || [];
-    const changeItems = (changeRes?.data || []).map(log => ({
-      id: `change-${log.id}`,
-      createdAt: log.createdAt,
-      operatorName: log.operatorName,
-      operatorRole: log.operatorRole,
-      operationType: '保存变更',
-      fieldName: '变更字段',
-      oldValue: '',
-      newValue: log.summary || '',
-      remark: log.remark,
-    }));
-    operationLogs.value = [...operationItems, ...changeItems]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const res = await getValueChangeLogs('order', String(orderId.value));
+    const items = res?.data || [];
+    changeLogs.value = items.map(log => {
+      const changes = log.changes || {};
+      const changeList = Object.keys(changes).map(k => ({
+        label: CHANGE_FIELD_LABELS[k] || k,
+        old: formatChangeVal(changes[k]?.old),
+        new: formatChangeVal(changes[k]?.new),
+      }));
+      return {
+        id: `change-${log.id}`,
+        createdAt: log.createdAt,
+        operatorName: log.operatorName,
+        operatorRole: log.operatorRole,
+        remark: log.remark,
+        changeList,
+      };
+    }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   } catch {
-    operationLogs.value = [];
+    changeLogs.value = [];
   }
 };
 
 const handleApplyModify = async () => {
   try {
     const { value } = await ElMessageBox.prompt('请填写申请修改的原因', '申请修改', {
-      confirmButtonText: '提交申请',
+      confirmButtonText: '下一步',
       cancelButtonText: '取消',
       inputType: 'textarea',
       inputPlaceholder: '例如：需要更改克重要求 / 钻石级别',
     });
     if (!value || !value.trim()) return;
-    await applyModify(orderId.value, value.trim());
-    ElMessage.success('已提交修改申请，等待客户审核员同意');
-    loadData();
-    loadLogs();
-  } catch (e) {
-    if (e !== 'cancel' && e?.name !== 'cancel') return;
-  }
+    // ⭐ 跳转到编辑页，带上原因（整单改完后再提交修改申请）
+    router.push(`/order/create/${orderId.value}?modify=1&reason=${encodeURIComponent(value.trim())}`);
+  } catch {}
 };
 
 const handleWithdraw = async () => {
@@ -446,6 +498,17 @@ const loadData = async () => {
   try {
     const res = await getOrderDetail(orderId.value);
     orderData.value = res.data || {};
+    // ⭐ 如果有进行中的修改申请，加载 diff
+    if (orderData.value?.modifyRequestId) {
+      try {
+        const r = await getOrderModifyDiff(orderData.value.modifyRequestId);
+        pendingDiffs.value = r?.data || [];
+      } catch {
+        pendingDiffs.value = [];
+      }
+    } else {
+      pendingDiffs.value = [];
+    }
     loadLogs();
   } catch (error) {
     console.error('加载失败:', error);
@@ -702,19 +765,52 @@ onMounted(async () => {
   color: #606266;
   flex-wrap: wrap;
 }
+.change-list {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.change-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #606266;
+  flex-wrap: wrap;
+}
 .modify-log-field {
   color: #409eff;
 }
 .modify-log-old {
-  color: #f56c6c;
+  color: #303133; /* 旧值黑色 */
   text-decoration: line-through;
 }
 .modify-log-new {
-  color: #67c23a;
+  color: #f56c6c; /* 新值红色 */
+  font-weight: 600;
 }
 .modify-log-remark {
   margin-top: 4px;
   font-size: 13px;
   color: #606266;
+}
+
+/* ===== 待处理的修改申请 ===== */
+.pending-modify-section {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #fff8e6;
+  border: 1px solid #f7d794;
+  border-radius: 6px;
+}
+.pending-modify-section .modify-log-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #303133;
 }
 </style>

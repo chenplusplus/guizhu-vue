@@ -22,7 +22,7 @@
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
         <el-button @click="toggleFullscreen">
-          {{ isFullscreen ? '退出全屏' : '全屏' }}
+          {{ isFullscreen ? '⛶ 退出全屏' : '⛶ 全屏' }}
         </el-button>
       </div>
     </div>
@@ -110,8 +110,13 @@
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click.stop="viewDetail(row.orderId)">
+          <el-link
+            type="primary"
+            :class="{ 'blink-modify': hasPendingModify(row) }"
+            @click.stop="viewDetail(row.orderId)"
+          >
             {{ row.orderNo }}
+            <span v-if="hasPendingModify(row)" class="modify-badge">✏️</span>
           </el-link>
         </template>
       </el-table-column>
@@ -314,9 +319,17 @@ const userStore = useUserStore();
 const tableRef = ref();
 
 const loading = ref(false);
+
+// ⭐ 全屏
 const isFullscreen = ref(false);
-const toggleFullscreen = () => { isFullscreen.value = !isFullscreen.value; };
-const handleEsc = (e) => { if (e.key === 'Escape' && isFullscreen.value) { isFullscreen.value = false; } };
+const toggleFullscreen = () => {
+  isFullscreen.value = !isFullscreen.value;
+};
+const handleEsc = (e) => {
+  if (e.key === 'Escape' && isFullscreen.value) {
+    isFullscreen.value = false;
+  }
+};
 const tableData = ref([]);
 const batchCreating = ref(false);
 const keyword = ref('');
@@ -757,6 +770,10 @@ const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
 };
 
+const hasPendingModify = (row) => {
+  return row.modifyStatus && row.modifyStatus !== 'none';
+};
+
 // ============================================================
 // 时间格式化
 // ============================================================
@@ -783,6 +800,7 @@ onMounted(() => {
     ElMessage.error('加载制作状态字典失败');
     loadData();
   });
+});
   window.addEventListener('keydown', handleEsc);
 });
 </script>
@@ -843,6 +861,21 @@ onMounted(() => {
   color: #606266;
   font-weight: 600;
   font-size: 12px;
+}
+
+/* ⭐ 待处理修改申请：订单号闪烁 */
+.blink-modify {
+  animation: blink 1s infinite;
+  color: #f56c6c !important;
+  font-weight: 700;
+}
+.modify-badge {
+  margin-left: 4px;
+  font-size: 14px;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 /* ===== 全屏模式 ===== */
 .page-container.is-fullscreen {

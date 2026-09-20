@@ -176,6 +176,12 @@
           </el-col>
         </el-row>
 
+        <el-form-item label="产品名称">
+          <el-input v-model="form.productName" placeholder="请输入产品名称" />
+        </el-form-item>
+        <el-form-item label="内容">
+          <el-input v-model="form.content" placeholder="请输入内容" />
+        </el-form-item>
         <el-form-item label="备注" style="margin-top:16px;">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
         </el-form-item>
@@ -223,7 +229,9 @@ const form = reactive({
   patch: '',
   goldPrice: 0,
   orderNo: '',
-  remark: ''
+  remark: '',
+  productName: '',
+  content: ''
 })
 
 const lastTotal = reactive({
@@ -407,6 +415,8 @@ const handleReset = () => {
   form.patch = ''
   form.goldPrice = 0
   form.remark = ''
+  form.productName = ''
+  form.content = ''
 }
 
 onMounted(() => {

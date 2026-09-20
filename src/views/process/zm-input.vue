@@ -41,6 +41,21 @@
                 </el-select>
               </el-form-item>
             </el-col>
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="师傅名称">
+                <el-select v-model="form.masterName" filterable allow-create default-first-option placeholder="选择或输入师傅" style="width:100%;">
+                  <el-option v-for="m in options.masters" :key="m.id" :label="m.itemLabel" :value="m.itemValue" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="产品名称"><el-input v-model="form.productName" placeholder="请输入产品名称" /></el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="内容"><el-input v-model="form.content" placeholder="请输入内容" /></el-form-item>
+            </el-col>
           </el-row>
         </div>
 
@@ -108,18 +123,19 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { ArrowLeft, Check, Refresh } from '@element-plus/icons-vue';
 import { getProcessOptions, createProcessReceipt, submitProcessReceipt } from '@/api/process';
 
 const router = useRouter();
+const route = useRoute();
 const loading = ref(false);
 const saving = ref(false);
 const submitting = ref(false);
 const formRef = ref();
 
-const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: [] });
+const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: [], masters: [] });
 const subProcesses = computed(() => options.zmSubProcesses);
 
 const currentSubProcess = computed(() => {
@@ -138,6 +154,9 @@ const form = reactive({
   standardLossG: 0,
   shouldRecycleG: 0,
   extraFields: { residueWaterG: 0, residueWireG: 0 },
+  masterName: '',
+  productName: '',
+  content: '',
   remark: ''
 });
 
@@ -175,6 +194,9 @@ const handleSave = async () => {
         sendWeightG: form.sendWeightG,
         recycleWeightG: form.recycleWeightG,
         extraFields: form.extraFields,
+        masterName: form.masterName,
+        productName: form.productName,
+        content: form.content,
         remark: form.remark
       };
       const res = await createProcessReceipt(payload);
@@ -195,6 +217,9 @@ const handleReset = () => {
   form.standardLossG = 0;
   form.shouldRecycleG = 0;
   form.extraFields = { residueWaterG: 0, residueWireG: 0 };
+  form.masterName = '';
+  form.productName = '';
+  form.content = '';
   form.remark = '';
 };
 
@@ -205,6 +230,8 @@ const loadOptions = async () => {
     options.materials = res.data?.materials || [];
     options.zmSubProcesses = res.data?.zmSubProcesses || [];
     options.pgSubProcesses = res.data?.pgSubProcesses || [];
+    options.masters = res.data?.masters || [];
+    if (route.query.master) form.masterName = String(route.query.master);
   } catch { ElMessage.error('加载选项失败'); }
   finally { loading.value = false; }
 };

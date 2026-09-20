@@ -28,7 +28,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="counterpartyName" label="供应商" width="140" show-overflow-tooltip />
-        <el-table-column prop="expenseCategory" label="费用分类" width="120" />
+        <el-table-column prop="expenseCategory" label="资金分类" width="120" />
         <el-table-column prop="amount" label="金额" width="120" align="right">
           <template #default="{ row }">¥{{ (row.amount || 0).toFixed(2) }}</template>
         </el-table-column>
@@ -52,6 +52,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdByName" label="经办人" width="90" />
+        <el-table-column prop="auditedByName" label="审核人" width="80" />
+        <el-table-column prop="productName" label="产品名称" width="100" show-overflow-tooltip />
+        <el-table-column prop="content" label="内容" width="100" show-overflow-tooltip />
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">

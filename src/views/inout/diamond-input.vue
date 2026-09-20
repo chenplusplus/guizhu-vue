@@ -95,6 +95,34 @@
           </el-col>
         </el-row>
 
+        <el-row :gutter="16" style="margin-top:12px">
+          <el-col :span="12">
+            <div class="stat-box">
+              <div class="stat-label">上单累计卡重</div>
+              <div class="stat-value">{{ lastTotal.lastTotalCarat.toFixed(4) }} ct</div>
+            </div>
+          </el-col>
+          <el-col :span="12">
+            <div class="stat-box highlight">
+              <div class="stat-label">本单累计卡重</div>
+              <div class="stat-value">{{ currentTotalCaratDisplay.toFixed(4) }} ct</div>
+            </div>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="16" style="margin-top:12px">
+          <el-col :span="12">
+            <el-form-item label="产品名称">
+              <el-input v-model="form.productName" placeholder="请输入产品名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="内容">
+              <el-input v-model="form.content" placeholder="请输入内容" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-form-item style="margin-top:16px;">
           <el-button type="primary" :loading="submitting" @click="handleSubmit">提交录入</el-button>
           <el-button @click="handleReset">重置</el-button>
@@ -125,7 +153,9 @@ const form = reactive({
   unitPrice: 0,
   paymentAmount: 0,
   orderNo: '',
-  remark: ''
+  remark: '',
+  productName: '',
+  content: ''
 })
 
 const presetDirection = computed(() => {
@@ -139,7 +169,7 @@ const applyDirectionPreset = () => {
   }
 }
 
-const lastTotal = reactive({ lastTotalAmount: 0 })
+const lastTotal = reactive({ lastTotalAmount: 0, lastTotalCarat: 0 })
 
 const rules = {
   recordDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
@@ -152,6 +182,7 @@ const amount = computed(() => (form.carat || 0) * (form.unitPrice || 0))
 const amountDisplay = computed(() => amount.value.toFixed(2))
 const sign = computed(() => form.direction === 1 ? 1 : -1)
 const currentTotalAmountDisplay = computed(() => lastTotal.lastTotalAmount + sign.value * amount.value)
+const currentTotalCaratDisplay = computed(() => lastTotal.lastTotalCarat + sign.value * (form.carat || 0))
 
 const loadCounterparties = async () => {
   try {
@@ -196,6 +227,8 @@ const handleReset = () => {
   form.unitPrice = 0
   form.paymentAmount = 0
   form.remark = ''
+  form.productName = ''
+  form.content = ''
 }
 
 onMounted(() => {

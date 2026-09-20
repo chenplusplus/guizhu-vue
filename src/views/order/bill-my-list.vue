@@ -149,7 +149,7 @@
       border
       stripe
       v-loading="loading"
-      @row-click="viewDetail"
+      @row-click="(row) => viewDetail(row.billId)"
       @selection-change="handleSelectionChange"
       row-key="billId"
     >
@@ -239,7 +239,7 @@
         </template>
       </el-table-column>
       <!-- 操作列 - 完整代码 -->
-      <el-table-column label="操作" width="340" align="center" fixed="right">
+      <el-table-column label="操作" width="420" align="center" fixed="right">
         <template #default="{ row }">
           <!-- ⭐ 预览按钮：打开 bill-view 风格弹窗 -->
           <el-button 
@@ -253,6 +253,11 @@
 
           <el-button size="small" type="primary" @click.stop="viewDetail(row.billId)">
             查看
+          </el-button>
+
+          <!-- 需求4：编辑按钮（不限状态） -->
+          <el-button size="small" type="warning" @click.stop="editDetail(row.billId)">
+            编辑
           </el-button>
 
           <!-- ⭐ 工厂业务员：提交审核（状态为 pending 时） -->
@@ -610,8 +615,19 @@ const viewDetail = (id) => {
     ElMessage.error('账单ID无效');
     return;
   }
-  // ✅ 跳转到出货明细页，并传入 billId
-  router.push(`/order/bill/export-detail?billId=${id}`);
+  router.push({
+    name: 'BillDetail',
+    params: { id: String(id) },
+  });
+};
+
+// 需求4：编辑账单
+const editDetail = (id) => {
+  if (!id) {
+    ElMessage.error('账单ID无效');
+    return;
+  }
+  router.push(`/order/bill/edit/${id}`);
 };
 
 // ============================================================

@@ -118,6 +118,12 @@ const routes = [
         meta: { title: '订单详情' }
       },
       {
+        path: 'order/modify-list',
+        name: 'OrderModifyList',
+        component: () => import('@/views/order/modify-list.vue'),
+        meta: { title: '修改订单', roles: ['customer', 'customerAudit', 'factoryOrder', 'admin'] }
+      },
+      {
         path: 'order/import',
         name: 'OrderImport',
         component: () => import('@/views/order/import.vue'),

@@ -236,7 +236,7 @@ const getFieldLabel = (sourceType, key) => {
 }
 
 .change-item .old {
-  color: #F56C6C;
+  color: #303133;
 }
 
 .change-item .arrow {
@@ -245,7 +245,7 @@ const getFieldLabel = (sourceType, key) => {
 }
 
 .change-item .new {
-  color: #67C23A;
+  color: #F56C6C;
   font-weight: 500;
 }
 

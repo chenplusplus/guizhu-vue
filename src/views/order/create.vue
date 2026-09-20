@@ -169,20 +169,7 @@
           </el-col>
           <el-col :xs="24" :sm="12">
             <el-form-item label="字印要求图">
-              <div class="letter-compact">
-                <el-image
-                  v-if="letterImages.length"
-                  :src="letterImages[0].imageUrl"
-                  fit="cover"
-                  class="letter-thumb"
-                  :preview-src-list="letterImages.map(x => x.imageUrl)"
-                  :initial-index="0"
-                  preview-teleported
-                />
-                <span v-else class="letter-empty">无图</span>
-                <el-button size="small" type="primary" link @click="pickLetterImage">上传/替换</el-button>
-                <input ref="letterFileInput" type="file" accept="image/*" multiple style="display:none" @change="handleLetterFile" />
-              </div>
+              <MultiImageUpload v-model="letterImages" :max-count="10" type="letter" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -377,7 +364,6 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Document, Check, Search, Clock } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { createOrder, updateOrder, getOrderDetail, submitOrder, auditOrder, acceptOrder, getOrderList } from '@/api/order';
-import { uploadImage } from '@/api/upload';
 import { createManualAlert } from '@/api/alert';
 import { searchProducts, getProductList, createProduct } from '@/api/product';
 import { dictApi } from '@/api/dict';
@@ -403,28 +389,6 @@ const diamondLevelOptions = ref([]);
 const productImages = ref([]);
 const dataImages = ref([]);
 const letterImages = ref([]);
-
-const letterFileInput = ref(null);
-const pickLetterImage = () => { if (letterFileInput.value) letterFileInput.value.click(); };
-const handleLetterFile = async (e) => {
-  const files = Array.from(e.target.files || []);
-  for (const file of files) {
-    if (letterImages.value.length >= 10) { ElMessage.warning('最多上传 10 张'); break; }
-    if (file.size > 5 * 1024 * 1024) { ElMessage.warning(file.name + ' 超过 5MB'); continue; }
-    try {
-      const res = await uploadImage(file, 'letter');
-      if (res && res.success) {
-        const baseUrl = (import.meta.env.VITE_API_BASE_URL || '').replace('/api', '');
-        const rawUrl = (res.url || (res.data && res.data.url)) || '';
-        const url = rawUrl.startsWith('http') ? rawUrl : baseUrl + rawUrl;
-        letterImages.value.push({ id: null, imageType: 'letter', imageUrl: url, imageName: file.name, sortOrder: letterImages.value.length, remark: '' });
-      }
-    } catch (err) {
-      ElMessage.error('字印图上传失败');
-    }
-  }
-  e.target.value = '';
-};
 const dataPackages = ref([]);
 
 // ===== 产品相关 =====

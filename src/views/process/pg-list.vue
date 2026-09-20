@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="header-left"><h2>✨ 抛光单据列表</h2><el-tag type="info">共 {{ total }} 条</el-tag></div>
       <div class="header-right">
-        <el-button type="primary" @click="$router.push('/process/pg-input')"><el-icon><Plus /></el-icon> 录入</el-button>
+        <el-button type="primary" @click="$router.push({ path: '/process/pg-input', query: { master: searchForm.masterName || undefined } })"><el-icon><Plus /></el-icon> 录入</el-button>
         <el-button @click="loadData"><el-icon><Refresh /></el-icon> 刷新</el-button>
       </div>
     </div>
@@ -12,6 +12,7 @@
     <div class="search-bar">
       <el-form :inline="true" size="default">
         <el-form-item label="单据编号"><el-input v-model="searchForm.keyword" placeholder="单据编号" clearable style="width:150px;" @keyup.enter="loadData" /></el-form-item>
+        <el-form-item label="师傅名称"><el-input v-model="searchForm.masterName" placeholder="师傅名称" clearable style="width:120px;" @keyup.enter="loadData" /></el-form-item>
         <el-form-item label="工序类型">
           <el-select v-model="searchForm.processDictId" placeholder="全部" clearable style="width:130px;" @change="loadData">
             <el-option v-for="p in subProcesses" :key="p.id" :label="p.subProcess" :value="p.id" />
@@ -58,8 +59,12 @@
             <el-tag :type="row.status === 1 ? 'success' : row.status === 2 ? 'danger' : 'warning'" size="small">{{ row.statusText }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="submitEmpName" label="录入人" width="90" align="center" />
-        <el-table-column label="操作" width="180" fixed="right" align="center">
+        <el-table-column prop="masterName" label="师傅" width="100" align="center" />
+        <el-table-column prop="productName" label="产品名称" width="120" align="center" />
+        <el-table-column prop="content" label="内容" width="140" align="center" />
+        <el-table-column prop="submitEmpName" label="经办人" width="90" align="center" />
+        <el-table-column prop="auditEmpName" label="审核人" width="90" align="center" />
+        <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="$router.push(`/process/pg-detail/${row.id}`)">查看</el-button>
             <el-button v-if="row.status === 0" size="small" type="warning" link @click="openEdit(row)">编辑</el-button>
@@ -107,7 +112,7 @@ const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: []
 const subProcesses = computed(() => options.pgSubProcesses);
 const pgMaterials = computed(() => options.materials.filter(m => !m.itemValue?.includes('PT')));
 const dateRange = ref([]);
-const searchForm = reactive({ keyword: '', processDictId: null, materialId: null, status: null, startDate: '', endDate: '' });
+const searchForm = reactive({ keyword: '', masterName: '', processDictId: null, materialId: null, status: null, startDate: '', endDate: '' });
 const pagination = reactive({ current: 1, pageSize: 20 });
 const auditVisible = ref(false);
 const auditRow = ref(null);
@@ -120,7 +125,7 @@ const onDateChange = (val) => { searchForm.startDate = val?.[0] || ''; searchFor
 const loadData = async () => {
   loading.value = true;
   try {
-    const res = await getProcessList({ mainProcess: 'PG', keyword: searchForm.keyword || undefined, processDictId: searchForm.processDictId || undefined, materialId: searchForm.materialId || undefined, status: searchForm.status ?? undefined, startDate: searchForm.startDate || undefined, endDate: searchForm.endDate || undefined, page: pagination.current, pageSize: pagination.pageSize });
+    const res = await getProcessList({ mainProcess: 'PG', keyword: searchForm.keyword || undefined, masterName: searchForm.masterName || undefined, processDictId: searchForm.processDictId || undefined, materialId: searchForm.materialId || undefined, status: searchForm.status ?? undefined, startDate: searchForm.startDate || undefined, endDate: searchForm.endDate || undefined, page: pagination.current, pageSize: pagination.pageSize });
     tableData.value = res.data || [];
     total.value = res.total || 0;
   } catch { ElMessage.error('加载失败'); } finally { loading.value = false; }

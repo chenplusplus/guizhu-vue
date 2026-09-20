@@ -83,6 +83,14 @@ export const getGoldById = (id) => request.get(`/inout/gold/${id}`)
 // 更新
 export const updateGold = (id, data) => request.put(`/inout/gold/${id}`, data)
 
+// 钻石
+export const getDiamondById = (id) => api.get(`/inout/diamond/${id}`)
+export const updateDiamond = (id, data) => api.put(`/inout/diamond/${id}`, data)
+
+// 资金
+export const getExpenseById = (id) => api.get(`/inout/expense/${id}`)
+export const updateExpense = (id, data) => api.put(`/inout/expense/${id}`, data)
+
 // ===================== 审批（金/钻石/费用） =====================
 export const submitGold = (id) => api.post(`/inout/gold/${id}/submit`);
 export const auditGold = (id, approved, remark) => api.post(`/inout/gold/${id}/audit`, { approved, remark });

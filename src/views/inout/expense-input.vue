@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span class="title">💰 费用录入</span>
+          <span class="title">💰 资金录入</span>
           <el-button type="primary" size="small" @click="$router.push('/inout/expense-list')">查看列表 →</el-button>
         </div>
       </template>
@@ -31,7 +31,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="费用分类" prop="expenseCategory">
+            <el-form-item label="资金分类" prop="expenseCategory">
               <el-select v-model="form.expenseCategory" placeholder="请选择" style="width:100%">
                 <el-option v-for="c in expenseCategories" :key="c.value" :label="c.label" :value="c.value" />
               </el-select>
@@ -59,9 +59,23 @@
           </el-col>
         </el-row>
 
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="2" />
-        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="产品名称">
+              <el-input v-model="form.productName" placeholder="请输入产品名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="内容">
+              <el-input v-model="form.content" placeholder="请输入内容" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="备注">
+              <el-input v-model="form.remark" type="textarea" :rows="2" />
+            </el-form-item>
+          </el-col>
+        </el-row>
 
         <el-divider content-position="left">累计</el-divider>
 
@@ -126,7 +140,9 @@ const form = reactive({
   amount: 0,
   paymentAmount: 0,
   orderNo: '',
-  remark: ''
+  remark: '',
+  productName: '',
+  content: ''
 })
 
 const presetDirection = computed(() => {
@@ -172,7 +188,7 @@ const handleSubmit = async () => {
     try {
       const res = await createExpense(form)
       if (res.success) {
-        ElMessage.success('费用录入成功')
+        ElMessage.success('资金录入成功')
         handleReset()
         loadLastTotal()
       }
@@ -191,6 +207,8 @@ const handleReset = () => {
   form.amount = 0
   form.paymentAmount = 0
   form.remark = ''
+  form.productName = ''
+  form.content = ''
 }
 
 onMounted(() => {

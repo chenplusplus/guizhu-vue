@@ -13,11 +13,14 @@
         <el-button @click="columnVisibleDialog = true">
           <el-icon><Setting /></el-icon> 列设置
         </el-button>
+        <el-button @click="toggleFullscreen">
+          {{ isFullscreen ? '⛶ 退出全屏' : '⛶ 全屏' }}
+        </el-button>
       </div>
     </div>
 
     <!-- ⭐ 顶部统计卡片 -->
-    <div class="stats-wrapper">
+    <div v-show="!isFullscreen" class="stats-wrapper">
       <div
         v-for="item in statusStats"
         :key="item.key"
@@ -32,12 +35,12 @@
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
+    <div v-show="!isFullscreen" class="search-bar">
       <el-form :inline="true" :model="query" size="default">
         <el-form-item label="关键词">
           <el-input
             v-model="query.keyword"
-            placeholder="订单号/品名"
+            placeholder="订单号/品名/业务员"
             clearable
             style="width: 200px;"
             @keyup.enter="handleSearch"
@@ -79,6 +82,7 @@
     <!-- 表格 -->
     <el-table
       ref="tableRef"
+      :class="{ 'table-fullscreen': isFullscreen }"
       :data="tableData"
       v-loading="loading"
       border
@@ -95,8 +99,13 @@
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click.stop="viewDetail(row.orderId)">
+          <el-link
+            type="primary"
+            :class="{ 'blink-modify': hasPendingModify(row) }"
+            @click.stop="viewDetail(row.orderId)"
+          >
             {{ row.orderNo }}
+            <span v-if="hasPendingModify(row)" class="modify-badge">✏️</span>
           </el-link>
         </template>
       </el-table-column>
@@ -190,7 +199,7 @@
       </el-table-column>
 
       <!-- ⭐ 操作列 -->
-      <el-table-column label="操作" width="280" fixed="right" align="center">
+      <el-table-column v-if="!isFullscreen" label="操作" width="280" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 查看：所有人都可以 -->
           <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
@@ -256,7 +265,7 @@
     </el-table>
 
     <!-- 分页 -->
-    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
+    <div v-show="!isFullscreen" style="margin-top: 16px; display: flex; justify-content: flex-end;">
       <el-pagination
         v-model:current-page="pagination.current"
         v-model:page-size="pagination.pageSize"
@@ -348,7 +357,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
@@ -516,6 +525,17 @@ const pagination = reactive({
 
 const tableData = ref([]);
 const loading = ref(false);
+
+// ⭐ 全屏
+const isFullscreen = ref(false);
+const toggleFullscreen = () => {
+  isFullscreen.value = !isFullscreen.value;
+};
+const handleEsc = (e) => {
+  if (e.key === 'Escape' && isFullscreen.value) {
+    isFullscreen.value = false;
+  }
+};
 
 const auditDialogVisible = ref(false);
 const auditLoading = ref(false);
@@ -787,6 +807,10 @@ const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
 };
 
+const hasPendingModify = (row) => {
+  return row.modifyStatus && row.modifyStatus !== 'none';
+};
+
 // ============================================================
 // 时间格式化
 // ============================================================
@@ -810,6 +834,11 @@ onMounted(() => {
   query.dateRange = getDefaultDateRange();
   query.status = 'running';
   loadData();
+  window.addEventListener('keydown', handleEsc);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleEsc);
 });
 </script>
 
@@ -917,5 +946,66 @@ onMounted(() => {
 }
 :deep(.el-table .row-alert:hover) {
   background-color: #ffccc7 !important;
+}
+
+/* ⭐ 待处理修改申请：订单号闪烁 */
+.blink-modify {
+  animation: blink 1s infinite;
+  color: #f56c6c !important;
+  font-weight: 700;
+}
+.modify-badge {
+  margin-left: 4px;
+  font-size: 14px;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+/* ===== 全屏模式 ===== */
+.page-container.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #fff;
+  padding: 16px 20px;
+  overflow: auto;
+  border-radius: 0;
+  min-height: 100vh;
+}
+
+.table-fullscreen {
+  font-size: 16px;
+}
+
+.table-fullscreen :deep(.el-table__cell) {
+  font-size: 16px !important;
+  padding: 14px 10px !important;
+}
+
+.table-fullscreen :deep(.el-table__header .el-table__cell) {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  padding: 16px 10px !important;
+  background: #f5f7fa !important;
+}
+
+.table-fullscreen :deep(.el-table .cell) {
+  line-height: 1.6;
+}
+
+.table-fullscreen :deep(.el-image) {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+.table-fullscreen :deep(.el-tag) {
+  font-size: 15px !important;
+  padding: 6px 12px !important;
+  height: auto !important;
+}
+
+.table-fullscreen :deep(.el-link) {
+  font-size: 16px !important;
 }
 </style>

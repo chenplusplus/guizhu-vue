@@ -1,6 +1,6 @@
 <!-- src/views/order/factory-history.vue -->
 <template>
-  <div class="page-container">
+  <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
     <div class="page-header">
       <h2>📦 历史订单</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -10,11 +10,14 @@
         <el-button @click="columnVisibleDialog = true">
           <el-icon><Setting /></el-icon> 列设置
         </el-button>
+        <el-button @click="toggleFullscreen">
+          {{ isFullscreen ? '⛶ 退出全屏' : '⛶ 全屏' }}
+        </el-button>
       </div>
     </div>
 
     <!-- 搜索栏 -->
-    <div class="search-bar">
+    <div v-show="!isFullscreen" class="search-bar">
       <el-form :inline="true" :model="search" size="default">
         <el-form-item label="日期">
           <el-date-picker
@@ -57,7 +60,7 @@
     </div>
 
     <!-- 汇总 -->
-    <div class="summary-bar" v-if="pagination.total > 0">
+    <div v-show="!isFullscreen" class="summary-bar" v-if="pagination.total > 0">
       <span>共 <b>{{ pagination.total }}</b> 个订单</span>
       <span style="color:#67C23A;">已完成：<b>{{ completedCount }}</b></span>
       <span style="color:#909399;">已取消：<b>{{ cancelledCount }}</b></span>
@@ -65,6 +68,7 @@
 
     <!-- 表格 -->
     <el-table
+      :class="{ 'table-fullscreen': isFullscreen }"
       :data="tableData"
       border
       stripe
@@ -131,7 +135,7 @@
       </el-table-column>
 
       <!-- ⭐ 操作列：根据角色显示不同按钮 -->
-      <el-table-column label="操作" width="180" fixed="right" align="center">
+      <el-table-column v-if="!isFullscreen" label="操作" width="180" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 查看：所有人都可以 -->
           <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
@@ -155,7 +159,7 @@
     <el-empty v-if="!loading && tableData.length === 0" description="暂无历史订单" />
 
     <!-- 分页 -->
-    <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+    <div v-show="!isFullscreen" style="margin-top:16px;display:flex;justify-content:flex-end;">
       <el-pagination
         v-model:current-page="pagination.current"
         v-model:page-size="pagination.pageSize"
@@ -203,7 +207,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Refresh, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
@@ -215,6 +219,17 @@ const router = useRouter();
 const userStore = useUserStore();
 
 const loading = ref(false);
+
+// ⭐ 全屏
+const isFullscreen = ref(false);
+const toggleFullscreen = () => {
+  isFullscreen.value = !isFullscreen.value;
+};
+const handleEsc = (e) => {
+  if (e.key === 'Escape' && isFullscreen.value) {
+    isFullscreen.value = false;
+  }
+};
 const tableData = ref([]);
 const flowDrawerVisible = ref(false);
 const currentFlowOrderId = ref(0);
@@ -417,6 +432,11 @@ onMounted(() => {
   loadColumnSettings();
   search.dateRange = getDefaultDateRange();
   loadData();
+  window.addEventListener('keydown', handleEsc);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleEsc);
 });
 </script>
 
@@ -458,4 +478,50 @@ onMounted(() => {
 :deep(.el-table .cell) { padding: 6px 8px; }
 :deep(.el-table .el-table__row) { cursor: pointer; }
 :deep(.el-button.is-link) { padding: 0 4px; }
+/* ===== 全屏模式 ===== */
+.page-container.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #fff;
+  padding: 16px 20px;
+  overflow: auto;
+  border-radius: 0;
+  min-height: 100vh;
+}
+
+.table-fullscreen {
+  font-size: 16px;
+}
+
+.table-fullscreen :deep(.el-table__cell) {
+  font-size: 16px !important;
+  padding: 14px 10px !important;
+}
+
+.table-fullscreen :deep(.el-table__header .el-table__cell) {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  padding: 16px 10px !important;
+  background: #f5f7fa !important;
+}
+
+.table-fullscreen :deep(.el-table .cell) {
+  line-height: 1.6;
+}
+
+.table-fullscreen :deep(.el-image) {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+.table-fullscreen :deep(.el-tag) {
+  font-size: 15px !important;
+  padding: 6px 12px !important;
+  height: auto !important;
+}
+
+.table-fullscreen :deep(.el-link) {
+  font-size: 16px !important;
+}
 </style>

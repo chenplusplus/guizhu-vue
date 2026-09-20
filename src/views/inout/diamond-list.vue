@@ -58,6 +58,15 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdByName" label="经办人" width="90" />
+        <el-table-column prop="auditedByName" label="审核人" width="80" />
+        <el-table-column prop="productName" label="产品名称" width="100" show-overflow-tooltip />
+        <el-table-column prop="content" label="内容" width="100" show-overflow-tooltip />
+        <el-table-column prop="lastTotalCarat" label="上单卡重" width="100" align="right">
+          <template #default="{ row }">{{ Number(row.lastTotalCarat || 0).toFixed(4) }}</template>
+        </el-table-column>
+        <el-table-column prop="currentTotalCarat" label="本单卡重" width="100" align="right">
+          <template #default="{ row }">{{ Number(row.currentTotalCarat || 0).toFixed(4) }}</template>
+        </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">

@@ -122,6 +122,38 @@ export const withdrawSubmit = (id) => {
 export const getOrderFlowWithBill = (id) => {
   return api.get(`/order/${id}/flow-with-bill`);
 };
+// ===== 订单修改审批（新链路） =====
+
+// 客户下单员：整单提交修改申请
+export const applyOrderModify = (orderId, data) => {
+  return api.post(`/order/${orderId}/modify/apply`, data);
+};
+
+// 客户审核员：同意/驳回（requestId 是申请ID，不是订单ID）
+export const auditOrderModify = (requestId, data) => {
+  return api.post(`/order/${requestId}/modify/audit`, data);
+};
+
+// 工厂操作员：确认修改生效 / 驳回
+export const confirmOrderModify = (requestId, data) => {
+  return api.post(`/order/${requestId}/modify/confirm`, data);
+};
+
+// 撤回修改申请
+export const withdrawOrderModify = (requestId) => {
+  return api.post(`/order/${requestId}/modify/withdraw`);
+};
+
+// 待我处理的修改申请列表
+export const getPendingModifyList = () => {
+  return api.get('/order/modify/pending');
+};
+
+// 查看某次申请改了什么
+export const getOrderModifyDiff = (requestId) => {
+  return api.get(`/order/${requestId}/modify/diff`);
+};
+
 // src/api/order.js
 export function getBillPendingOrders(params) {
   return request({

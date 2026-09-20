@@ -42,9 +42,6 @@
             </div>
           </el-col>
           <el-col :xs="12" :sm="4">
-            <div class="info-item"><span class="label">明细数：</span><span class="value">{{ details.length }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="4">
             <div class="info-item"><span class="label">合计件数：</span><span class="value">{{ totalQuantity }}</span></div>
           </el-col>
           <el-col :xs="12" :sm="4">
@@ -784,6 +781,22 @@ onMounted(loadData);
 }
 :deep(.el-input-number) {
   width: 100%;
+  border: none;
+  background: transparent;
+}
+:deep(.el-input-number .el-input__wrapper) {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+:deep(.el-input-number .el-input__wrapper:hover),
+:deep(.el-input-number .el-input__wrapper:focus-within) {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+:deep(.el-input-number .el-input__inner) {
+  text-align: right;
 }
 :deep(.el-input) {
   width: 100%;
