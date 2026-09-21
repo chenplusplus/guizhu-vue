@@ -1,4 +1,4 @@
-<!-- src/views/order/bill-export-detail.vue -->
+﻿<!-- src/views/order/bill-export-detail.vue -->
 <template>
   <div class="page-container" v-loading="loading">
     <!-- ===== 页面头部 ===== -->
@@ -98,6 +98,12 @@
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.GoldMaterialFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.GoldMaterialFee) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="折足金料" width="100" align="center">
+          <template #default="{ row }">
+            <span v-if="row.GoldConvertCash" style="color:#E6A23C;font-size:12px;">折现</span>
+            <span v-else>{{ fmt(row.GoldMaterialWeight) }}g</span>
           </template>
         </el-table-column>
 
@@ -229,7 +235,9 @@
                 <span class="flabel">上单欠足料：</span>
                 <span class="fval">{{ fmt(data.LastDebtMaterial) }}</span>
                 <span class="flabel">本单应收足料：</span>
-                <span class="fval">{{ fmt(data.CurrentMaterial) }}</span>
+                <span class="fval">{{ fmt(data.CurrentMaterialWeight) }}</span>
+                <span v-if="userStore && (userStore.isFactoryOrder || userStore.isAdmin)" class="flabel">折足金料(内部)：</span>
+                <span v-if="userStore && (userStore.isFactoryOrder || userStore.isAdmin)" class="fval" style="color:#909399;">{{ fmt(data.InternalMaterialWeight) }}g</span>
                 <span class="flabel">来足料重：</span>
                 <span class="fval">{{ fmt(data.ReceivedMaterial) }}</span>
                 <span class="flabel" style="color:#F56C6C;font-weight:bold;">累欠足金料：</span>
@@ -294,6 +302,8 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import { useUserStore } from '@/stores/user';
+const userStore = useUserStore();
 import { ArrowLeft, Download, Refresh } from '@element-plus/icons-vue';
 import { getBillExportData, exportBill } from '@/api/bill';
 

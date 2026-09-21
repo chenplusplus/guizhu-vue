@@ -245,6 +245,28 @@
     </el-button>
   </div>
 </div>
+
+      <!-- ===== 关联账单 ===== -->
+      <div v-if="orderData?.billId" class="bill-info-section">
+        <div class="bill-info-title">📋 关联账单</div>
+        <div class="bill-info-row">
+          <span class="bill-info-label">账单号：</span>
+          <el-link type="primary" @click.stop="viewBill(orderData.billId)">
+            {{ orderData.billNo || orderData.billId }}
+          </el-link>
+        </div>
+        <div class="bill-info-row">
+          <span class="bill-info-label">账单状态：</span>
+          <el-tag :type="getBillStatusType(orderData.billStatus)" size="small">
+            {{ getBillStatusText(orderData.billStatus) }}
+          </el-tag>
+        </div>
+        <div v-if="orderData.billTotalAmount != null" class="bill-info-row">
+          <span class="bill-info-label">账单金额：</span>
+          <span>¥ {{ orderData.billTotalAmount.toFixed(2) }}</span>
+        </div>
+      </div>
+
       <!-- ===== 修改记录（字段级改动明细；仅撤回/同意修改后重提期间的改动） ===== -->
       <div class="modify-log-section" v-if="changeLogs.length > 0">
         <div class="modify-log-title">📝 修改记录</div>
@@ -402,6 +424,20 @@ const canWithdraw = computed(() => isCustomer.value
   && Number(orderData.value?.submittedBy) === Number(userStore.userId));
 
 // ===== 修改记录（字段级改动明细，来自 value_change_logs） =====
+// ===== 账单状态显示 =====
+const getBillStatusText = (status) => {
+  const map = {pending: '待审核', confirmed: '已确认', approved: '已审批', rejected: '已驳回', completed: '已完成', cancelled: '已取消'};
+  return status ? (map[status] || status) : '-';
+};
+const getBillStatusType = (status) => {
+  const map = {pending: 'warning', confirmed: 'primary', approved: 'success', rejected: 'danger', completed: 'success', cancelled: 'info'};
+  return status ? (map[status] || 'info') : 'info';
+};
+
+const viewBill = (billId) => {
+  router.push(`/order/bill/detail/${billId}`);
+};
+
 // 字段标签：与后端 ChangeLogHelper.OrderFieldLabels 对应
 const CHANGE_FIELD_LABELS = {
   salesman: '业务员', orderDate: '订单日期', imageUrl: '产品图片', dataImageUrl: '数据图',

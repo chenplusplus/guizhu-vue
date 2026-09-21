@@ -1,4 +1,4 @@
-<!-- src/views/order/list.vue -->
+﻿<!-- src/views/order/list.vue -->
 <template>
   <div class="page-container">
     <div class="page-header">
@@ -132,6 +132,17 @@
           <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
             {{ getStatusText(row.flowStatus) }}
           </el-tag>
+        </template>
+      </el-table-column>
+
+      <!-- 账单列 -->
+      <el-table-column label="账单" width="120" align="center">
+        <template #default="{ row }">
+          <el-link v-if="row.billId" type="primary" @click.stop="viewBill(row.billId)">
+            {{ row.billNo || '账单' }}
+          </el-link>
+          <span v-else-if="row.flowStatus === 'completed'" style="color:#999;font-size:12px">未生成</span>
+          <span v-else>-</span>
         </template>
       </el-table-column>
 
@@ -704,6 +715,10 @@ const onPageChange = () => {
 const handleSearch = () => {
   pagination.current = 1;
   loadData();
+};
+
+const viewBill = (billId) => {
+  router.push(`/order/bill/detail/${billId}`);
 };
 
 // ===== 加载数据 =====

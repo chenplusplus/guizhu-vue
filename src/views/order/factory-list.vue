@@ -1,4 +1,4 @@
-<!-- src/views/order/factory-list.vue -->
+﻿<!-- src/views/order/factory-list.vue -->
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
     <div class="page-header">
@@ -141,6 +141,17 @@
         </template>
       </el-table-column>
 
+      <!-- 账单列 -->
+      <el-table-column label="账单" width="120" align="center">
+        <template #default="{ row }">
+          <el-link v-if="row.billId" type="primary" @click.stop="viewBill(row.billId)">
+            {{ row.billNo || '账单' }}
+          </el-link>
+          <span v-else-if="normalizeStatus(row.flowStatus) === 'completed'" style="color:#999;font-size:12px">未生成</span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+
       <el-table-column prop="customerName" label="客户" width="120" />
       <el-table-column prop="orderDate" label="订单日期" width="110" align="center">
         <template #default="{ row }">
@@ -222,9 +233,14 @@
                 <el-dropdown-item command="repair">维修单</el-dropdown-item>
 
                 <el-dropdown-item
-                  v-if="normalizeStatus(row.flowStatus) === 'polishing'"
+                  v-if="normalizeStatus(row.flowStatus) === 'completed' && !row.billId && (isFactoryOrder || isAdmin)"
                   command="bill"
                 >生成账单</el-dropdown-item>
+
+                <el-dropdown-item
+                  v-if="normalizeStatus(row.flowStatus) === 'polishing' && (isFactoryAudit || isAdmin)"
+                  command="auditProduction"
+                >审核制作完成</el-dropdown-item>
 
                 <el-dropdown-item
                   v-if="canEditRow(row)"
@@ -302,6 +318,29 @@
       </template>
     </el-dialog>
 
+    <!-- 审核制作完成弹窗 -->
+    <el-dialog v-model="auditProductionDialogVisible" title="审核制作完成" width="450px" destroy-on-close>
+      <el-alert
+        v-if="auditProductionRow"
+        :type="auditProductionApproved ? 'success' : 'warning'"
+        :title="auditProductionApproved ? AUDIT_PRODUCTION_TITLES.pass : AUDIT_PRODUCTION_TITLES.reject"
+        style="margin-bottom: 16px"
+      />
+      <el-form label-width="80px">
+        <el-form-item label="订单号">
+          <el-input :model-value="auditProductionRow?.orderNo" disabled />
+        </el-form-item>
+        <el-form-item label="审核意见">
+          <el-input v-model="auditProductionRemark" type="textarea" :rows="3" placeholder="可选" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="auditProductionDialogVisible = false">取消</el-button>
+        <el-button type="success" :loading="auditProductionLoading" @click="confirmAuditProduction(true)">通过</el-button>
+        <el-button type="danger" :loading="auditProductionLoading" @click="confirmAuditProduction(false)">驳回</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 流程抽屉 -->
     <FlowDrawer
       v-model="flowDrawerVisible"
@@ -319,7 +358,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight, Tools, ArrowDown } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, acceptOrder, updateProduction, getOrderDetail } from '@/api/order';
+import { getOrderList, acceptOrder, updateProduction, getOrderDetail, auditProduction } from '@/api/order';
 import { getCustomerList } from '@/api/customer';
 import { dictApi } from '@/api/dict';
 import { createBill } from '@/api/bill';
@@ -346,6 +385,11 @@ const dateRange = ref([]);
 
 // 状态更新弹窗
 const statusDialogVisible = ref(false);
+const auditProductionDialogVisible = ref(false);
+const auditProductionRow = ref(null);
+const auditProductionApproved = ref(true);
+const auditProductionRemark = ref('');
+const auditProductionLoading = ref(false);
 const statusLoading = ref(false);
 const currentOrder = ref(null);
 const selectedStatus = ref('');
@@ -382,7 +426,7 @@ const statusMap = {
   stoneCutting: { text: '车石', type: 'primary' },
   microInlay: { text: '微镶', type: 'primary' },
   handInlay: { text: '手镶', type: 'primary' },
-  polishing: { text: '制作完成', type: 'success' },
+  polishing: { text: '制作完成待审核', type: 'warning' },
   billPending: { text: '账单待审核', type: 'warning' },
   billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
@@ -460,6 +504,7 @@ const handleRowAction = (cmd, row) => {
     case 'bill': handleGenerateBill(row); break;
     case 'edit': goFactoryEdit(row.orderId); break;
     case 'downloadPackage': downloadOrderPackage(row); break;
+    case 'auditProduction': openAuditProductionDialog(row); break;
     case 'view': viewDetail(row.orderId); break;
   }
 };
@@ -500,6 +545,10 @@ const getDateRange = () => {
   const startDateStr = startDate.toISOString().split('T')[0];
   
   return [startDateStr, endDate];
+};
+
+const viewBill = (billId) => {
+  router.push(`/order/bill/detail/${billId}`);
 };
 
 // ============================================================
@@ -732,6 +781,41 @@ const handleAccept = async (row) => {
 // ============================================================
 // 生成账单
 // ============================================================
+// Audit production dialog string constants
+const AUDIT_PRODUCTION_TITLES = {
+  pass: '通过审核，订单将进入【已完成】状态',
+  reject: '驳回审核，订单将回到【工厂编辑】状态',
+};
+
+const openAuditProductionDialog = (row) => {
+  auditProductionRow.value = row;
+  auditProductionApproved.value = true;
+  auditProductionRemark.value = '';
+  auditProductionDialogVisible.value = true;
+};
+
+const confirmAuditProduction = async (approved) => {
+  if (!auditProductionRow.value) return;
+  auditProductionLoading.value = true;
+  try {
+    const res = await auditProduction(auditProductionRow.value.orderId, {
+      approved,
+      remark: auditProductionRemark.value,
+    });
+    if (res.success) {
+      ElMessage.success(res.data?.message || (approved ? '审核通过' : '已驳回'));
+      auditProductionDialogVisible.value = false;
+      loadData();
+    } else {
+      ElMessage.error(res.message || '操作失败');
+    }
+  } catch (error) {
+    ElMessage.error(error.message || '审核失败');
+  } finally {
+    auditProductionLoading.value = false;
+  }
+};
+
 const handleGenerateBill = (row) => {
   router.push(`/order/bill/create?orderIds=${row.orderId}`);
 };

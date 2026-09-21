@@ -543,6 +543,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight, Plus } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getLrList, deleteLr, generateLr, getAvailableBillsForLr, getLrCustomers, getLrCurrentNode, getLrNodeActions, executeLrAction } from '@/api/lr';
+import { getCustomerShangdan } from '@/api/inventoryMonthly';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -602,10 +603,26 @@ const handlePreview = async (row) => {
       
       // 加载上单汇总数据（和editor逻辑一致）
       if (res.data.customerId) {
-        const customerRes = await getCustomerSummary(res.data.customerId)
+        const recordDate = res.data.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0]
+        const customerRes = await getCustomerShangdan(res.data.customerId, recordDate)
         if (customerRes?.success && customerRes?.data) {
-          prevData.value.summary = customerRes.data.summary || prevData.value.summary
-          prevData.value.details = customerRes.data.details || []
+          const d = customerRes.data
+          prevData.value.summary = {
+            totalSale: d.totalAmount || 0,
+            totalCost: 0,
+            totalProfit: d.totalProfit || 0,
+            totalDiamondProfit: d.diamondProfit || 0,
+            totalGoldProfit: d.goldProfit || 0,
+            totalSettingProfit: d.settingProfit || 0,
+            totalLaborProfit: d.laborProfit || 0,
+            totalNetWeight: d.netWeight || 0,
+            totalAddLossWeight: d.addLossWeight || 0
+          }
+          prevData.value.details = (d.materials || []).map(m => ({
+            color: m.color,
+            netWeight: m.manualNetWeight,
+            addLossWeight: m.manualAddLossWeight
+          }))
         }
       }
     }

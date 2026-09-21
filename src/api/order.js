@@ -1,4 +1,4 @@
-// src/api/order.js
+﻿// src/api/order.js
 import api from './index';
 
 // ===== 创建订单 =====
@@ -129,6 +129,11 @@ export const auditOrderModify = (requestId, data) => {
 export const confirmOrderModify = (orderId) => {
   return api.post(`/order/${orderId}/modify/confirm`);
 };
+// ⭐ 工厂审核员：审核制作完成
+export const auditProduction = (id, data) => {
+  return api.post(`/order/${id}/audit-production`, data);
+};
+
 
 // 撤回修改申请
 export const withdrawOrderModify = (requestId) => {

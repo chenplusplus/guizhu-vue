@@ -1,4 +1,4 @@
-<!-- src/views/order/bill-edit.vue -->
+﻿<!-- src/views/order/bill-edit.vue -->
 <template>
   <div class="page-container" v-loading="loading">
     <!-- ===== 页面头部 ===== -->
@@ -43,6 +43,22 @@
           </el-col>
           <el-col :xs="12" :sm="4">
             <div class="info-item"><span class="label">合计件数：</span><span class="value">{{ totalQuantity }}</span></div>
+          </el-col>
+          <el-col :xs="12" :sm="3">
+            <div class="info-item"><span class="label">应收足料：</span>
+              <el-tooltip placement="top" effect="dark">
+                <template #content>仅统计按克计料订单（未折现金）</template>
+                <span class="value" style="color:#E6A23C;font-weight:bold;">{{ totalMaterialWeight.toFixed(3) }}g</span>
+              </el-tooltip>
+            </div>
+          </el-col>
+          <el-col v-if="userStore.isFactoryOrder || userStore.isAdmin" :xs="12" :sm="3">
+            <div class="info-item"><span class="label">折足金料(内部)：</span>
+              <el-tooltip placement="top" effect="dark">
+                <template #content>含折现金订单折算克重</template>
+                <span class="value" style="color:#909399;">{{ totalInternalWeight.toFixed(3) }}g</span>
+              </el-tooltip>
+            </div>
           </el-col>
           <el-col :xs="12" :sm="4">
             <div class="info-item"><span class="label">应收合计：</span>
@@ -176,6 +192,12 @@
             <el-table-column label="足金料" width="95">
               <template #default="{ row }">
                 <el-input-number v-model="row.goldMaterialFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
+              </template>
+            </el-table-column>
+            <el-table-column label="折足金料" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.goldConvertCash" type="warning" size="small">折现</el-tag>
+                <span v-else style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
               </template>
             </el-table-column>
 
@@ -395,6 +417,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Document, Select } from '@element-plus/icons-vue';
 import { getBillDetail, updateBillDetails, submitBillAudit, generateLr, returnBillItem } from '@/api/bill';
+import { useUserStore } from '@/stores/user';
+const userStore = useUserStore();
 
 const route = useRoute();
 const router = useRouter();
@@ -446,6 +470,17 @@ const totalNetWeightSum = computed(() => {
 
 const totalGoldFee = computed(() => {
   return activeDetails.value.reduce((sum, row) => sum + (row.goldMaterialFee || 0), 0);
+});
+
+const totalMaterialWeight = computed(() => {
+  return activeDetails.value.reduce((sum, row) => {
+    if (row.goldConvertCash) return sum;
+    return sum + (row.goldMaterialWeight || 0);
+  }, 0);
+});
+
+const totalInternalWeight = computed(() => {
+  return activeDetails.value.reduce((sum, row) => sum + (row.goldMaterialWeight || 0), 0);
 });
 
 const totalLaborFee = computed(() => {

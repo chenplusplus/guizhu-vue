@@ -325,7 +325,8 @@ import { useRoute } from 'vue-router';
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Download, Upload } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getLrTable, saveLr, generateLr, exportLr, getCustomerSummary, getLrCurrentNode, getLrNodeActions, executeLrAction } from '@/api/lr';
+import { getLrTable, saveLr, generateLr, exportLr, getLrCurrentNode, getLrNodeActions, executeLrAction } from '@/api/lr';
+import { getCustomerShangdan } from '@/api/inventoryMonthly';
 import * as XLSX from 'xlsx';
 
 const route = useRoute();
@@ -612,24 +613,31 @@ const getProfitClass = (value) => {
 const loadPrevData = async () => {
   const customerId = lrInfo.value?.customerId;
   if (!customerId) return;
+  const recordDate = lrInfo.value?.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0];
   try {
-    const res = await getCustomerSummary(customerId);
+    const res = await getCustomerShangdan(customerId, recordDate);
     if (res?.success && res?.data) {
-      prevData.value.summary = res.data.summary || {
-        totalSale: 0,
+      const d = res.data;
+      prevData.value.summary = {
+        totalSale: d.totalAmount || 0,
         totalCost: 0,
-        totalProfit: 0,
-        totalDiamondProfit: 0,
-        totalGoldProfit: 0,
-        totalSettingProfit: 0,
-        totalLaborProfit: 0,
-        totalNetWeight: 0,
-        totalAddLossWeight: 0
+        totalProfit: d.totalProfit || 0,
+        totalDiamondProfit: d.diamondProfit || 0,
+        totalGoldProfit: d.goldProfit || 0,
+        totalSettingProfit: d.settingProfit || 0,
+        totalLaborProfit: d.laborProfit || 0,
+        totalNetWeight: d.netWeight || 0,
+        totalAddLossWeight: d.addLossWeight || 0
       };
-      prevData.value.details = res.data.details || [];
+      // 材料
+      prevData.value.details = (d.materials || []).map(m => ({
+        color: m.color,
+        netWeight: m.manualNetWeight,
+        addLossWeight: m.manualAddLossWeight
+      }));
     }
   } catch (e) {
-    console.error('加载上单数据失败:', e);
+    console.error('加载上单失败:', e);
   }
 };
 

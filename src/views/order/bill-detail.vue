@@ -1,4 +1,4 @@
-<!-- src/views/order/bill-detail.vue -->
+﻿<!-- src/views/order/bill-detail.vue -->
 <template>
   <div class="page-container" v-loading="loading">
     <!-- ===== 页面头部 ===== -->
@@ -212,6 +212,12 @@
             <el-table-column prop="goldMaterialFee" label="足金料" width="90" align="right">
               <template #default="{ row }">{{ row.goldMaterialFee || '-' }}</template>
             </el-table-column>
+            <el-table-column label="折足金料" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.goldConvertCash" type="warning" size="small">折现</el-tag>
+                <span v-else style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
+              </template>
+            </el-table-column>
 
             <!-- 主石 -->
             <el-table-column label="主石" align="center">
@@ -308,7 +314,15 @@
             <div class="summary-item">
               <span class="label">本单应收足料</span>
               <span class="value" style="color:#E6A23C;font-weight:bold;">
-                {{ (billData?.currentMaterial || 0).toFixed(3) }}g
+                {{ (billData?.currentMaterialWeight || 0).toFixed(3) }}g
+              </span>
+            </div>
+          </el-col>
+          <el-col v-if="userStore.isFactoryOrder || userStore.isAdmin" :xs="12" :sm="6">
+            <div class="summary-item">
+              <span class="label">折足金料（内部）</span>
+              <span class="value" style="color:#909399;">
+                {{ (billData?.internalMaterialWeight || 0).toFixed(3) }}g
               </span>
             </div>
           </el-col>

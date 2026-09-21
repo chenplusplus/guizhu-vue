@@ -1,4 +1,4 @@
-<!-- src/views/order/bill-my-list.vue -->
+﻿<!-- src/views/order/bill-my-list.vue -->
 <template>
   <div class="page-container">
     <div class="page-header">
@@ -182,7 +182,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="currentMaterial" label="应收足料" width="100" align="right">
+      <el-table-column prop="currentMaterialWeight" label="应收足料" width="100" align="right">
         <template #default="{ row }">
           {{ (row.currentMaterial || 0).toFixed(3) }}g
         </template>

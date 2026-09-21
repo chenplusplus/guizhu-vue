@@ -1,4 +1,4 @@
-<!-- src/views/order/factory-history.vue -->
+﻿<!-- src/views/order/factory-history.vue -->
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
     <div class="page-header">
@@ -89,6 +89,16 @@
           <el-tag :type="row.flowStatus === 'completed' ? 'success' : 'info'" size="default" effect="light">
             {{ row.flowStatus === 'completed' ? '已完成' : '已取消' }}
           </el-tag>
+        </template>
+      </el-table-column>
+
+      <!-- 账单列 -->
+      <el-table-column label="账单" width="120" align="center">
+        <template #default="{ row }">
+          <el-link v-if="row.billId" type="primary" @click.stop="viewBill(row.billId)">
+            {{ row.billNo || '账单' }}
+          </el-link>
+          <span v-else>-</span>
         </template>
       </el-table-column>
 

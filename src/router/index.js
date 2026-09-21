@@ -29,7 +29,7 @@ const routes = [
       {
         path: 'dashboard',
         name: 'Dashboard',
-        component: () => import('@/views/dashboard/index.vue'),
+        component: () => import('@/views/dashboard/Index.vue'),
         meta: { title: '工作台' }
       },
 
@@ -63,6 +63,18 @@ const routes = [
         name: 'InventoryDetail',
         component: () => import('@/views/inventory/detail.vue'),
         meta: { title: '盘点详情', hidden: true }
+      },
+      {
+        path: 'inventory/monthly',
+        name: 'InventoryMonthly',
+        component: () => import('@/views/inventory/monthly-list.vue'),
+        meta: { title: '月度盘点' }
+      },
+      {
+        path: 'inventory/monthly/:yearMonth',
+        name: 'InventoryMonthlyDetail',
+        component: () => import('@/views/inventory/monthly-detail.vue'),
+        meta: { title: '月度盘点详情', hidden: true }
       },
       { 
         path: 'order/audit', 
@@ -116,6 +128,12 @@ const routes = [
         name: 'OrderDetail',
         component: () => import('@/views/order/detail.vue'),
         meta: { title: '订单详情' }
+      },
+      {
+        path: 'order/factory-production-audit',
+        name: 'FactoryProductionAudit',
+        component: () => import('@/views/order/factory-production-audit.vue'),
+        meta: { title: '制作审核', roles: ['factoryAudit', 'admin'] }
       },
       {
         path: 'order/modify-list',
