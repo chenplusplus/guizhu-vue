@@ -1,6 +1,6 @@
 ﻿<!-- src/views/order/list.vue -->
 <template>
-  <div class="page-container">
+  <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
     <div class="page-header">
       <h2>📋 订单列表</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -19,19 +19,75 @@
       </div>
     </div>
 
-    <!-- ⭐ 顶部统计卡片 -->
-    <div v-show="!isFullscreen" class="stats-wrapper">
-      <div
-        v-for="item in statusStats"
-        :key="item.key"
-        class="stat-item"
-        :style="{ borderLeftColor: item.color }"
-        @click="filterByStatus(item.key)"
-      >
-        <span class="stat-num" :style="{ color: item.color }">{{ item.count }}</span>
-        <span class="stat-label">{{ item.label }}</span>
-        <span class="stat-mine" v-if="item.mineCount > 0">(我的: {{ item.mineCount }})</span>
-      </div>
+    <!-- ⭐ 一级 Tab -->
+    <div v-show="!isFullscreen" class="order-tabs-wrapper">
+      <el-tabs v-model="activeTab" @tab-change="onTabChange" class="order-tabs">
+        <el-tab-pane name="pending">
+          <template #label>
+            <span class="tab-label">
+              待处理
+              <el-badge v-if="tabCounts.pending > 0" :value="tabCounts.pending" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="waitingFactory">
+          <template #label>
+            <span class="tab-label">
+              待工厂接单
+              <el-badge v-if="tabCounts.waitingFactory > 0" :value="tabCounts.waitingFactory" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="factoryProcessing">
+          <template #label>
+            <span class="tab-label">
+              制作中
+              <el-badge v-if="tabCounts.factoryProcessing > 0" :value="tabCounts.factoryProcessing" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="productionAudit">
+          <template #label>
+            <span class="tab-label">
+              制作完成待审核
+              <el-badge v-if="tabCounts.productionAudit > 0" :value="tabCounts.productionAudit" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="completed">
+          <template #label>
+            <span class="tab-label">
+              已完成
+              <el-badge v-if="tabCounts.completed > 0" :value="tabCounts.completed" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="all">
+          <template #label>
+            <span class="tab-label">
+              全部
+              <el-badge v-if="tabCounts.total > 0" :value="tabCounts.total" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+
+    <!-- ⭐ 二级子筛选（只在"制作中"显示） -->
+    <div v-show="!isFullscreen && activeTab === 'factoryProcessing'" class="sub-tabs-wrapper">
+      <el-radio-group v-model="subStatus" @change="onSubStatusChange">
+        <el-radio-button value="">全部节点</el-radio-button>
+        <el-radio-button
+          v-for="item in productionStatuses"
+          :key="item.value"
+          :value="item.value"
+        >
+          {{ item.label }}
+          <span v-if="getSubStatusCount(item.value) > 0" class="sub-count">
+            {{ getSubStatusCount(item.value) }}
+          </span>
+        </el-radio-button>
+      </el-radio-group>
     </div>
 
     <!-- 搜索栏 -->
@@ -45,14 +101,6 @@
             style="width: 200px;"
             @keyup.enter="handleSearch"
           />
-        </el-form-item>
-
-        <el-form-item label="状态">
-          <el-select v-model="query.status" placeholder="全部状态" clearable style="width: 140px;" @change="handleSearch">
-            <el-option label="全部" value="" />
-            <el-option label="进行中" value="running" />
-            <el-option label="已完成" value="completed" />
-          </el-select>
         </el-form-item>
 
         <el-form-item label="日期">
@@ -74,7 +122,6 @@
           <el-button @click="resetQuery">
             <el-icon><RefreshRight /></el-icon> 重置
           </el-button>
-
         </el-form-item>
       </el-form>
     </div>
@@ -220,24 +267,22 @@
       <!-- ⭐ 操作列 -->
       <el-table-column v-if="!isFullscreen" label="操作" width="280" fixed="right" align="center">
         <template #default="{ row }">
-          <!-- 查看：所有人都可以 -->
+          <!-- 查看 -->
           <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
             查看
           </el-button>
 
-          <!-- 再次下单：所有人都可以 -->
-          <el-button
-            size="small"
-            type="success"
-            link
-            @click.stop="handleReOrder(row)"
-          >
+          <!-- 再次下单 -->
+          <el-button size="small" type="success" link @click.stop="handleReOrder(row)">
             再次下单
           </el-button>
 
+          <!-- 预警 -->
           <el-button size="small" type="danger" link @click.stop="openAlertDialog(row)">
             预警
           </el-button>
+
+          <!-- 申请修改（草稿/驳回状态显示，因为要改得先走草稿流程） -->
           <el-button
             v-if="canApplyModifyRow(row)"
             size="small"
@@ -247,7 +292,8 @@
           >
             申请修改
           </el-button>
-          <!-- ⭐ 只有自己的订单才显示操作按钮 -->
+
+          <!-- 自己的订单才显示 -->
           <template v-if="isMine(row)">
             <el-button
               v-if="row.flowStatus === 'draft'"
@@ -285,7 +331,7 @@
             </el-button>
           </template>
 
-          <!-- ⭐ 别人的订单显示只读 -->
+          <!-- 别人的订单只读 -->
           <el-tag v-else size="small" type="info" effect="plain">只读</el-tag>
         </template>
       </el-table-column>
@@ -389,8 +435,9 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit ,applyOrderModify } from '@/api/order';
+import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit, applyOrderModify } from '@/api/order';
 import { createManualAlert } from '@/api/alert';
+import { dictApi } from '@/api/dict';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -432,9 +479,7 @@ const isAllSelected = computed(() => {
 
 const toggleAllColumns = (val) => {
   allColumns.value.forEach(col => {
-    if (!col.fixed) {
-      col.visible = val;
-    }
+    if (!col.fixed) col.visible = val;
   });
 };
 
@@ -480,7 +525,7 @@ const handleSelectionChange = (selection) => {
   selectedOrders.value = selection;
 };
 
-// ===== ⭐ 判断是否为自己的订单 =====
+// ===== 判断是否为自己的订单 =====
 const isMine = (row) => {
   return Number(row.submittedBy) === Number(userStore.userId);
 };
@@ -491,52 +536,37 @@ const statusMap = {
   pending: { text: '待客户审核', type: 'warning', color: '#E6A23C' },
   customeraudited: { text: '待工厂接单', type: 'success', color: '#67C23A' },
   factory_edit: { text: '工厂编辑中', type: 'primary', color: '#409EFF' },
-  polishing: { text: '制作完成', type: 'primary', color: '#409EFF' },
-  billPending: { text: '账单待审核', type: 'warning', color: '#E6A23C' },
-  billConfirmed: { text: '客户已确认', type: 'success', color: '#67C23A' },
+  accepted: { text: '已接单', type: 'primary', color: '#409EFF' },
+  dataConfirm: { text: '数据确认', type: 'primary', color: '#409EFF' },
+  waxing: { text: '出蜡', type: 'primary', color: '#409EFF' },
+  molded: { text: '倒模', type: 'primary', color: '#409EFF' },
+  cnc: { text: 'CNC', type: 'primary', color: '#409EFF' },
+  partsMissing: { text: '配件缺失', type: 'warning', color: '#E6A23C' },
+  stoneReady: { text: '配石完成', type: 'primary', color: '#409EFF' },
+  setting: { text: '执模', type: 'primary', color: '#409EFF' },
+  glue: { text: '滴胶/磨石', type: 'primary', color: '#409EFF' },
+  inlay: { text: '镶嵌', type: 'primary', color: '#409EFF' },
+  assembly: { text: '组装', type: 'primary', color: '#409EFF' },
+  polishing: { text: '制作完成待审核', type: 'warning', color: '#E6A23C' },
   completed: { text: '已完成', type: 'success', color: '#67C23A' },
   rejected: { text: '已驳回', type: 'danger', color: '#F56C6C' },
   cancelled: { text: '已取消', type: 'info', color: '#909399' },
+  scrapped: { text: '已报废', type: 'danger', color: '#F56C6C' },
+  unqualifiedReturn: { text: '不合格退回', type: 'danger', color: '#F56C6C' },
 };
 
 const getStatusText = (status) => statusMap[status]?.text || status || '-';
 const getStatusType = (status) => statusMap[status]?.type || 'info';
 
-// ===== ⭐ 行样式 =====
+// ===== 行样式 =====
 const getRowClassName = ({ row }) => {
   if (row.warnFlag || row.alertReason) return 'row-alert';
   return isMine(row) ? 'row-mine' : 'row-other';
 };
 
-// ===== ⭐ 统计卡片（含"我的"数量） =====
-const statusStats = computed(() => {
-  const counts = {};
-  const mineCounts = {};
-  const userId = Number(userStore.userId);
-
-  tableData.value.forEach(item => {
-    const key = item.flowStatus || 'unknown';
-    counts[key] = (counts[key] || 0) + 1;
-    if (Number(item.submittedBy) === userId) {
-      mineCounts[key] = (mineCounts[key] || 0) + 1;
-    }
-  });
-
-  return Object.keys(statusMap)
-    .filter(key => counts[key] > 0)
-    .map(key => ({
-      key,
-      label: statusMap[key].text,
-      color: statusMap[key].color,
-      count: counts[key] || 0,
-      mineCount: mineCounts[key] || 0,
-    }));
-});
-
 // ===== 查询参数 =====
 const query = reactive({
   keyword: '',
-  status: 'running',
   dateRange: [],
   orderBy: 'createdAt',
   descending: true,
@@ -551,7 +581,7 @@ const pagination = reactive({
 const tableData = ref([]);
 const loading = ref(false);
 
-// ⭐ 全屏
+// ===== 全屏 =====
 const isFullscreen = ref(false);
 const toggleFullscreen = () => {
   isFullscreen.value = !isFullscreen.value;
@@ -573,6 +603,74 @@ const alertTarget = ref(null);
 const alertForm = reactive({ reason: '', remark: '' });
 const alertRules = { reason: [{ required: true, message: '请输入预警说明', trigger: 'blur' }] };
 
+// ===== ⭐ 一级 Tab =====
+const activeTab = ref('pending');
+const subStatus = ref('');
+const productionStatuses = ref([]);
+const tabCounts = reactive({
+  pending: 0,
+  waitingFactory: 0,
+  factoryProcessing: 0,
+  productionAudit: 0,
+  completed: 0,
+  total: 0,
+});
+const subStatusCounts = ref({});
+
+// Tab 与状态映射
+const TAB_STATUS_MAP = {
+  pending: ['draft', 'pending', 'rejected'],
+  waitingFactory: ['customeraudited'],
+  factoryProcessing: [
+    'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded',
+    'cnc', 'partsMissing', 'stoneReady', 'setting', 'glue',
+    'inlay', 'assembly'
+  ],
+  productionAudit: ['polishing'],
+  completed: ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn'],
+  all: null,
+};
+
+const matchTab = (order, tab) => {
+  const statuses = TAB_STATUS_MAP[tab];
+  if (!statuses) return true;
+  return statuses.includes(order.flowStatus);
+};
+
+const updateTabCounts = (list) => {
+  tabCounts.pending = list.filter(x => TAB_STATUS_MAP.pending.includes(x.flowStatus)).length;
+  tabCounts.waitingFactory = list.filter(x => TAB_STATUS_MAP.waitingFactory.includes(x.flowStatus)).length;
+  tabCounts.factoryProcessing = list.filter(x => TAB_STATUS_MAP.factoryProcessing.includes(x.flowStatus)).length;
+  tabCounts.productionAudit = list.filter(x => TAB_STATUS_MAP.productionAudit.includes(x.flowStatus)).length;
+  tabCounts.completed = list.filter(x => TAB_STATUS_MAP.completed.includes(x.flowStatus)).length;
+  tabCounts.total = list.length;
+};
+
+const updateSubStatusCounts = (list) => {
+  const counts = {};
+  list.forEach(x => {
+    if (TAB_STATUS_MAP.factoryProcessing.includes(x.flowStatus)) {
+      counts[x.flowStatus] = (counts[x.flowStatus] || 0) + 1;
+    }
+  });
+  subStatusCounts.value = counts;
+};
+
+const getSubStatusCount = (status) => {
+  return subStatusCounts.value[status] || 0;
+};
+
+const onTabChange = () => {
+  subStatus.value = '';
+  pagination.current = 1;
+  loadData();
+};
+
+const onSubStatusChange = () => {
+  pagination.current = 1;
+  loadData();
+};
+
 // ===== 获取默认日期范围（7天前 ~ 今天） =====
 const getDefaultDateRange = () => {
   const today = new Date();
@@ -587,12 +685,6 @@ const getDefaultDateRange = () => {
   };
 
   return [format(sevenDaysAgo), format(today)];
-};
-
-// ===== 快捷筛选 =====
-const filterByStatus = (status) => {
-  query.status = status;
-  handleSearch();
 };
 
 // ===== 点击行查看流程 =====
@@ -662,10 +754,7 @@ const canDelete = (row) => {
   return status === 'draft' || status === 'rejected';
 };
 
-
-
-// ============================================================
-// ⭐ 工厂可编辑阶段（跟后端 FlowStatus.FactoryEditableStatuses 对齐）
+// ===== 工厂可编辑阶段 =====
 const FACTORY_EDITABLE = [
   'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
   'stoneReady', 'setting', 'glue', 'inlay', 'assembly', 'polishing', 'billRejected'
@@ -725,11 +814,11 @@ const viewBill = (billId) => {
 const loadData = async () => {
   loading.value = true;
   try {
+    // ⭐ 一次拉全部，前端过滤 + 分页（第 1 步临时方案）
     const params = {
       keyword: query.keyword || undefined,
-      status: query.status || undefined,
-      page: pagination.current,
-      pageSize: pagination.pageSize,
+      page: 1,
+      pageSize: 1000,
       orderBy: query.orderBy,
       descending: query.descending,
     };
@@ -743,30 +832,32 @@ const loadData = async () => {
 
     let data = res?.data || res || {};
     let list = [];
-    let total = 0;
 
-    if (Array.isArray(data)) {
-      list = data;
-      total = data.length;
-    } else if (data.items && Array.isArray(data.items)) {
-      list = data.items;
-      total = data.total || data.items.length;
-    } else if (data.list && Array.isArray(data.list)) {
-      list = data.list;
-      total = data.total || data.list.length;
-    } else if (data.rows && Array.isArray(data.rows)) {
-      list = data.rows;
-      total = data.count || data.rows.length;
-    } else if (data.data && Array.isArray(data.data)) {
-      list = data.data;
-      total = data.total || data.data.length;
-    } else {
-      list = Array.isArray(data) ? data : [];
-      total = list.length;
+    if (Array.isArray(data)) list = data;
+    else if (data.items && Array.isArray(data.items)) list = data.items;
+    else if (data.data && Array.isArray(data.data)) list = data.data;
+    else list = [];
+
+    // ⭐ 只显示自己提交的
+    list = list.filter(x => Number(x.submittedBy) === Number(userStore.userId));
+
+    // ⭐ 更新 Tab 数量（从全量算）
+    updateTabCounts(list);
+    updateSubStatusCounts(list);
+
+    // ⭐ 按 tab 过滤
+    let filtered = list.filter(x => matchTab(x, activeTab.value));
+
+    // ⭐ 按 subStatus 过滤
+    if (activeTab.value === 'factoryProcessing' && subStatus.value) {
+      filtered = filtered.filter(x => x.flowStatus === subStatus.value);
     }
 
-    tableData.value = list;
-    pagination.total = total;
+    // ⭐ 前端分页
+    pagination.total = filtered.length;
+    const start = (pagination.current - 1) * pagination.pageSize;
+    tableData.value = filtered.slice(start, start + pagination.pageSize);
+
   } catch (error) {
     ElMessage.error(error.message || '加载数据失败');
     tableData.value = [];
@@ -778,7 +869,6 @@ const loadData = async () => {
 
 const resetQuery = () => {
   query.keyword = '';
-  query.status = 'running';
   query.dateRange = getDefaultDateRange();
   query.orderBy = 'createdAt';
   query.descending = true;
@@ -811,10 +901,6 @@ const handleSingleSubmit = async (row) => {
     }
   }
 };
-//审核预览
-const openAuditPreview = () => {
-  window.open('/audit-preview', '_blank', `width=${screen.availWidth},height=${screen.availHeight},menubar=no,toolbar=no,location=no`)
-}
 
 // ============================================================
 // 删除
@@ -829,11 +915,6 @@ const handleDelete = (row) => {
     .catch(() => {});
 };
 
-//审核预览
-const openPreview = (row) => {
-  // 打开新窗口，去掉菜单栏、工具栏、地址栏
- window.open('/audit-preview', '_blank')
-}
 // ============================================================
 // 审核
 // ============================================================
@@ -863,10 +944,6 @@ const confirmAudit = async (approved) => {
   } finally {
     auditLoading.value = false;
   }
-};
-
-const exportData = () => {
-  ElMessage.info('导出功能开发中...');
 };
 
 // ============================================================
@@ -909,10 +986,19 @@ const formatDateTime = (date) => {
 // ============================================================
 // 初始化
 // ============================================================
-onMounted(() => {
+onMounted(async () => {
   loadColumnSettings();
   query.dateRange = getDefaultDateRange();
-  query.status = 'running';
+
+  // 加载制作节点字典
+  try {
+    const res = await dictApi.getItemsByKey('production_status');
+    productionStatuses.value = (res?.data || []).map(item => ({
+      value: item.itemValue,
+      label: item.itemLabel || item.itemValue,
+    }));
+  } catch {}
+
   loadData();
   window.addEventListener('keydown', handleEsc);
 });
@@ -944,45 +1030,52 @@ onUnmounted(() => {
   margin: 0;
 }
 
-/* ===== 统计卡片 ===== */
-.stats-wrapper {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-  background: #fafbfc;
-  padding: 10px 16px;
-  border-radius: 8px;
-  border: 1px solid #e8ecf1;
+/* ===== 一级 Tab ===== */
+.order-tabs-wrapper {
+  margin-bottom: 8px;
 }
-
-.stat-item {
-  display: flex;
+.order-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+}
+.order-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+  font-weight: 500;
+  height: 48px;
+  line-height: 48px;
+}
+.tab-label {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 12px 4px 10px;
-  border-left: 3px solid #ddd;
-  cursor: pointer;
-  transition: all 0.2s;
-  border-radius: 4px;
 }
-.stat-item:hover {
-  background: #f0f4f9;
-}
-.stat-item .stat-num {
-  font-size: 18px;
-  font-weight: 600;
-}
-.stat-item .stat-label {
-  font-size: 13px;
-  color: #606266;
-}
-.stat-item .stat-mine {
-  font-size: 12px;
-  color: #909399;
-  margin-left: 2px;
+.tab-badge :deep(.el-badge__content) {
+  transform: translateY(-2px) translateX(4px);
+  font-size: 11px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 5px;
+  border: none;
 }
 
+/* ===== 二级子筛选 ===== */
+.sub-tabs-wrapper {
+  margin-bottom: 12px;
+  background: #fafbfc;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid #e8ecf1;
+}
+.sub-tabs-wrapper :deep(.el-radio-button__inner) {
+  font-size: 13px;
+}
+.sub-count {
+  display: inline-block;
+  margin-left: 4px;
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+/* ===== 搜索栏 ===== */
 .search-bar {
   background: #f5f7fa;
   padding: 12px 16px;
@@ -1034,18 +1127,15 @@ onUnmounted(() => {
   font-size: 16px;
   line-height: 1;
 }
-
 .order-flags {
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
-
 .order-warning-flag,
 .order-urgent-flag {
   color: #f56c6c;
 }
-
 .order-flag-placeholder {
   color: #c0c4cc;
 }
@@ -1064,6 +1154,7 @@ onUnmounted(() => {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
+
 /* ===== 全屏模式 ===== */
 .page-container.is-fullscreen {
   position: fixed;
@@ -1075,38 +1166,31 @@ onUnmounted(() => {
   border-radius: 0;
   min-height: 100vh;
 }
-
 .table-fullscreen {
   font-size: 16px;
 }
-
 .table-fullscreen :deep(.el-table__cell) {
   font-size: 16px !important;
   padding: 14px 10px !important;
 }
-
 .table-fullscreen :deep(.el-table__header .el-table__cell) {
   font-size: 17px !important;
   font-weight: 700 !important;
   padding: 16px 10px !important;
   background: #f5f7fa !important;
 }
-
 .table-fullscreen :deep(.el-table .cell) {
   line-height: 1.6;
 }
-
 .table-fullscreen :deep(.el-image) {
   width: 80px !important;
   height: 80px !important;
 }
-
 .table-fullscreen :deep(.el-tag) {
   font-size: 15px !important;
   padding: 6px 12px !important;
   height: auto !important;
 }
-
 .table-fullscreen :deep(.el-link) {
   font-size: 16px !important;
 }

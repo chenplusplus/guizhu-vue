@@ -47,6 +47,11 @@
               <el-input v-model="form.content" placeholder="请输入内容" />
             </el-form-item>
           </el-col>
+          <el-col :span="6">
+            <el-form-item label="录入人">
+              <el-input v-model="form.createByName" placeholder="默认登录人，可改" />
+            </el-form-item>
+          </el-col>
         </el-row>
 
         <el-divider content-position="left">计算</el-divider>
@@ -236,8 +241,15 @@ const form = reactive({
   orderNo: '',
   remark: '',
   productName: '',
-  content: ''
+  content: '',
+  createByName: ''
 })
+
+const currentUserName = ref('')
+try {
+  const ui = JSON.parse(localStorage.getItem('userInfo') || '{}')
+  currentUserName.value = ui.realName || ui.name || ''
+} catch {}
 
 const lastTotal = reactive({
   lastTotalFold: 0,
@@ -423,6 +435,7 @@ const handleReset = () => {
   form.remark = ''
   form.productName = ''
   form.content = ''
+  form.createByName = currentUserName.value
 }
 
 onMounted(async () => {
@@ -431,9 +444,14 @@ onMounted(async () => {
   if (route.query.id) {
     try {
       const res = await getGoldById(route.query.id)
-      if (res.success) Object.assign(form, res.data)
+      if (res.success) {
+        Object.assign(form, res.data)
+        if (form.recordDate && form.recordDate.length > 10) form.recordDate = form.recordDate.slice(0, 10)
+        if (!form.createByName) form.createByName = currentUserName.value
+      }
     } catch {}
   }
+  if (!form.createByName) form.createByName = currentUserName.value
   loadLastTotal()
 })
 </script>

@@ -112,7 +112,7 @@
           <el-button type="danger" size="small" @click="handleAudit(row, false)">
             驳回
           </el-button>
-          <el-button type="primary" size="small" link @click="viewDetail(row.orderId)">
+          <el-button type="primary" size="small" link @click="openPreview(row)">
             查看
           </el-button>
         </template>
@@ -167,6 +167,9 @@
         <el-button type="danger" :loading="auditLoading" @click="confirmAudit(false)">驳回</el-button>
       </template>
     </el-dialog>
+
+    <!-- ⭐ 全屏预览弹窗 -->
+   <OrderPreviewDialog v-model="previewVisible" :order-id="previewOrderId" />
   </div>
 </template>
 
@@ -176,6 +179,8 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
 import { getOrderList, auditProduction } from '@/api/order';
+import OrderPreviewDialog from '@/components/OrderPreviewDialog.vue';
+
 
 const router = useRouter();
 
@@ -187,7 +192,14 @@ const handleEsc = (e) => { if (e.key === 'Escape' && isFullscreen.value) isFulls
 const tableData = ref([]);
 const keyword = ref('');
 const dateRange = ref([]);
+// 预览弹窗
+const previewVisible = ref(false);
+const previewOrderId = ref(null);
 
+const openPreview = (row) => {
+  previewOrderId.value = row.orderId;
+  previewVisible.value = true;
+};
 const pagination = reactive({
   current: 1,
   pageSize: 20,

@@ -89,7 +89,13 @@
             </el-table-column>
             <el-table-column prop="lossRate" label="损耗" width="65" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.lossRate" size="small" class="cell-input" @input="onCellChange(row)" />
+                <el-input
+                  v-if="row.rowType === 'cost' && canEdit"
+                  v-model.number="row.lossRate"
+                  size="small"
+                  class="cell-input"
+                  @change="onCellChange(row)"
+                />
                 <span v-else>{{ row.lossRate || '-' }}</span>
               </template>
             </el-table-column>
@@ -106,80 +112,98 @@
                 <span v-else>{{ row.goldPrice || '-' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="center">
+            <!-- ⭐ 足金料：销售行只读、成本行可编辑 -->
+            <el-table-column prop="goldMaterialFee" label="足金料" width="90" align="center">
               <template #default="{ row }">
-                <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.goldMaterialFee" size="small" class="cell-input" @input="onCellChange(row)" />
-                <span v-else>{{ row.goldMaterialFee || '-' }}</span>
+                <el-input
+                  v-if="row.rowType === 'cost' && canEdit"
+                  v-model.number="row.goldMaterialFee"
+                  size="small"
+                  class="cell-input"
+                  @change="onCellChange(row)"
+                />
+                <span v-else>{{ (row.goldMaterialFee || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
-            <!-- 主石 -->
-            <el-table-column label="主石" align="center">
-              <el-table-column prop="stoneQty" label="粒数" width="50" align="center">
-                <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
-                  <span v-else>{{ row.stoneQty || 0 }}</span>
+
+            <!-- ⭐ 折现金（只显示，不编辑） -->
+            <el-table-column label="折现金" width="70" align="center">
+              <template #default="{ row }">
+                <template v-if="row.rowType === 'sale'">
+                  <el-tag v-if="row.goldConvertCash" type="warning" size="small">是</el-tag>
+                  <span v-else style="color:#909399;">否</span>
                 </template>
-              </el-table-column>
-              <el-table-column prop="stoneWeight" label="石重(ct)" width="75" align="center">
+              </template>
+            </el-table-column>
+
+            <!-- ===== 主石（列顺序：卡重 → 单价 → 粒数 → 镶石工费 → 金额） ===== -->
+            <el-table-column label="主石" align="center">
+              <el-table-column prop="stoneWeight" label="卡重" width="75" align="center">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneWeight || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stonePrice" label="单价(元)" width="75" align="center">
+              <el-table-column prop="stonePrice" label="单价" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stonePrice" size="small" class="cell-input" @input="onStonePriceChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stonePrice" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stonePrice || '-' }}</span>
                 </template>
               </el-table-column>
-              <!-- 主石金额 标红 -->
-              <el-table-column prop="stoneAmount" label="金额(元)" width="85" align="center" class-name="col-red">
+              <el-table-column prop="stoneQty" label="粒数" width="55" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
-                  <span v-else>{{ row.stoneAmount || '-' }}</span>
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <span v-else>{{ row.stoneQty || 0 }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="stoneSettingFee" label="镶石工费" width="80" align="center">
+              <el-table-column prop="stoneSettingFee" label="镶石工费" width="85" align="center">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneSettingFee || '-' }}</span>
                 </template>
               </el-table-column>
-            </el-table-column>
-            <!-- 副石 -->
-            <el-table-column label="副石" align="center">
-              <el-table-column prop="subStoneQty" label="粒数" width="50" align="center">
+              <!-- 主石金额 标红，只读 -->
+              <el-table-column prop="stoneAmount" label="金额" width="90" align="center" class-name="col-red">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
-                  <span v-else>{{ row.subStoneQty || 0 }}</span>
+                  <span style="font-weight:bold;">{{ (row.stoneAmount || 0).toFixed(2) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStoneWeight" label="石重" width="65" align="center">
+            </el-table-column>
+
+            <!-- ===== 副石（列顺序：卡重 → 单价 → 粒数 → 镶石工费 → 金额） ===== -->
+            <el-table-column label="副石" align="center">
+              <el-table-column prop="subStoneWeight" label="卡重" width="65" align="center">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneWeight || '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStonePrice" label="单价(元)" width="75" align="center">
+              <el-table-column prop="subStonePrice" label="单价" width="75" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStonePrice" size="small" class="cell-input" @input="onSubStonePriceChange(row)" />
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStonePrice" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStonePrice || '-' }}</span>
                 </template>
               </el-table-column>
-              <!-- 副石金额 标红 -->
-              <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center" class-name="col-red">
+              <el-table-column prop="subStoneQty" label="粒数" width="55" align="center">
                 <template #default="{ row }">
-                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneAmount" size="small" class="cell-input" @input="onCellChange(row)" />
-                  <span v-else>{{ row.subStoneAmount || '-' }}</span>
+                  <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneQty" size="small" class="cell-input" @input="onCellChange(row)" />
+                  <span v-else>{{ row.subStoneQty || 0 }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="subStoneSettingFee" label="镶石工费" width="80" align="center">
+              <el-table-column prop="subStoneSettingFee" label="镶石工费" width="85" align="center">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneSettingFee" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneSettingFee || '-' }}</span>
                 </template>
               </el-table-column>
+              <!-- 副石金额 标红，只读 -->
+              <el-table-column prop="subStoneAmount" label="金额" width="90" align="center" class-name="col-red">
+                <template #default="{ row }">
+                  <span style="font-weight:bold;">{{ (row.subStoneAmount || 0).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
             </el-table-column>
+
             <el-table-column prop="packingFee" label="包装证书" width="80" align="center">
               <template #default="{ row }">
                 <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.packingFee" size="small" class="cell-input" @input="onCellChange(row)" />
@@ -290,12 +314,12 @@
               <td class="label-cell">上单出货件数：</td>
               <td class="value-cell">-</td>
               <td rowspan="2" class="label-cell red-text total-amount-cell">应收总金额：</td>
-              <td rowspan="2" class="value-cell red-text total-amount-cell">¥{{ currSummary.totalAmount.toFixed(2) }}</td>
+              <td rowspan="2" class="value-cell red-text total-amount-cell">¥{{ (summaryData.totalReceivable || 0).toFixed(2) }}</td>
             </tr>
             <!-- 第5行：本单每日收入/开支/出货件数 -->
             <tr>
               <td class="label-cell">本单每日收入：</td>
-              <td class="value-cell">{{ currSummary.totalAmount.toFixed(2) }}</td>
+              <td class="value-cell">{{ (summaryData.totalReceivable || 0).toFixed(2) }}</td>
               <td class="label-cell">本单每日开支：</td>
               <td class="value-cell">{{ currSummary.dailyExpense }}</td>
               <td class="label-cell">本单出货件数：</td>
@@ -325,8 +349,9 @@ import { useRoute } from 'vue-router';
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Download, Upload } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getLrTable, saveLr, generateLr, exportLr, getLrCurrentNode, getLrNodeActions, executeLrAction } from '@/api/lr';
+import { getLrTable, saveLr, generateLr, exportLr, getLrCurrentNode, getLrNodeActions, executeLrAction, getLrSummary } from '@/api/lr';
 import { getCustomerShangdan } from '@/api/inventoryMonthly';
+import { dictApi } from '@/api/dict';
 import * as XLSX from 'xlsx';
 
 const route = useRoute();
@@ -335,6 +360,30 @@ const fileInput = ref(null);
 const billId = ref(Number(route.params.billId));
 const lrId = ref(0);
 const lrInfo = ref(null);
+const purityDict = ref([]);
+
+const summaryData = ref({
+  prevProfit: { diamondProfit: 0, goldProfit: 0, settingProfit: 0, laborProfit: 0, totalProfit: 0 },
+  prevBillAmount: { income: 0, expense: 0, qty: 0 },
+  todayProfit: { diamondProfit: 0, goldProfit: 0, settingProfit: 0, laborProfit: 0, totalProfit: 0 },
+  todayBillAmount: { income: 0, expense: 0, qty: 0 },
+  totalReceivable: 0,
+  inoutIncome: 0,
+  inoutExpense: 0,
+});
+
+const loadSummary = async () => {
+  if (!billId.value) return;
+  try {
+    const res = await getLrSummary(billId.value);
+    if (res?.data) {
+      summaryData.value = res.data;
+    }
+  } catch (e) {
+    console.error('加载汇总失败:', e);
+  }
+};
+
 const loading = ref(false);
 const saving = ref(false);
 const flowLoading = ref(false);
@@ -367,15 +416,9 @@ const findAction = (matcher, fallback) => flowActions.value.find(matcher) || { a
 // ==================== 上单数据（从后端加载） ====================
 const prevData = ref({
   summary: {
-    totalSale: 0,
-    totalCost: 0,
-    totalProfit: 0,
-    totalDiamondProfit: 0,
-    totalGoldProfit: 0,
-    totalSettingProfit: 0,
-    totalLaborProfit: 0,
-    totalNetWeight: 0,
-    totalAddLossWeight: 0
+    totalSale: 0, totalCost: 0, totalProfit: 0,
+    totalDiamondProfit: 0, totalGoldProfit: 0, totalSettingProfit: 0, totalLaborProfit: 0,
+    totalNetWeight: 0, totalAddLossWeight: 0
   },
   details: []
 });
@@ -398,9 +441,7 @@ const displayRows = computed(() => {
 });
 
 // ==================== 行样式 ====================
-const rowClassName = ({ row }) => {
-  return row.rowType === 'sale' ? 'sale-row' : 'cost-row';
-};
+const rowClassName = ({ row }) => row.rowType === 'sale' ? 'sale-row' : 'cost-row';
 const headerCellStyle = {
   background: '#e8f0fe',
   color: '#1d2129',
@@ -411,49 +452,99 @@ const headerCellStyle = {
 };
 
 // ==================== 核心：自动计算 ====================
+// ⭐ 从 color 拿成色折算率
+const getConvertRate = (row) => {
+  const label = (row.color || '').trim();
+  if (!label) return 1;
+  const item = purityDict.value.find(x => x.itemLabel === label);
+  if (!item) return 1;
+  try {
+    const extra = item.extraData ? JSON.parse(item.extraData) : {};
+    if (extra.convertRate) return Number(extra.convertRate);
+  } catch {}
+  const rate = Number(item.itemValue);
+  return isNaN(rate) || rate <= 0 ? 1 : rate;
+};
+
 const recalcRow = (row) => {
   if (!row) return;
-  if (row.netWeight && row.lossRate) {
-    row.addLossWeight = +(row.netWeight * row.lossRate).toFixed(3);
+
+  const goldPrice = Number(row.goldPrice) || 0;
+  const netWeight = Number(row.netWeight) || 0;
+  const lossRate = Number(row.lossRate) || 0;
+  const convertRate = getConvertRate(row);
+
+  // 加耗重 = 净重 × 损耗
+  row.addLossWeight = +(netWeight * lossRate).toFixed(3);
+
+  // 折足金料克重 = 加耗重 × 折算率
+  row.goldMaterialWeight = +(row.addLossWeight * convertRate).toFixed(3);
+
+  // ⭐ 金料金额
+  if (row.rowType === 'sale') {
+    // 销售行：自动算
+    if (row.goldConvertCash) {
+      // 折现金：加耗重 × 金价
+      row.goldMaterialFee = +(row.addLossWeight * goldPrice).toFixed(2);
+    } else {
+      // 按克计料：克重 × 金价
+      row.goldMaterialFee = +(row.goldMaterialWeight * goldPrice).toFixed(2);
+    }
   }
-  if (row.addLossWeight && row.goldPrice) {
-    row.goldMaterialFee = +(row.addLossWeight * row.goldPrice).toFixed(2);
+  // 成本行：goldMaterialFee 不覆盖（用户手填）
+
+  // 主石金额 = 卡重 × 单价 + 粒数 × 镶石工费
+  const sw = Number(row.stoneWeight) || 0;
+  const sp = Number(row.stonePrice) || 0;
+  const sq = Number(row.stoneQty) || 0;
+  const ssf = Number(row.stoneSettingFee) || 0;
+  if (sw || sp || sq || ssf) {
+    row.stoneAmount = +(sw * sp + sq * ssf).toFixed(2);
   }
-  if (row.stoneQty && row.stoneWeight && row.stonePrice) {
-    row.stoneAmount = +(row.stoneQty * row.stoneWeight * row.stonePrice).toFixed(2);
+
+  // 副石金额 = 卡重 × 单价 + 粒数 × 镶石工费
+  const ssw = Number(row.subStoneWeight) || 0;
+  const ssp = Number(row.subStonePrice) || 0;
+  const ssq = Number(row.subStoneQty) || 0;
+  const sssf = Number(row.subStoneSettingFee) || 0;
+  if (ssw || ssp || ssq || sssf) {
+    row.subStoneAmount = +(ssw * ssp + ssq * sssf).toFixed(2);
   }
-  if (row.subStoneQty && row.subStoneWeight && row.subStonePrice) {
-    row.subStoneAmount = +(row.subStoneQty * row.subStoneWeight * row.subStonePrice).toFixed(2);
+
+  // 总金额
+  if (row.rowType === 'sale') {
+    // 销售行：折现金时才把金料金额计入
+    const goldMaterial = row.goldConvertCash ? (row.goldMaterialFee || 0) : 0;
+    row.totalAmount = +(
+      goldMaterial +
+      (row.stoneAmount || 0) +
+      (row.subStoneAmount || 0) +
+      (row.packingFee || 0) +
+      (row.moldFee || 0) +
+      (row.laborFee || 0)
+    ).toFixed(2);
+  } else {
+    // 成本行：金料金额一定计入（用户手填的）
+    row.totalAmount = +(
+      (row.goldMaterialFee || 0) +
+      (row.stoneAmount || 0) +
+      (row.subStoneAmount || 0) +
+      (row.packingFee || 0) +
+      (row.moldFee || 0) +
+      (row.laborFee || 0)
+    ).toFixed(2);
   }
-  row.totalAmount = +(
-    (row.goldMaterialFee || 0) +
-    (row.stoneAmount || 0) +
-    (row.stoneSettingFee || 0) +
-    (row.subStoneAmount || 0) +
-    (row.subStoneSettingFee || 0) +
-    (row.packingFee || 0) +
-    (row.moldFee || 0) +
-    (row.laborFee || 0)
-  ).toFixed(2);
 };
 
 const syncRowToSource = (row) => {
   if (row.rowType === 'sale') {
     const idx = saleRows.value.findIndex(r => r.id === row.id);
-    if (idx !== -1) {
-      saleRows.value.splice(idx, 1, { ...row });
-    }
+    if (idx !== -1) saleRows.value.splice(idx, 1, { ...row });
   } else {
     let idx = costRows.value.findIndex(r => r.id === row.id && r.id !== null);
-    if (idx === -1) {
-      idx = costRows.value.findIndex((r, i) => i === row._rowIndex && r.id === null);
-    }
-    if (idx === -1 && row._rowIndex < costRows.value.length) {
-      idx = row._rowIndex;
-    }
-    if (idx !== -1) {
-      costRows.value.splice(idx, 1, { ...row });
-    }
+    if (idx === -1) idx = costRows.value.findIndex((r, i) => i === row._rowIndex && r.id === null);
+    if (idx === -1 && row._rowIndex < costRows.value.length) idx = row._rowIndex;
+    if (idx !== -1) costRows.value.splice(idx, 1, { ...row });
   }
 };
 
@@ -462,26 +553,19 @@ const onCellChange = (row) => {
   syncRowToSource(row);
   nextTick();
 };
+
+// 主石/副石的单价、卡重、粒数、镶石工费都用 onCellChange（统一 recalcRow）
 const onStonePriceChange = (row) => {
-  if (row.stoneQty && row.stoneWeight && row.stonePrice) {
-    row.stoneAmount = +(row.stoneQty * row.stoneWeight * row.stonePrice).toFixed(2);
-  }
   recalcRow(row);
   syncRowToSource(row);
   nextTick();
 };
 const onSubStonePriceChange = (row) => {
-  if (row.subStoneQty && row.subStoneWeight && row.subStonePrice) {
-    row.subStoneAmount = +(row.subStoneQty * row.subStoneWeight * row.subStonePrice).toFixed(2);
-  }
   recalcRow(row);
   syncRowToSource(row);
   nextTick();
 };
 const onGoldPriceChange = (row) => {
-  if (row.addLossWeight && row.goldPrice) {
-    row.goldMaterialFee = +(row.addLossWeight * row.goldPrice).toFixed(2);
-  }
   recalcRow(row);
   syncRowToSource(row);
   nextTick();
@@ -493,9 +577,7 @@ const getSaleRowsByColor = () => {
   const colorMap = new Map();
   saleList.forEach(r => {
     const color = r.color || 'Au755';
-    if (!colorMap.has(color)) {
-      colorMap.set(color, []);
-    }
+    if (!colorMap.has(color)) colorMap.set(color, []);
     colorMap.get(color).push(r);
   });
   return colorMap;
@@ -524,82 +606,55 @@ const summaryWeightRows = computed(() => {
   });
 });
 
-// ==================== 第二部分：利润汇总 ====================
-const currSummary = computed(() => {
-  const saleList = displayRows.value.filter(r => r.rowType === 'sale');
-  const costList = displayRows.value.filter(r => r.rowType === 'cost');
-  const sum = (list, prop) => list.reduce((s, r) => s + (Number(r[prop]) || 0), 0);
-
-  const saleGoldFee = sum(saleList, 'goldMaterialFee');
-  const costGoldFee = sum(costList, 'goldMaterialFee');
-  const saleStoneAmount = sum(saleList, 'stoneAmount');
-  const saleSubStoneAmount = sum(saleList, 'subStoneAmount');
-  const saleStoneSetting = sum(saleList, 'stoneSettingFee');
-  const saleSubStoneSetting = sum(saleList, 'subStoneSettingFee');
-  const saleLaborFee = sum(saleList, 'laborFee');
-  const saleTotal = sum(saleList, 'totalAmount');
-  const saleQty = saleList.reduce((s, r) => s + (Number(r.quantity) || 1), 0);
-
-  const costStoneAmount = sum(costList, 'stoneAmount');
-  const costSubStoneAmount = sum(costList, 'subStoneAmount');
-  const costStoneSetting = sum(costList, 'stoneSettingFee');
-  const costSubStoneSetting = sum(costList, 'subStoneSettingFee');
-  const costLaborFee = sum(costList, 'laborFee');
-  const costTotal = sum(costList, 'totalAmount');
-
+// ==================== 汇总（从后端拿） ====================
+const prevSummary = computed(() => {
+  const p = summaryData.value.prevProfit || {};
+  const b = summaryData.value.prevBillAmount || {};
   return {
-    diamondProfit: (saleStoneAmount + saleSubStoneAmount) - (costStoneAmount + costSubStoneAmount),
-    goldProfit: saleGoldFee - costGoldFee,
-    settingProfit: (saleStoneSetting + saleSubStoneSetting) - (costStoneSetting + costSubStoneSetting),
-    laborProfit: saleLaborFee - costLaborFee,
-    totalProfit: saleTotal - costTotal,
-    totalAmount: saleTotal,
-    qty: saleQty,
-    dailyExpense: costTotal.toFixed(2)
+    diamondProfit: (p.diamondProfit || 0).toFixed(2),
+    goldProfit: (p.goldProfit || 0).toFixed(2),
+    settingProfit: (p.settingProfit || 0).toFixed(2),
+    laborProfit: (p.laborProfit || 0).toFixed(2),
+    totalProfit: (p.totalProfit || 0).toFixed(2),
+    dailyIncome: (b.income || 0).toFixed(2),
+    dailyExpense: (b.expense || 0).toFixed(2),
+    qty: b.qty || 0,
   };
 });
 
-const prevSummary = computed(() => {
-  const data = prevData.value.summary;
+const currSummary = computed(() => {
+  const p = summaryData.value.todayProfit || {};
+  const b = summaryData.value.todayBillAmount || {};
   return {
-    diamondProfit: data.totalDiamondProfit > 0 ? data.totalDiamondProfit.toFixed(2) : '-',
-    goldProfit: data.totalGoldProfit > 0 ? data.totalGoldProfit.toFixed(2) : '-',
-    settingProfit: data.totalSettingProfit > 0 ? data.totalSettingProfit.toFixed(2) : '-',
-    laborProfit: data.totalLaborProfit > 0 ? data.totalLaborProfit.toFixed(2) : '-',
-    totalProfit: data.totalProfit > 0 ? data.totalProfit.toFixed(2) : '-',
-    dailyIncome: data.totalSale > 0 ? data.totalSale.toFixed(2) : '-'
+    diamondProfit: p.diamondProfit || 0,
+    goldProfit: p.goldProfit || 0,
+    settingProfit: p.settingProfit || 0,
+    laborProfit: p.laborProfit || 0,
+    totalProfit: p.totalProfit || 0,
+    totalAmount: b.income || 0,
+    dailyExpense: (b.expense || 0).toFixed(2),
+    qty: b.qty || 0,
   };
 });
 
 const totalSummary = computed(() => {
-  const prev = prevData.value.summary;
-  const curr = currSummary.value;
-  const prevDiamond = Number(prev.totalDiamondProfit) || 0;
-  const prevGold = Number(prev.totalGoldProfit) || 0;
-  const prevSetting = Number(prev.totalSettingProfit) || 0;
-  const prevLabor = Number(prev.totalLaborProfit) || 0;
-  const prevProfit = Number(prev.totalProfit) || 0;
-  const prevSale = Number(prev.totalSale) || 0;
-  const prevCost = Number(prev.totalCost) || 0;
-
-  const currDiamond = Number(curr.diamondProfit) || 0;
-  const currGold = Number(curr.goldProfit) || 0;
-  const currSetting = Number(curr.settingProfit) || 0;
-  const currLabor = Number(curr.laborProfit) || 0;
-  const currProfit = Number(curr.totalProfit) || 0;
-  const currAmount = Number(curr.totalAmount) || 0;
-  const currQty = Number(curr.qty) || 0;
-
+  const prev = summaryData.value.prevProfit || {};
+  const curr = summaryData.value.todayProfit || {};
+  const prevB = summaryData.value.prevBillAmount || {};
+  const currB = summaryData.value.todayBillAmount || {};
+  const balance = (summaryData.value.totalReceivable || 0)
+    + (summaryData.value.inoutIncome || 0)
+    - (summaryData.value.inoutExpense || 0);
   return {
-    diamondProfit: prevDiamond + currDiamond,
-    goldProfit: prevGold + currGold,
-    settingProfit: prevSetting + currSetting,
-    laborProfit: prevLabor + currLabor,
-    totalProfit: prevProfit + currProfit,
-    dailyIncome: prevSale + currAmount,
-    dailyExpense: prevCost + currAmount,
-    qty: (prevSale > 0 ? 1 : 0) + currQty,
-    balance: prevProfit + currProfit
+    diamondProfit: (prev.diamondProfit || 0) + (curr.diamondProfit || 0),
+    goldProfit: (prev.goldProfit || 0) + (curr.goldProfit || 0),
+    settingProfit: (prev.settingProfit || 0) + (curr.settingProfit || 0),
+    laborProfit: (prev.laborProfit || 0) + (curr.laborProfit || 0),
+    totalProfit: (prev.totalProfit || 0) + (curr.totalProfit || 0),
+    dailyIncome: (prevB.income || 0) + (currB.income || 0),
+    dailyExpense: (prevB.expense || 0) + (currB.expense || 0),
+    qty: (prevB.qty || 0) + (currB.qty || 0),
+    balance,
   };
 });
 
@@ -629,7 +684,6 @@ const loadPrevData = async () => {
         totalNetWeight: d.netWeight || 0,
         totalAddLossWeight: d.addLossWeight || 0
       };
-      // 材料
       prevData.value.details = (d.materials || []).map(m => ({
         color: m.color,
         netWeight: m.manualNetWeight,
@@ -665,6 +719,7 @@ const loadData = async () => {
     }
     await loadPrevData();
     await loadFlowState();
+    await loadSummary();
   } catch (e) {
     console.error(e);
     ElMessage.error('加载失败');
@@ -679,10 +734,7 @@ const loadFlowState = async () => {
     const nodeRes = await getLrCurrentNode(lrId.value);
     currentNode.value = nodeRes?.data || null;
     const nodeKey = currentNode.value?.nodeKey || currentNode.value?.node_key;
-    if (!nodeKey) {
-      flowActions.value = [];
-      return;
-    }
+    if (!nodeKey) { flowActions.value = []; return; }
     const actionRes = await getLrNodeActions(nodeKey);
     flowActions.value = actionRes?.data || [];
   } catch (e) {
@@ -725,7 +777,7 @@ const handleSave = async () => {
   saving.value = true;
   try {
     displayRows.value.forEach(r => recalcRow(r));
-    
+
     const cleanRows = (rows) => {
       return rows.map(row => {
         const cleaned = { ...row };
@@ -752,10 +804,7 @@ const handleSave = async () => {
       ...cleanRows(saleRows.value.map(r => ({ ...r, rowType: 'sale' }))),
       ...cleanRows(costRows.value.map(r => ({ ...r, rowType: 'cost' })))
     ];
-    await saveLr({
-      lrId: lrId.value,
-      rows: allRows
-    });
+    await saveLr({ lrId: lrId.value, rows: allRows });
     ElMessage.success('保存成功');
   } catch (e) {
     console.error(e);
@@ -827,16 +876,16 @@ const handleFileImport = (event) => {
           addLossWeight: Number(r[11]) || 0,
           goldPrice: Number(r[12]) || 0,
           goldMaterialFee: Number(r[13]) || 0,
-          stoneQty: Number(r[15]) || 0,
-          stoneWeight: Number(r[16]) || 0,
-          stonePrice: Number(r[17]) || 0,
-          stoneAmount: Number(r[18]) || 0,
-          stoneSettingFee: Number(r[19]) || 0,
-          subStoneQty: Number(r[20]) || 0,
-          subStoneWeight: Number(r[21]) || 0,
-          subStonePrice: Number(r[22]) || 0,
-          subStoneAmount: Number(r[23]) || 0,
-          subStoneSettingFee: Number(r[24]) || 0,
+          stoneWeight: Number(r[15]) || 0,
+          stonePrice: Number(r[16]) || 0,
+          stoneQty: Number(r[17]) || 0,
+          stoneSettingFee: Number(r[18]) || 0,
+          stoneAmount: Number(r[19]) || 0,
+          subStoneWeight: Number(r[20]) || 0,
+          subStonePrice: Number(r[21]) || 0,
+          subStoneQty: Number(r[22]) || 0,
+          subStoneSettingFee: Number(r[23]) || 0,
+          subStoneAmount: Number(r[24]) || 0,
           packingFee: Number(r[25]) || 0,
           moldFee: Number(r[26]) || 0,
           laborFee: Number(r[27]) || 0,
@@ -864,34 +913,26 @@ const handleExport = async () => {
     return;
   }
   const loadingInstance = ElLoading.service({
-    fullscreen: true,
-    text: '正在导出...',
-    background: 'rgba(0, 0, 0, 0.7)'
+    fullscreen: true, text: '正在导出...', background: 'rgba(0, 0, 0, 0.7)'
   });
   try {
     const response = await exportLr(lrId.value);
     loadingInstance.close();
     const blob = await response.blob();
-    if (!blob || blob.size === 0) {
-      ElMessage.error('导出失败：文件为空');
-      return;
-    }
+    if (!blob || blob.size === 0) { ElMessage.error('导出失败：文件为空'); return; }
     if (blob.type === 'application/json') {
       const text = await blob.text();
       try {
         const json = JSON.parse(text);
         ElMessage.error(json.message || '导出失败');
         return;
-      } catch {
-      }
+      } catch {}
     }
     const contentDisposition = response.headers.get('content-disposition');
     let fileName = `支出收入LR表_${lrInfo.value?.billNo || lrId.value}.xlsx`;
     if (contentDisposition) {
       const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-      if (match) {
-        fileName = decodeURIComponent(match[1].replace(/['"]/g, ''));
-      }
+      if (match) fileName = decodeURIComponent(match[1].replace(/['"]/g, ''));
     }
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -900,9 +941,7 @@ const handleExport = async () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setTimeout(() => {
-      window.URL.revokeObjectURL(url);
-    }, 10000);
+    setTimeout(() => { window.URL.revokeObjectURL(url); }, 10000);
     ElMessage.success('导出成功');
   } catch (error) {
     loadingInstance.close();
@@ -911,238 +950,70 @@ const handleExport = async () => {
   }
 };
 
-watch(displayRows, () => {
-}, { deep: true });
+watch(displayRows, () => {}, { deep: true });
 
-onMounted(() => loadData());
+onMounted(async () => {
+  // ⭐ 加载成色字典（用于折算率）
+  try {
+    const res = await dictApi.getItemsByKey('purity');
+    purityDict.value = res?.data || [];
+  } catch {}
+
+  loadData();
+});
 </script>
 
 <style scoped>
-.page-container {
-  background: #f5f7fa;
-  padding: 16px;
-  min-height: 100vh;
-}
+.page-container { background: #f5f7fa; padding: 16px; min-height: 100vh; }
+.page-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 14px 20px; border-radius: 8px 8px 0 0; flex-wrap: wrap; gap: 10px; }
+.header-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.header-left h2 { font-size: 17px; font-weight: 600; margin: 0; }
+.header-right { display: flex; gap: 8px; flex-wrap: wrap; }
+.content-body { background: #fff; border-radius: 0 0 8px 8px; padding: 16px 20px; }
+.info-bar { padding: 6px 0; }
+.info-bar .label { color: #909399; font-size: 13px; }
+.info-bar .value { color: #303133; font-size: 14px; font-weight: 500; }
+.section-divider { height: 1px; background: #e8ecf1; margin: 14px 0; }
+.section-title { display: flex; justify-content: space-between; align-items: center; font-weight: 600; font-size: 15px; color: #1d2129; margin-bottom: 12px; }
+.section-subtitle { font-weight: 400; font-size: 12px; color: #909399; }
+.table-wrapper { overflow-x: auto; }
+:deep(.el-table .cell) { padding: 2px 4px; text-align: center !important; }
+:deep(.el-table th) { background: #e8f0fe !important; color: #1d2129 !important; font-weight: 600 !important; }
+:deep(.el-table th .cell) { color: #1d2129 !important; text-align: center !important; }
+:deep(.cell-input .el-input__wrapper) { padding: 0 2px; box-shadow: none; }
+:deep(.cell-input .el-input__inner) { text-align: center; font-size: 12px; }
+:deep(.sale-row) { background: #ffffff !important; }
+:deep(.sale-row:hover) { background: #fafafa !important; }
+:deep(.cost-row) { background: #e8f0fe !important; }
+:deep(.cost-row:hover) { background: #d9e4f8 !important; }
+:deep(.col-red .cell) { color: #f56c6c !important; font-weight: 600; }
+:deep(.el-input-number) { width: 100%; }
 
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  padding: 14px 20px;
-  border-radius: 8px 8px 0 0;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.header-left h2 {
-  font-size: 17px;
-  font-weight: 600;
-  margin: 0;
-}
-.header-right {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+.summary-section { margin-top: 4px; }
+.summary-table { border: 1px solid #e8ecf1; border-radius: 4px; overflow: hidden; margin-bottom: 16px; }
+.summary-row { display: flex; border-bottom: 1px solid #e8ecf1; }
+.summary-row:last-child { border-bottom: none; }
+.summary-cell { flex: 1; padding: 6px 4px; text-align: center; font-size: 12px; border-right: 1px solid #e8ecf1; min-width: 60px; }
+.summary-cell:last-child { border-right: none; }
+.header-row .summary-cell { background: #f5f7fa; font-weight: 600; color: #606266; }
+.highlight-cell { background: #fff3cd; font-weight: 600; }
+.highlight-header { background: #f5f7fa; font-weight: 600; color: #303133; }
 
-.content-body {
-  background: #fff;
-  border-radius: 0 0 8px 8px;
-  padding: 16px 20px;
-}
+.excel-summary-table { width: 100%; border-collapse: collapse; border: 1px solid #000; font-size: 14px; }
+.excel-summary-table td { border: 1px solid #000; padding: 6px 10px; vertical-align: middle; }
+.label-cell { background: #fff; font-weight: 500; text-align: right; white-space: nowrap; }
+.value-cell { background: #fff; text-align: right; min-width: 100px; font-family: 'Consolas', monospace; }
+.blue-text { color: #409EFF; font-weight: 600; }
+.red-text { color: #f56c6c; font-weight: 600; }
+.total-amount-cell { text-align: center !important; font-size: 16px; }
+.profit-positive { color: #f56c6c; }
+.profit-negative { color: #909399; }
 
-.info-bar {
-  padding: 6px 0;
-}
-.info-bar .label {
-  color: #909399;
-  font-size: 13px;
-}
-.info-bar .value {
-  color: #303133;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.section-divider {
-  height: 1px;
-  background: #e8ecf1;
-  margin: 14px 0;
-}
-
-.section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: 600;
-  font-size: 15px;
-  color: #1d2129;
-  margin-bottom: 12px;
-}
-.section-subtitle {
-  font-weight: 400;
-  font-size: 12px;
-  color: #909399;
-}
-
-.table-wrapper {
-  overflow-x: auto;
-}
-
-:deep(.el-table .cell) {
-  padding: 2px 4px;
-  text-align: center !important;
-}
-:deep(.el-table th) {
-  background: #e8f0fe !important;
-  color: #1d2129 !important;
-  font-weight: 600 !important;
-}
-:deep(.el-table th .cell) {
-  color: #1d2129 !important;
-  text-align: center !important;
-}
-:deep(.cell-input .el-input__wrapper) {
-  padding: 0 2px;
-  box-shadow: none;
-}
-:deep(.cell-input .el-input__inner) {
-  text-align: center;
-  font-size: 12px;
-}
-
-/* 明细行颜色：销售白、成本蓝 */
-:deep(.sale-row) {
-  background: #ffffff !important;
-}
-:deep(.sale-row:hover) {
-  background: #fafafa !important;
-}
-:deep(.cost-row) {
-  background: #e8f0fe !important;
-}
-:deep(.cost-row:hover) {
-  background: #d9e4f8 !important;
-}
-
-/* 金额列标红 */
-:deep(.col-red .cell) {
-  color: #f56c6c !important;
-  font-weight: 600;
-}
-
-:deep(.el-input-number) {
-  width: 100%;
-}
-
-/* ===== 净重汇总表格（保留原有） ===== */
-.summary-section {
-  margin-top: 4px;
-}
-.summary-table {
-  border: 1px solid #e8ecf1;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-.summary-row {
-  display: flex;
-  border-bottom: 1px solid #e8ecf1;
-}
-.summary-row:last-child {
-  border-bottom: none;
-}
-.summary-cell {
-  flex: 1;
-  padding: 6px 4px;
-  text-align: center;
-  font-size: 12px;
-  border-right: 1px solid #e8ecf1;
-  min-width: 60px;
-}
-.summary-cell:last-child {
-  border-right: none;
-}
-.header-row .summary-cell {
-  background: #f5f7fa;
-  font-weight: 600;
-  color: #606266;
-}
-.highlight-cell {
-  background: #fff3cd;
-  font-weight: 600;
-}
-.highlight-header {
-  background: #f5f7fa;
-  font-weight: 600;
-  color: #303133;
-}
-
-/* ===== Excel式汇总表格 ===== */
-.excel-summary-table {
-  width: 100%;
-  border-collapse: collapse;
-  border: 1px solid #000;
-  font-size: 14px;
-}
-.excel-summary-table td {
-  border: 1px solid #000;
-  padding: 6px 10px;
-  vertical-align: middle;
-}
-.label-cell {
-  background: #fff;
-  font-weight: 500;
-  text-align: right;
-  white-space: nowrap;
-}
-.value-cell {
-  background: #fff;
-  text-align: right;
-  min-width: 100px;
-  font-family: 'Consolas', monospace;
-}
-.blue-text {
-  color: #409EFF;
-  font-weight: 600;
-}
-.red-text {
-  color: #f56c6c;
-  font-weight: 600;
-}
-.total-amount-cell {
-  text-align: center !important;
-  font-size: 16px;
-}
-.profit-positive {
-  color: #f56c6c;
-}
-.profit-negative {
-  color: #909399;
-}
-
-/* ===== 响应式 ===== */
 @media (max-width: 768px) {
-  .page-container {
-    padding: 8px;
-  }
-  .content-body {
-    padding: 10px 12px;
-  }
-  .page-header {
-    padding: 10px 14px;
-  }
-  .excel-summary-table {
-    font-size: 12px;
-  }
-  .excel-summary-table td {
-    padding: 4px 6px;
-  }
+  .page-container { padding: 8px; }
+  .content-body { padding: 10px 12px; }
+  .page-header { padding: 10px 14px; }
+  .excel-summary-table { font-size: 12px; }
+  .excel-summary-table td { padding: 4px 6px; }
 }
 </style>

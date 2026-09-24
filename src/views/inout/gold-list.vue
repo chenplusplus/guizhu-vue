@@ -32,7 +32,9 @@
         <el-table-column type="selection" width="45" align="center" :selectable="canSelect" />
 
         <el-table-column prop="recordNo" label="单号" width="140" fixed />
-        <el-table-column prop="recordDate" label="日期" width="100" />
+        <el-table-column prop="recordDate" label="日期" width="110">
+          <template #default="{ row }">{{ fmtDate(row.recordDate) }}</template>
+        </el-table-column>
         <el-table-column label="方向" width="60" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.direction === 1" type="success" size="small">收</el-tag>
@@ -117,6 +119,22 @@
         </el-table-column>
       </el-table>
 
+      <!-- 审核弹窗（录入审核人/备注） -->
+      <el-dialog v-model="auditDialogVisible" title="审核" width="420px" append-to-body>
+        <el-form label-width="80px">
+          <el-form-item label="审核人">
+            <el-input v-model="auditForm.auditedByName" placeholder="默认当前登录人" />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="auditForm.remark" type="textarea" :rows="2" />
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="auditDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmAudit">确定</el-button>
+        </template>
+      </el-dialog>
+
       <el-pagination
         style="margin-top:12px;"
         :current-page="page"
@@ -158,6 +176,8 @@ const getFoldColor = (cat) => {
   return { gold: '#E6A23C', silver: '#909399', copper: '#67C23A' }[cat] || '#E6A23C'
 }
 
+const fmtDate = (v) => v ? String(v).slice(0, 10) : ''
+
 // 可选中：草稿/已驳回 + 是自己创建的
 const canSelect = (row) => {
   return (row.status === 'draft' || row.status === 'rejected')
@@ -167,6 +187,9 @@ const canSelect = (row) => {
 const handleSelectionChange = (rows) => {
   selectedRows.value = rows
 }
+
+const auditDialogVisible = ref(false)
+const auditForm = reactive({ id: 0, approved: true, auditedByName: '', remark: '' })
 
 const loadList = async () => {
   loading.value = true
@@ -215,11 +238,21 @@ const handleBatchSubmit = async () => {
 }
 
 // 审核
-const handleAudit = async (row, approved) => {
-  const action = approved ? '通过' : '驳回'
-  await ElMessageBox.confirm(`确定${action}吗？`, '提示', { type: approved ? 'success' : 'warning' })
-  const res = await auditGold(row.id, approved)
-  if (res.success) { ElMessage.success(`已${action}`); loadList() }
+const handleAudit = (row, approved) => {
+  auditForm.id = row.id
+  auditForm.approved = approved
+  auditForm.auditedByName = currentUserName.value
+  auditForm.remark = ''
+  auditDialogVisible.value = true
+}
+
+const confirmAudit = async () => {
+  const res = await auditGold(auditForm.id, auditForm.approved, auditForm.remark, auditForm.auditedByName)
+  if (res.success) {
+    ElMessage.success(auditForm.approved ? '已通过' : '已驳回')
+    auditDialogVisible.value = false
+    loadList()
+  }
 }
 
 // 删除

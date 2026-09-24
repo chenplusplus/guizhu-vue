@@ -76,6 +76,12 @@ const routes = [
         component: () => import('@/views/inventory/monthly-detail.vue'),
         meta: { title: '月度盘点详情', hidden: true }
       },
+      {
+        path: 'inventory/monthly-profit/:yearMonth?',
+        name: 'MonthlyProfit',
+        component: () => import('@/views/inventory/monthly-profit.vue'),
+        meta: { title: '利润滚动表' }
+      },
       { 
         path: 'order/audit', 
         name: 'OrderAudit', 
@@ -228,13 +234,25 @@ const routes = [
         path: 'order/lr/edit/:billId',
         name: 'LrEditor',
         component: () => import('@/views/order/lr-editor.vue'),
-        meta: { title: 'LR表编辑', icon: '📊', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+        meta: { title: 'LR表编辑', icon: '📊', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
       },
       {
         path: 'order/lr/list',
         name: 'LrList',
         component: () => import('@/views/order/lr-list.vue'),
         meta: { title: 'LR表管理', icon: '📊' }
+      },
+            {
+        path: 'order/customer-monthly-bill',
+        name: 'CustomerMonthlyBill',
+        component: () => import('@/views/order/customer-monthly-bill.vue'),
+        meta: { title: '客户月度账单', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
+      },
+            {
+        path: 'order/lr/customer-profit',
+        name: 'LrCustomerProfit',
+        component: () => import('@/views/order/lr-customer-profit.vue'),
+        meta: { title: '客户利润分析', icon: '??', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
       },
 
       // ===== 客户模块 =====

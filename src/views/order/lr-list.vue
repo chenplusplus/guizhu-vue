@@ -836,12 +836,19 @@ const resetSearch = () => {
 };
 
 // ===== 查看详情 =====
+const getLrRouteId = (row) => row.billId ?? row.bill_id ?? row.id;
+
 const viewDetail = (row) => {
-  router.push(`/order/lr/edit/${row.billId}`);
+  const billId = getLrRouteId(row);
+  if (billId === undefined || billId === null || billId === '') {
+    ElMessage.error('LR表编号无效，无法打开编辑页');
+    return;
+  }
+  router.push({ name: 'LrEditor', params: { billId: String(billId) } });
 };
 
 const editLr = (row) => {
-  router.push(`/order/lr/edit/${row.billId}`);
+  viewDetail(row);
 };
 
 const executeRowAction = async (row, actionKey, message) => {

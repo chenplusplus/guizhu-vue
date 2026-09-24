@@ -78,7 +78,7 @@ export const getExpenseList = (params) => {
 };
 
 // 获取单条
-export const getGoldById = (id) => request.get(`/inout/gold/${id}`)
+export const getGoldById = (id) => api.get(`/inout/gold/${id}`)
 
 // 更新
 export const updateGold = (id, data) => request.put(`/inout/gold/${id}`, data)
@@ -93,16 +93,16 @@ export const updateExpense = (id, data) => api.put(`/inout/expense/${id}`, data)
 
 // ===================== 审批（金/钻石/费用） =====================
 export const submitGold = (id) => api.post(`/inout/gold/${id}/submit`);
-export const auditGold = (id, approved, remark) => api.post(`/inout/gold/${id}/audit`, { approved, remark });
+export const auditGold = (id, approved, remark, auditedByName) => api.post(`/inout/gold/${id}/audit`, { approved, remark, auditedByName });
 export const deleteGold = (id) => api.delete(`/inout/gold/${id}`);
 export const deleteDiamond = (id) => api.delete(`/inout/diamond/${id}`);
 export const deleteExpense = (id) => api.delete(`/inout/expense/${id}`);
 
 export const submitDiamond = (id) => api.post(`/inout/diamond/${id}/submit`);
-export const auditDiamond = (id, approved, remark) => api.post(`/inout/diamond/${id}/audit`, { approved, remark });
+export const auditDiamond = (id, approved, remark, auditedByName) => api.post(`/inout/diamond/${id}/audit`, { approved, remark, auditedByName });
 
 export const submitExpense = (id) => api.post(`/inout/expense/${id}/submit`);
-export const auditExpense = (id, approved, remark) => api.post(`/inout/expense/${id}/audit`, { approved, remark });
+export const auditExpense = (id, approved, remark, auditedByName) => api.post(`/inout/expense/${id}/audit`, { approved, remark, auditedByName });
 
 // ===================== 盘点总表 =====================
 export const getBatchReport = (batchId) => api.get(`/inventory/batch/${batchId}/report`);

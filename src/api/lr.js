@@ -58,22 +58,22 @@ export const exportLr = async (lrId) => {
 };
 export const confirmLr = (id) => {
   return request({
-    url: `/api/lr/${id}/confirm`,
+    url: `/lr/${id}/confirm`,
     method: 'post'
   });
 };
 
 // LR表流程动作：制作完成、审核通过/驳回统一走流程引擎
 export const getLrCurrentNode = (lrId) => {
-  return request.get('/api/flow/current-node', { params: { businessId: lrId } });
+  return request.get('/flow/current-node', { params: { businessId: lrId } });
 };
 
 export const getLrNodeActions = (nodeKey) => {
-  return request.get('/api/flow/node-actions', { params: { flowCode: 'lr_flow', nodeKey } });
+  return request.get('/flow/node-actions', { params: { flowCode: 'lr_flow', nodeKey } });
 };
 
 export const executeLrAction = (data) => {
-  return request.post('/api/flow/execute', {
+  return request.post('/flow/execute', {
     flowCode: 'lr_flow',
     ...data,
     businessId: String(data.businessId)
@@ -99,5 +99,18 @@ export const getCustomerSummary = (customerId) => {
   return request({
     url: `/lr/customer-summary/${customerId}`,
     method: 'get'
+  });
+};
+
+export const getLrSummary = (billId) => {
+  return api.get('/lr/summary', { params: { billId } });
+};
+
+// 客户汇总利润分析（按月份）
+export const getCustomerProfitSummary = (params) => {
+  return request({
+    url: '/lr/customer-profit-summary',
+    method: 'get',
+    params
   });
 };

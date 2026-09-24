@@ -154,18 +154,18 @@
             </el-table-column>
 
             <!-- 手寸/长度 - 只读显示 -->
-            <el-table-column label="手寸/长度" width="90" align="center">
+            <el-table-column label="手寸/长度"  width="110" align="center">
               <template #default="{ row }">{{ row.size || '-' }}</template>
             </el-table-column>
 
             <!-- ===== 可编辑字段 ===== -->
-            <el-table-column label="总重" width="85">
+            <el-table-column label="总重"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.totalWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
 
-            <el-table-column label="净重" width="85">
+            <el-table-column label="净重"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.netWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
@@ -177,47 +177,47 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="加耗重" width="85">
+            <el-table-column label="加耗重"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.addLossWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
 
-            <el-table-column label="金价" width="85">
+            <el-table-column label="金价"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.goldPrice" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
 
-            <el-table-column label="足金料" width="95">
+            <el-table-column label="足金料金额"  width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.goldMaterialFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="折足金料" width="100" align="center">
+            <el-table-column label="足金料" width="120" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.goldConvertCash" type="warning" size="small">折现</el-tag>
-                <span v-else style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
+                <span style="font-size:12px;color:#67C23A;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
+                <el-tag v-if="row.goldConvertCash" type="warning" size="small" style="margin-left:4px;">折现</el-tag>
               </template>
             </el-table-column>
 
             <!-- 主石 -->
-            <el-table-column label="主石粒数" width="75">
+            <el-table-column label="主石粒数"  width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.mainStoneQty" :min="0" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="主石石重" width="90">
+            <el-table-column label="主石石重"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.mainStoneWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="主石单价" width="85">
+            <el-table-column label="主石单价"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.mainStonePrice" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="主石金额" width="95">
+            <el-table-column label="主石金额" width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.mainStoneAmount" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
@@ -229,22 +229,22 @@
             </el-table-column>
 
             <!-- 副石 -->
-            <el-table-column label="副石粒数" width="75">
+            <el-table-column label="副石粒数"  width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.subStoneQty" :min="0" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="副石石重" width="90">
+            <el-table-column label="副石石重"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.subStoneWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="副石单价" width="85">
+            <el-table-column label="副石单价"  width="110">
               <template #default="{ row }">
                 <el-input-number v-model="row.subStonePrice" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="副石金额" width="95">
+            <el-table-column label="副石金额"  width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.subStoneAmount" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
@@ -255,29 +255,29 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="包装费" width="80">
+            <el-table-column label="包装费" width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.packingFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="证书费" width="80">
+            <el-table-column label="证书费" width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.certificateFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="邮费" width="80">
+            <el-table-column label="邮费" width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.postageFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
 
-            <el-table-column label="版费" width="80">
+            <el-table-column label="版费" width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.moldFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
 
-            <el-table-column label="工费" width="80">
+            <el-table-column label="工费" width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.laborFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
@@ -311,11 +311,22 @@
         </div>
 
         <!-- 底部汇总 -->
-        <div class="table-footer">
+       <div class="table-footer">
           <span>合计件数：<b>{{ totalQuantity }}</b></span>
           <span>总重：<b>{{ totalWeightSum.toFixed(3) }}</b></span>
           <span>净重：<b>{{ totalNetWeightSum.toFixed(3) }}</b></span>
-          <span>足金料合计：<b>¥{{ totalGoldFee.toFixed(2) }}</b></span>
+
+          <!-- ⭐ 应收足料：只统计按克计料 -->
+          <span>
+            应收足料：
+            <b style="color:#E6A23C;">{{ totalMaterialWeight.toFixed(3) }}g</b>
+          </span>
+
+          <!-- ⭐ 折足金料（内部）：含折现金 -->
+          <span>
+            折足金料（内部）：
+            <b style="color:#909399;">{{ totalInternalWeight.toFixed(3) }}g</b>
+          </span>
           <span>工费合计：<b>¥{{ totalLaborFee.toFixed(2) }}</b></span>
           <span style="color:#E6A23C;font-size:16px;">
             应收合计：<b>¥{{ totalAmount.toFixed(2) }}</b>
@@ -417,9 +428,10 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Document, Select } from '@element-plus/icons-vue';
 import { getBillDetail, updateBillDetails, submitBillAudit, generateLr, returnBillItem } from '@/api/bill';
+import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
 const userStore = useUserStore();
-
+const purityDict = ref([]);
 const route = useRoute();
 const router = useRouter();
 const billId = computed(() => Number(route.params.id));
@@ -492,13 +504,54 @@ const activeDetails = computed(() => details.value.filter(row => !isReturnedDeta
 const getDetailRowClass = ({ row }) => isReturnedDetail(row) ? 'returned-detail-row' : '';
 
 // ===== 计算单行 =====
+// ⭐ 从成色拿折算率（跟 factory-edit.vue 一样）
+const getConvertRate = (row) => {
+  // 1. 优先用 purityId
+  if (row.purityId) {
+    const item = purityDict.value.find(x => x.id === row.purityId);
+    if (item) {
+      try {
+        const extra = item.extraData ? JSON.parse(item.extraData) : {};
+        if (extra.convertRate) return Number(extra.convertRate);
+      } catch {}
+      const rate = Number(item.itemValue);
+      if (!isNaN(rate) && rate > 0 && rate <= 1) return rate;
+    }
+  }
+  // 2. 降级：用 color 匹配
+  const label = (row.color || '').trim();
+  if (label) {
+    const item = purityDict.value.find(x => x.itemLabel === label);
+    if (item) {
+      try {
+        const extra = item.extraData ? JSON.parse(item.extraData) : {};
+        if (extra.convertRate) return Number(extra.convertRate);
+      } catch {}
+      const rate = Number(item.itemValue);
+      if (!isNaN(rate)) return rate;
+    }
+  }
+  return 1;
+};
+
 const calcRow = (row) => {
   const netWeight = row.netWeight || 0;
   const goldPrice = row.goldPrice || 0;
   const lossRate = row.lossRate || 1.0;
+  const convertRate = getConvertRate(row);
 
   row.addLossWeight = parseFloat((netWeight * lossRate).toFixed(3));
-  row.goldMaterialFee = parseFloat((row.addLossWeight * goldPrice).toFixed(2));
+
+  // ⭐ 折现金：金料金额 = 加耗重 × 金价；足金料克重 = 0（内部统计用 addLossWeight 也行）
+  //    按克计料：足金料克重 = 加耗重 × 折算率；金料金额 = 克重 × 金价
+  if (row.goldConvertCash) {
+    row.goldMaterialFee = parseFloat((row.addLossWeight * goldPrice).toFixed(2));
+    // 内部统计：折现金也要记克重（用户看）
+    row.goldMaterialWeight = parseFloat((row.addLossWeight * convertRate).toFixed(3));
+  } else {
+    row.goldMaterialWeight = parseFloat((row.addLossWeight * convertRate).toFixed(3));
+    row.goldMaterialFee = parseFloat((row.goldMaterialWeight * goldPrice).toFixed(2));
+  }
 
   const mainStone = row.mainStoneAmount || 0;
   const subStone = row.subStoneAmount || 0;
@@ -508,11 +561,13 @@ const calcRow = (row) => {
   const postage = row.postageFee || 0;
   const mold = row.moldFee || 0;
 
+  // ⭐ 折现金才把金料金额加进应收款；按克计料算料不算钱
+  const goldMaterial = row.goldConvertCash ? row.goldMaterialFee : 0;
+
   row.totalAmount = parseFloat((
-    row.goldMaterialFee + mainStone + subStone + labor + packing + certificate + postage + mold
+    goldMaterial + mainStone + subStone + labor + packing + certificate + postage + mold
   ).toFixed(2));
 };
-
 const calcTotal = () => {
   details.value.forEach(row => calcRow(row));
 };

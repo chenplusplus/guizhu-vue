@@ -4,20 +4,24 @@
     <div class="page-header">
       <h2>🏭 工厂订单</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <!-- ⭐ 批量接单：只在"待接单"tab 显示 -->
         <el-button
-          v-if="selectedOrders.length > 0 && filterStatus === 'customerAudited'"
+          v-if="selectedOrders.length > 0 && activeTab === 'waitingFactory'"
           type="success"
           @click="handleBatchAccept"
         >
           批量接单 ({{ selectedOrders.length }})
         </el-button>
+
+        <!-- ⭐ 批量生成账单：只在"已完成"tab 显示 -->
         <el-button
-          v-if="selectedOrders.length > 0 && filterStatus === 'polishing'"
+          v-if="selectedOrders.length > 0 && activeTab === 'completed'"
           type="warning"
           @click="handleBatchGenerateBill"
         >
           批量生成账单 ({{ selectedOrders.length }})
         </el-button>
+
         <el-button type="primary" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
@@ -27,17 +31,71 @@
       </div>
     </div>
 
-    <!-- 筛选栏 -->
-    <div v-show="!isFullscreen" class="filter-bar">
-      <el-radio-group v-model="filterStatus" @change="handleSearch">
-        <el-radio-button value="">全部</el-radio-button>
-        <el-radio-button value="customerAudited">待接单</el-radio-button>
-        <el-radio-button value="producing">制作中</el-radio-button>
-        <el-radio-button value="polishing">制作完成</el-radio-button>
-        <el-radio-button value="billPending">账单待审核</el-radio-button>
-        <el-radio-button value="completed">已完成</el-radio-button>
-      </el-radio-group>
+    <!-- ⭐ 一级 Tab -->
+    <div v-show="!isFullscreen" class="order-tabs-wrapper">
+      <el-tabs v-model="activeTab" @tab-change="onTabChange" class="order-tabs">
+        <el-tab-pane name="waitingFactory">
+          <template #label>
+            <span class="tab-label">
+              待接单
+              <el-badge v-if="tabCounts.waitingFactory > 0" :value="tabCounts.waitingFactory" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="factoryProcessing">
+          <template #label>
+            <span class="tab-label">
+              制作中
+              <el-badge v-if="tabCounts.factoryProcessing > 0" :value="tabCounts.factoryProcessing" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="productionAudit">
+          <template #label>
+            <span class="tab-label">
+              制作完成待审核
+              <el-badge v-if="tabCounts.productionAudit > 0" :value="tabCounts.productionAudit" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="completed">
+          <template #label>
+            <span class="tab-label">
+              已完成
+              <el-badge v-if="tabCounts.completed > 0" :value="tabCounts.completed" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="all">
+          <template #label>
+            <span class="tab-label">
+              全部
+              <el-badge v-if="tabCounts.total > 0" :value="tabCounts.total" :max="999" class="tab-badge" />
+            </span>
+          </template>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
 
+    <!-- ⭐ 二级子筛选（只在"制作中"显示） -->
+    <div v-show="!isFullscreen && activeTab === 'factoryProcessing'" class="sub-tabs-wrapper">
+      <el-radio-group v-model="subStatus" @change="onSubStatusChange">
+        <el-radio-button value="">全部节点</el-radio-button>
+        <el-radio-button
+          v-for="item in productionStatuses"
+          :key="item.value"
+          :value="item.value"
+        >
+          {{ item.label }}
+          <span v-if="getSubStatusCount(item.value) > 0" class="sub-count">
+            {{ getSubStatusCount(item.value) }}
+          </span>
+        </el-radio-button>
+      </el-radio-group>
+    </div>
+
+    <!-- 搜索栏 -->
+    <div v-show="!isFullscreen" class="filter-bar">
       <el-date-picker
         v-model="dateRange"
         type="daterange"
@@ -45,14 +103,14 @@
         start-placeholder="开始日期"
         end-placeholder="结束日期"
         value-format="YYYY-MM-DD"
-        style="width: 240px; margin-left: 12px;"
+        style="width: 240px;"
         @change="handleSearch"
       />
 
       <el-input
         v-model="keyword"
         placeholder="搜索订单号/品名"
-        style="width: 180px; margin-left: 8px;"
+        style="width: 180px;"
         clearable
         @clear="handleSearch"
         @keyup.enter="handleSearch"
@@ -63,7 +121,7 @@
         placeholder="全部客户"
         clearable
         filterable
-        style="width: 180px; margin-left: 8px;"
+        style="width: 180px;"
         @change="handleSearch"
       >
         <el-option
@@ -74,7 +132,7 @@
         />
       </el-select>
 
-      <el-button type="primary" @click="handleSearch" style="margin-left: 8px;">
+      <el-button type="primary" @click="handleSearch">
         <el-icon><Search /></el-icon> 搜索
       </el-button>
       <el-button @click="resetSearch">
@@ -105,7 +163,6 @@
       @row-click="handleRowClick"
       row-key="orderId"
     >
-      <!-- 选择列 -->
       <el-table-column type="selection" width="45" align="center" @click.stop />
 
       <el-table-column label="标记" width="48" fixed align="center">
@@ -126,14 +183,19 @@
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click.stop="viewDetail(row.orderId)">
+          <el-link
+            type="primary"
+            :class="{ 'blink-modify': hasPendingModify(row) }"
+            @click.stop="viewDetail(row.orderId)"
+          >
             {{ row.orderNo }}
+            <span v-if="hasPendingModify(row)" class="modify-badge">✏️</span>
           </el-link>
         </template>
       </el-table-column>
 
       <!-- 状态列 -->
-      <el-table-column prop="flowStatus" label="状态" width="110" align="center" fixed>
+      <el-table-column prop="flowStatus" label="状态" width="120" align="center" fixed>
         <template #default="{ row }">
           <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
             {{ getStatusText(row.flowStatus) }}
@@ -206,7 +268,7 @@
         </template>
       </el-table-column>
 
-      <!-- 操作列：悬浮下拉，减少占宽 -->
+      <!-- 操作列 -->
       <el-table-column v-if="!isFullscreen" label="操作" width="96" fixed="right" align="center">
         <template #default="{ row }">
           <el-dropdown
@@ -232,13 +294,15 @@
 
                 <el-dropdown-item command="repair">维修单</el-dropdown-item>
 
+                <!-- ⭐ 已完成 且未生成账单 → 生成账单 -->
                 <el-dropdown-item
-                  v-if="normalizeStatus(row.flowStatus) === 'completed' && !row.billId && (isFactoryOrder || isAdmin)"
+                  v-if="normalizeStatus(row.flowStatus) === 'completed' && !row.billId && (userStore.isFactoryOrder || userStore.isAdmin)"
                   command="bill"
                 >生成账单</el-dropdown-item>
 
+                <!-- ⭐ 制作完成待审核 → 审核制作完成 -->
                 <el-dropdown-item
-                  v-if="normalizeStatus(row.flowStatus) === 'polishing' && (isFactoryAudit || isAdmin)"
+                  v-if="normalizeStatus(row.flowStatus) === 'polishing' && (userStore.isFactoryAudit || userStore.isAdmin)"
                   command="auditProduction"
                 >审核制作完成</el-dropdown-item>
 
@@ -267,8 +331,8 @@
         :page-sizes="[10, 20, 50, 100]"
         :total="pagination.total"
         layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadData"
-        @current-change="loadData"
+        @size-change="onPageChange"
+        @current-change="onPageChange"
       />
     </div>
 
@@ -375,13 +439,76 @@ const handleEsc = (e) => { if (e.key === 'Escape' && isFullscreen.value) { isFul
 const tableData = ref([]);
 const batchCreating = ref(false);
 const keyword = ref('');
-const filterStatus = ref('');
 const filterCustomerId = ref('');
 const selectedOrders = ref([]);
 const customerList = ref([]);
 const productionStatuses = ref([]);
 
 const dateRange = ref([]);
+
+// ===== 一级 Tab =====
+const activeTab = ref('waitingFactory');
+const subStatus = ref('');
+
+const tabCounts = reactive({
+  waitingFactory: 0,
+  factoryProcessing: 0,
+  productionAudit: 0,
+  completed: 0,
+  total: 0,
+});
+const subStatusCounts = ref({});
+
+// Tab 与状态映射
+const TAB_STATUS_MAP = {
+  waitingFactory: ['customerAudited'],
+  factoryProcessing: [
+    'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded',
+    'cnc', 'partsMissing', 'stoneReady', 'setting', 'glue',
+    'inlay', 'assembly'
+  ],
+  productionAudit: ['polishing'],
+  completed: ['completed', 'cancelled', 'scrapped'],
+  all: null,
+};
+
+const matchTab = (order, tab) => {
+  const statuses = TAB_STATUS_MAP[tab];
+  if (!statuses) return true;
+  return statuses.includes(normalizeStatus(order.flowStatus));
+};
+
+const updateTabCounts = (list) => {
+  tabCounts.waitingFactory = list.filter(x => TAB_STATUS_MAP.waitingFactory.includes(normalizeStatus(x.flowStatus))).length;
+  tabCounts.factoryProcessing = list.filter(x => TAB_STATUS_MAP.factoryProcessing.includes(normalizeStatus(x.flowStatus))).length;
+  tabCounts.productionAudit = list.filter(x => TAB_STATUS_MAP.productionAudit.includes(normalizeStatus(x.flowStatus))).length;
+  tabCounts.completed = list.filter(x => TAB_STATUS_MAP.completed.includes(normalizeStatus(x.flowStatus))).length;
+  tabCounts.total = list.length;
+};
+
+const updateSubStatusCounts = (list) => {
+  const counts = {};
+  list.forEach(x => {
+    const st = normalizeStatus(x.flowStatus);
+    if (TAB_STATUS_MAP.factoryProcessing.includes(st)) {
+      counts[st] = (counts[st] || 0) + 1;
+    }
+  });
+  subStatusCounts.value = counts;
+};
+
+const getSubStatusCount = (status) => subStatusCounts.value[status] || 0;
+
+const onTabChange = () => {
+  subStatus.value = '';
+  pagination.current = 1;
+  loadData();
+};
+
+const onSubStatusChange = () => {
+  pagination.current = 1;
+  loadData();
+};
 
 // 状态更新弹窗
 const statusDialogVisible = ref(false);
@@ -418,18 +545,20 @@ const statusMap = {
   customerAudited: { text: '待接单', type: 'success' },
   accepted: { text: '已接单', type: 'primary' },
   factory_edit: { text: '编辑中', type: 'primary' },
+  dataConfirm: { text: '数据确认', type: 'primary' },
   waxing: { text: '出蜡', type: 'primary' },
   molded: { text: '倒模', type: 'primary' },
   setting: { text: '执模', type: 'primary' },
   cnc: { text: 'CNC', type: 'primary' },
-  sweeping: { text: '扫镶口', type: 'primary' },
-  stoneCutting: { text: '车石', type: 'primary' },
-  microInlay: { text: '微镶', type: 'primary' },
-  handInlay: { text: '手镶', type: 'primary' },
+  partsMissing: { text: '配件缺失', type: 'warning' },
+  stoneReady: { text: '配石完成', type: 'primary' },
+  glue: { text: '滴胶/磨石', type: 'primary' },
+  inlay: { text: '镶嵌', type: 'primary' },
+  assembly: { text: '组装', type: 'primary' },
   polishing: { text: '制作完成待审核', type: 'warning' },
-  billPending: { text: '账单待审核', type: 'warning' },
-  billConfirmed: { text: '客户已确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
+  cancelled: { text: '已取消', type: 'info' },
+  scrapped: { text: '已报废', type: 'danger' },
 };
 
 const normalizeStatus = (status) => {
@@ -463,13 +592,30 @@ const getFlagTooltip = (row) => {
   return messages.join('；');
 };
 
+const hasPendingModify = (row) => {
+  return row.modifyStatus && row.modifyStatus !== 'none';
+};
+
 const isInProduction = (status) => {
   return productionStatuses.value.some(item => item.value === normalizeStatus(status));
 };
 
 // ============================================================
-// ⭐ 损耗异常判断：非 1.08 / 1.10 视为非标准损耗（列表加红框标注）
+// ⭐ 编辑按钮权限：终态一律不显示编辑
 // ============================================================
+const FINAL_STATUSES = ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn'];
+const BILL_STAGE_STATUSES = ['billPending', 'billRejected', 'billConfirmed', 'completed'];
+
+const canEditRow = (row) => {
+  const st = normalizeStatus(row.flowStatus);
+  // 终态：谁都不能编辑
+  if (FINAL_STATUSES.includes(st)) return false;
+  if (userStore.isAdmin) return true;
+  if (userStore.isFactoryAudit) return BILL_STAGE_STATUSES.includes(st);
+  if (userStore.isFactoryOrder) return !BILL_STAGE_STATUSES.includes(st);
+  return false;
+};
+
 const isAbnormalLoss = (lossRate) => {
   if (lossRate === null || lossRate === undefined || lossRate === '') return false;
   const n = Number(lossRate);
@@ -478,23 +624,7 @@ const isAbnormalLoss = (lossRate) => {
 };
 
 // ============================================================
-// ⭐ 编辑按钮权限
-//   工厂操作员：账单待审核之前一直可编辑（不受制作状态约束）
-//   工厂审核员：出账单之后（账单待审核及以后）仍可编辑
-//   管理员：始终可编辑
-// ============================================================
-const BILL_STAGE_STATUSES = ['billPending', 'billRejected', 'billConfirmed', 'completed'];
-
-const canEditRow = (row) => {
-  const st = normalizeStatus(row.flowStatus);
-  if (userStore.isAdmin) return true;
-  if (userStore.isFactoryAudit) return BILL_STAGE_STATUSES.includes(st);
-  if (userStore.isFactoryOrder) return !BILL_STAGE_STATUSES.includes(st);
-  return false;
-};
-
-// ============================================================
-// ⭐ 操作列下拉分发
+// 操作列下拉分发
 // ============================================================
 const handleRowAction = (cmd, row) => {
   switch (cmd) {
@@ -539,11 +669,11 @@ const loadCustomers = async () => {
 const getDateRange = () => {
   const today = new Date();
   const endDate = today.toISOString().split('T')[0];
-  
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 30);
   const startDateStr = startDate.toISOString().split('T')[0];
-  
+
   return [startDateStr, endDate];
 };
 
@@ -557,16 +687,13 @@ const viewBill = (billId) => {
 const loadData = async () => {
   loading.value = true;
   try {
+    // ⭐ 一次拉全部，前端过滤 + 分页（第 1 步临时方案）
     const params = {
       keyword: keyword.value || undefined,
       customerId: filterCustomerId.value || undefined,
-      page: pagination.current,
-      pageSize: pagination.pageSize,
+      page: 1,
+      pageSize: 1000,
     };
-
-    if (filterStatus.value) {
-      params.status = filterStatus.value;
-    }
 
     if (dateRange.value && dateRange.value.length === 2) {
       params.startDate = dateRange.value[0];
@@ -575,34 +702,38 @@ const loadData = async () => {
 
     const res = await getOrderList(params);
     const responseData = res?.data || res || {};
-    
+
     let data = [];
-    let total = 0;
-    
     if (Array.isArray(responseData)) {
       data = responseData;
-      total = responseData.length;
     } else if (Array.isArray(responseData.data)) {
       data = responseData.data;
-      total = responseData.total || data.length;
     } else if (responseData.items && Array.isArray(responseData.items)) {
       data = responseData.items;
-      total = responseData.total || data.length;
     } else {
-      data = Array.isArray(responseData) ? responseData : [];
-      total = data.length;
+      data = [];
     }
 
-    // 只显示工厂相关状态
-    const factoryStatuses = new Set([
-      'customerAudited', 'factory_edit', 'billPending', 'billConfirmed', 'completed',
-      ...productionStatuses.value.map(item => item.value),
-    ]);
-    
-    tableData.value = data
-      .map(item => ({ ...item, flowStatus: normalizeStatus(item.flowStatus) }))
-    pagination.total = tableData.value.length || total;
-    
+    // 规范化状态
+    let list = data.map(item => ({ ...item, flowStatus: normalizeStatus(item.flowStatus) }));
+
+    // ⭐ 更新 Tab 数量（从全量算）
+    updateTabCounts(list);
+    updateSubStatusCounts(list);
+
+    // ⭐ 按 tab 过滤
+    let filtered = list.filter(x => matchTab(x, activeTab.value));
+
+    // ⭐ 按 subStatus 过滤
+    if (activeTab.value === 'factoryProcessing' && subStatus.value) {
+      filtered = filtered.filter(x => x.flowStatus === subStatus.value);
+    }
+
+    // ⭐ 前端分页
+    pagination.total = filtered.length;
+    const start = (pagination.current - 1) * pagination.pageSize;
+    tableData.value = filtered.slice(start, start + pagination.pageSize);
+
   } catch (error) {
     console.error('加载数据失败:', error);
     ElMessage.error('加载数据失败');
@@ -620,10 +751,13 @@ const handleSearch = () => {
 
 const resetSearch = () => {
   keyword.value = '';
-  filterStatus.value = '';
   filterCustomerId.value = '';
   dateRange.value = getDateRange();
   pagination.current = 1;
+  loadData();
+};
+
+const onPageChange = () => {
   loadData();
 };
 
@@ -638,11 +772,8 @@ const handleSelectionChange = (selection) => {
 // 行点击
 // ============================================================
 const handleRowClick = (row, column) => {
-  // 如果点击的是 selection 列，不处理
-  if (column.type === 'selection') return
-  // 如果点击的是操作列，不处理
-  if (column.label === '操作') return
-  // 否则打开流程抽屉
+  if (column.type === 'selection') return;
+  if (column.label === '操作') return;
   currentFlowOrderId.value = row.orderId;
   currentFlowOrderNo.value = row.orderNo;
   currentFlowStatus.value = row.flowStatus;
@@ -656,10 +787,10 @@ const goRepair = (row) => {
   router.push({
     name: 'RepairCreate',
     query: { orderId: row.orderId }
-  })
-}
+  });
+};
 
-// 下拉展开时按需确认该订单是否含数据包，避免无包订单显示下载入口
+// 下拉展开时按需确认该订单是否含数据包
 const ensurePackage = async (row) => {
   if (row._pkgChecked) return;
   try {
@@ -675,28 +806,28 @@ const ensurePackage = async (row) => {
 // 数据包下载
 const downloadOrderPackage = async (row) => {
   try {
-    const res = await getOrderDetail(row.orderId)
-    const pkgs = res?.data?.dataPackages || []
+    const res = await getOrderDetail(row.orderId);
+    const pkgs = res?.data?.dataPackages || [];
     if (!pkgs.length) {
-      ElMessage.info('该订单暂无数据包')
-      return
+      ElMessage.info('该订单暂无数据包');
+      return;
     }
     pkgs.forEach(pkg => {
-      const url = pkg.fileUrl || pkg.url
-      const name = pkg.fileName || pkg.name || 'package'
-      if (!url) return
-      const a = document.createElement('a')
-      a.href = url
-      a.download = name
-      a.target = '_blank'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    })
+      const url = pkg.fileUrl || pkg.url;
+      const name = pkg.fileName || pkg.name || 'package';
+      if (!url) return;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
   } catch {
-    ElMessage.error('获取数据包失败')
+    ElMessage.error('获取数据包失败');
   }
-}
+};
 
 // ============================================================
 // 打开状态更新弹窗
@@ -720,13 +851,13 @@ const confirmStatusUpdate = async () => {
   statusLoading.value = true;
   try {
     const label = statusOptions.value.find(s => s.value === selectedStatus.value)?.label || selectedStatus.value;
-    
+
     await updateProduction(currentOrder.value.orderId, {
       status: selectedStatus.value,
       step: 0,
       remark: statusRemark.value || `制作状态更新为：${label}`,
     });
-    
+
     ElMessage.success(`状态已更新为：${label}`);
     statusDialogVisible.value = false;
     loadData();
@@ -779,9 +910,8 @@ const handleAccept = async (row) => {
 };
 
 // ============================================================
-// 生成账单
+// 审核制作完成
 // ============================================================
-// Audit production dialog string constants
 const AUDIT_PRODUCTION_TITLES = {
   pass: '通过审核，订单将进入【已完成】状态',
   reject: '驳回审核，订单将回到【工厂编辑】状态',
@@ -816,6 +946,9 @@ const confirmAuditProduction = async (approved) => {
   }
 };
 
+// ============================================================
+// 生成账单
+// ============================================================
 const handleGenerateBill = (row) => {
   router.push(`/order/bill/create?orderIds=${row.orderId}`);
 };
@@ -825,10 +958,13 @@ const handleBatchGenerateBill = async () => {
     ElMessage.warning('请先选择订单');
     return;
   }
-  
-  const validOrders = selectedOrders.value.filter(o => o.flowStatus === 'polishing');
+
+  // ⭐ 只选 completed 且 billId 为空的
+  const validOrders = selectedOrders.value.filter(
+    o => normalizeStatus(o.flowStatus) === 'completed' && !o.billId
+  );
   if (validOrders.length === 0) {
-    ElMessage.warning('请选择状态为"制作完成"的订单');
+    ElMessage.warning('请选择【已完成】且未生成账单的订单');
     return;
   }
 
@@ -877,7 +1013,6 @@ const formatDate = (date) => {
 // 初始化
 // ============================================================
 onMounted(() => {
-  // ⭐ 默认最近一个月
   dateRange.value = getDateRange();
   loadCustomers();
   dictApi.getItemsByKey('production_status').then((res) => {
@@ -901,12 +1036,58 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
 }
 .page-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
 
+/* ===== 一级 Tab ===== */
+.order-tabs-wrapper {
+  margin-bottom: 8px;
+}
+.order-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+}
+.order-tabs :deep(.el-tabs__item) {
+  font-size: 14px;
+  font-weight: 500;
+  height: 48px;
+  line-height: 48px;
+}
+.tab-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tab-badge :deep(.el-badge__content) {
+  transform: translateY(-2px) translateX(4px);
+  font-size: 11px;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 5px;
+  border: none;
+}
+
+/* ===== 二级子筛选 ===== */
+.sub-tabs-wrapper {
+  margin-bottom: 12px;
+  background: #fafbfc;
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: 1px solid #e8ecf1;
+}
+.sub-tabs-wrapper :deep(.el-radio-button__inner) {
+  font-size: 13px;
+}
+.sub-count {
+  display: inline-block;
+  margin-left: 4px;
+  color: #f56c6c;
+  font-weight: 600;
+}
+
+/* ===== 筛选栏 ===== */
 .filter-bar {
   display: flex;
   align-items: center;
@@ -939,7 +1120,22 @@ onMounted(() => {
 :deep(.el-image) { transition: transform 0.3s; }
 :deep(.el-image:hover) { transform: scale(2.5); z-index: 10; position: relative; }
 
-/* ⭐ 非标准损耗（非 1.08/1.10）：红框标注，不使用红色字体 */
+/* ⭐ 待处理修改申请：订单号闪烁 */
+.blink-modify {
+  animation: blink 1s infinite;
+  color: #f56c6c !important;
+  font-weight: 700;
+}
+.modify-badge {
+  margin-left: 4px;
+  font-size: 14px;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ⭐ 非标准损耗 */
 .loss-abnormal {
   display: inline-block;
   min-width: 50px;
@@ -958,21 +1154,19 @@ onMounted(() => {
   font-size: 16px;
   line-height: 1;
 }
-
 .order-flags {
   display: inline-flex;
   align-items: center;
   gap: 2px;
 }
-
 .order-warning-flag,
 .order-urgent-flag {
   color: #f56c6c;
 }
-
 .order-flag-placeholder {
   color: #c0c4cc;
 }
+
 /* ===== 全屏模式 ===== */
 .page-container.is-fullscreen {
   position: fixed;

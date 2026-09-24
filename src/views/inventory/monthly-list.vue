@@ -27,9 +27,10 @@
       <el-table-column label="确认时间" width="180">
         <template #default="{ row }">{{ formatDateTime(row.confirmedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="220" align="center">
+      <el-table-column label="操作" width="320" align="center">
         <template #default="{ row }">
           <el-button type="primary" size="small" @click="viewDetail(row.yearMonth)">查看</el-button>
+          <el-button type="info" size="small" @click="viewProfit(row.yearMonth)">利润滚动</el-button>
           <el-button v-if="row.status !== 'confirmed'" type="success" size="small" @click="viewDetail(row.yearMonth)">核算</el-button>
           <el-button v-else type="warning" size="small" @click="handleUnconfirm(row)">反确认</el-button>
         </template>
@@ -74,6 +75,10 @@ const handleInit = async () => {
 
 const viewDetail = (yearMonth) => {
   router.push(`/inventory/monthly/${yearMonth}`);
+};
+
+const viewProfit = (yearMonth) => {
+  router.push(`/inventory/monthly-profit/${yearMonth}`);
 };
 
 const handleUnconfirm = async (row) => {
