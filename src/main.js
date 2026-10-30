@@ -17,9 +17,9 @@ for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
 }
 
 app.use(createPinia());
-app.use(router);
-app.use(ElementPlus);
 
+// ⚠️ 必须在 app.use(router) 之前恢复登录态：
+//    路由首次导航（含 `/` 与未知路径的 redirect）依赖 userStore.homePath 判断落地页
 const userStore = useUserStore();
 const savedUser = localStorage.getItem('userInfo');
 if (savedUser) {
@@ -29,5 +29,8 @@ if (savedUser) {
     // ignore
   }
 }
+
+app.use(router);
+app.use(ElementPlus);
 
 app.mount('#app');

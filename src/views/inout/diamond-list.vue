@@ -4,7 +4,7 @@
       <template #header>
         <div class="card-header">
           <span class="title">💎 钻石录入列表</span>
-          <div>
+          <div v-if="!auditOnly">
             <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD" style="width:240px;margin-right:8px;" @change="loadList" />
             <el-select v-model="filterStatus" placeholder="状态" clearable style="width:120px;margin-right:8px;" @change="loadList">
               <el-option label="草稿" value="draft" />
@@ -14,6 +14,11 @@
             </el-select>
             <el-button type="primary" @click="loadList">刷新</el-button>
             <el-button type="success" @click="$router.push('/inout/diamond-input')">+ 新增录入</el-button>
+          </div>
+          <div v-else class="audit-badge">
+            <el-tag type="danger" effect="dark" size="small">待审核</el-tag>
+            <span>{{ directionLabel }}</span>
+            <el-button size="small" @click="loadList">刷新</el-button>
           </div>
         </div>
       </template>
@@ -73,13 +78,13 @@
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <el-button
-              v-if="(row.status === 'draft' || row.status === 'rejected') && row.createdByName === currentUserName"
+              v-if="(row.status === 'draft' || row.status === 'rejected') && row.createdByName === currentUserName && !auditOnly"
               type="primary" size="small" @click="handleSubmit(row)">提交</el-button>
             <template v-if="(isAudit || isAdmin) && row.status === 'pending'">
               <el-button type="success" size="small" @click="handleAudit(row, true)">通过</el-button>
               <el-button type="danger" size="small" @click="handleAudit(row, false)">驳回</el-button>
             </template>
-            <el-button v-if="isAdmin" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
+            <el-button v-if="isAdmin && !auditOnly" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -112,17 +117,28 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getDiamondList, submitDiamond, auditDiamond, deleteDiamond } from '@/api/inout'
 
+const route = useRoute()
+// ⭐ 审核只读模式：隐藏新增/提交/删除，仅保留通过/驳回
+const auditOnly = computed(() => route.query.mode === 'audit' || isAudit.value)
 const loading = ref(false)
 const tableData = ref([])
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const dateRange = ref([])
-const filterStatus = ref('')
+const filterStatus = ref(route.query.status || '')
+// ⭐ 方向由入口带死（1=进，0=出）
+const qDirection = computed(() => {
+  const d = route.query.direction
+  return (d === undefined || d === '' || d === null) ? undefined : Number(d)
+})
+const directionLabel = computed(() =>
+  qDirection.value === 1 ? '钻石 · 进（收入）' : qDirection.value === 0 ? '钻石 · 出（支出）' : '全部方向')
 const currentUserName = ref('')
 const isAudit = ref(false)
 const isAdmin = ref(false)
@@ -134,6 +150,7 @@ const loadList = async () => {
   loading.value = true
   try {
     const params = { page: page.value, pageSize: pageSize.value, status: filterStatus.value || undefined }
+    if (qDirection.value !== undefined) params.direction = qDirection.value
     if (dateRange.value && dateRange.value.length === 2) {
       params.startDate = dateRange.value[0]
       params.endDate = dateRange.value[1]
@@ -190,4 +207,12 @@ onMounted(() => {
 .inout-list-page { padding: 16px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; font-size: 16px; }
+/* 审核模式：入口带死的筛选条件展示 */
+.audit-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #909399;
+}
 </style>

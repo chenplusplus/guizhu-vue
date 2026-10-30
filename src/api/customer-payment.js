@@ -26,7 +26,12 @@ export const deleteCustomerPayment = (id) => {
   return api.delete(`/customer-payment/${id}`);
 };
 
-// 客户月度账单汇总
-export const getCustomerMonthlySummary = (yearMonth) => {
-  return api.get('/customer-payment/monthly', { params: { yearMonth } });
+// 客户月度账单汇总（支持按客户 / 关键字查询）
+export const getCustomerMonthlySummary = (yearMonth, params = {}) => {
+  return api.get('/customer-payment/monthly', { params: { yearMonth, ...params } });
+};
+
+// 收款候选订单明细（按日期/客户/销售筛选，未收款）
+export const getCollectableOrders = (params) => {
+  return api.get('/customer-payment/collectable-orders', { params });
 };

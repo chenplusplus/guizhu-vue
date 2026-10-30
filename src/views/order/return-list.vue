@@ -56,6 +56,14 @@
           <el-link type="primary" @click.stop="viewDetail(row.id)">{{ row.returnNo }}</el-link>
         </template>
       </el-table-column>
+      <!-- ⭐ 状态列靠前显示 -->
+      <el-table-column prop="status" label="状态" width="90" align="center">
+        <template #default="{ row }">
+          <el-tag :type="getStatusType(row.status)" size="small">
+            {{ getStatusText(row.status) }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="billNo" label="原账单号" width="140" />
       <el-table-column prop="detailId" label="明细ID" width="80" />
       <el-table-column prop="orderNo" label="订单号" width="150" />
@@ -65,14 +73,14 @@
       <el-table-column prop="returnAmount" label="退货金额" width="120" align="right">
         <template #default="{ row }">¥{{ (row.returnAmount || 0).toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column prop="returnReason" label="退货原因" min-width="120" />
-      <el-table-column prop="status" label="状态" width="90" align="center">
+      <el-table-column prop="returnType" label="退回方式" width="110" align="center">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">
-            {{ getStatusText(row.status) }}
+          <el-tag :type="row.returnType === 'labor' ? 'warning' : 'danger'" size="small">
+            {{ row.returnType === 'labor' ? '退料留工费' : '全部退回' }}
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="returnReason" label="退货原因" min-width="120" />
       <el-table-column prop="createdAt" label="退货时间" width="160">
         <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
       </el-table-column>
@@ -125,6 +133,11 @@
         <el-descriptions-item label="业务员">{{ detailData?.operatorName }}</el-descriptions-item>
         <el-descriptions-item label="退货金额">
           <span style="color:#E6A23C;font-weight:bold;">¥{{ (detailData?.returnAmount || 0).toFixed(2) }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="退回方式">
+          <el-tag :type="detailData?.returnType === 'labor' ? 'warning' : 'danger'" size="small">
+            {{ detailData?.returnType === 'labor' ? '退料留工费' : '全部退回' }}
+          </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(detailData?.status)">{{ getStatusText(detailData?.status) }}</el-tag>

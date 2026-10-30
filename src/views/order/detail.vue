@@ -9,7 +9,7 @@
         </el-button>
         <h2>📋 订单详情</h2>
         <el-tag :type="statusTagType" size="small">{{ statusText }}</el-tag>
-        <el-tag v-if="orderData?.warnFlag" type="danger" size="small">⚠️ 紧急</el-tag>
+        <el-tag v-if="orderData?.warnFlag" type="danger" size="small">❗ 注意</el-tag>
         <el-tag v-if="orderData?.urgentFlag" type="warning" size="small">🔥 加急</el-tag>
         <el-tag v-if="orderData?.modifyTracking" type="info" size="small">✏️ 修改追踪中</el-tag>
       </div>
@@ -82,6 +82,7 @@
               <span class="purity-cell">
                 <span class="color-dot" :style="{ background: currentPurityColor }"></span>
                 {{ row.color || '-' }}
+                <span v-if="currentPurityRate !== null" class="purity-rate">（折算率 {{ currentPurityRate.toFixed(3) }}）</span>
               </span>
             </template>
           </el-table-column>
@@ -208,12 +209,16 @@
       </div>
 
       <!-- ===== 待处理的修改申请（新链路） ===== -->
-     <div v-if="orderData?.modifyTracking === true" class="pending-modify-section">
+     <div
+       v-if="orderData?.modifyTracking === true
+             || orderData?.modifyStatus === 'pendingAudit'
+             || orderData?.modifyStatus === 'pendingFactoryAudit'"
+       class="pending-modify-section"
+     >
   <div class="modify-log-title">
-    ✏️ {{ orderData.modifyStatus === 'pendingAudit' ? '待客户审核' : '修改追踪中' }}
-    <el-tag :type="orderData.modifyStatus === 'pendingAudit' ? 'warning' : 'primary'" size="small">
-      {{ orderData.modifyStatus === 'pendingAudit' ? '待客户审核' :
-         (orderData.modifyOriginStage === 'customer' ? '等待客户重新编辑' : '等待工厂确认') }}
+    ✏️ {{ getModifyStatusText(orderData) }}
+    <el-tag :type="orderData.modifyStatus === 'pendingAudit' || orderData.modifyStatus === 'pendingFactoryAudit' ? 'warning' : 'primary'" size="small">
+      {{ getModifyStatusText(orderData) }}
     </el-tag>
   </div>
 
@@ -232,7 +237,7 @@
   </div>
 
   <div style="margin-top: 12px; display: flex; gap: 8px;">
-    <template v-if="isCustomerAudit && canApproveModify">
+    <template v-if="canApproveModify">
       <el-button type="success" size="small" @click="handleAuditModify(true)">同意修改</el-button>
       <el-button type="danger" size="small" @click="handleAuditModify(false)">驳回</el-button>
     </template>
@@ -336,27 +341,31 @@ const flowDrawerVisible = ref(false);
 const isCustomer = computed(() => userStore.userType === 'customer');
 const isCustomerAudit = computed(() => userStore.userType === 'customerAudit');
 const isFactoryOrder = computed(() => userStore.userType === 'factoryOrder');
+const isFactoryAudit = computed(() => userStore.userType === 'factoryAudit');
+const isAdmin = computed(() => userStore.userType === 'admin');
 
 // ⭐ 工厂可编辑阶段（跟后端 FlowStatus.FactoryEditableStatuses 对齐）
 const FACTORY_EDITABLE = [
-  'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
-  'stoneReady', 'setting', 'glue', 'inlay', 'assembly', 'polishing', 'billRejected'
+  'customeraudited', 'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
+  'sweeping', 'stoneCutting', 'microInlay', 'handInlay', 'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay', 'billRejected'
 ];
 
 const canApplyModify = computed(() =>
   isCustomer.value
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId)
   && FACTORY_EDITABLE.includes(orderData.value?.flowStatus)
-  && orderData.value?.modifyTracking !== true // ⭐ 追踪中不能再申请
+  && orderData.value?.modifyTracking !== true
 );
 
 const canApproveModify = computed(() =>
-  isCustomerAudit.value && orderData.value?.modifyStatus === 'pendingAudit'
+  ((isCustomerAudit.value || isAdmin.value) && orderData.value?.modifyStatus === 'pendingAudit')
+  || ((isFactoryAudit.value || isAdmin.value) && orderData.value?.modifyStatus === 'pendingFactoryAudit')
 );
 
 const canWithdrawModify = computed(() =>
   isCustomer.value
-  && orderData.value?.modifyTracking === true
-  && orderData.value?.modifyStatus === 'pendingAudit'
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId)
+  && ['pendingAudit', 'pendingFactoryAudit'].includes(orderData.value?.modifyStatus)
 );
 
 // ⭐ 工厂操作员：追踪中 + 发起时是工厂/账单阶段 → 可确认生效
@@ -366,6 +375,17 @@ const canConfirmModify = computed(() =>
   && (orderData.value?.modifyOriginStage === 'factory'
       || orderData.value?.modifyOriginStage === 'bill')
 );
+
+const getModifyStatusText = (order) => {
+  if (order.modifyStatus === 'pendingFactoryAudit') return '待工厂审核员审批';
+  if (order.modifyStatus === 'pendingAudit') return '待客户审核员审批';
+  if (!order.modifyTracking) return '修改追踪中';
+  if (order.flowStatus === 'draft') return '等待客户重新编辑';
+  if (order.flowStatus === 'pending') return '等待客户审核';
+  return order.modifyOriginStage === 'preFactory'
+    ? '等待客户重新编辑'
+    : '等待工厂确认';
+};
 
 const handleConfirmModify = async () => {
   try {
@@ -488,9 +508,12 @@ const loadLogs = async () => {
 };
 
 const handleApplyModify = async () => {
+  const beforeFactoryAcceptance = orderData.value?.flowStatus === 'customeraudited';
   try {
     const { value } = await ElMessageBox.prompt(
-      '请填写申请修改的原因（提交后由客户审核员审批，同意后订单退回草稿可重新编辑）',
+      beforeFactoryAcceptance
+        ? '请填写申请修改的原因（提交后由工厂审核员审批，同意后可重新编辑并重新提交）'
+        : '请填写申请修改的原因（提交后由客户审核员审批，同意后订单退回草稿可重新编辑）',
       '申请修改',
       {
         confirmButtonText: '提交申请',
@@ -506,7 +529,9 @@ const handleApplyModify = async () => {
       data: {},
       reason: value.trim()
     });
-    ElMessage.success('修改申请已提交，等待客户审核员审批');
+    ElMessage.success(beforeFactoryAcceptance
+      ? '修改申请已提交，等待工厂审核员审批'
+      : '修改申请已提交，等待客户审核员审批');
     loadData();
     loadLogs();
   } catch (e) {
@@ -551,7 +576,7 @@ const statusMap = {
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
   billRejected: { text: '账单驳回', type: 'danger' },
-  billConfirmed: { text: '客户已确认', type: 'success' },
+  billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -617,6 +642,20 @@ const currentPurityColor = computed(() => {
   return '#DCDFE6';
 });
 
+// ===== 成色折算率 =====
+const currentPurityRate = computed(() => {
+  if (orderData.value?.purityId) {
+    const item = purityDict.value.find(x => x.id === orderData.value.purityId);
+    if (item) return Number(item.itemValue);
+  }
+  const label = (orderData.value?.color || '').trim();
+  if (label) {
+    const item = purityDict.value.find(x => x.itemLabel === label);
+    if (item) return Number(item.itemValue);
+  }
+  return null;
+});
+
 // ===== 预警提示 =====
 const warnings = computed(() => {
   const list = [];
@@ -627,8 +666,13 @@ const warnings = computed(() => {
     list.push(`⏰ 工期仅剩 ${data.deliveryDays} 天，请尽快处理！`);
   }
 
-  if (data.warnFlag) {
+  if (data.urgentFlag) {
     list.push('🚨 该订单已被标记为紧急订单，请优先处理！');
+  }
+
+  if (data.warnFlag) {
+    const reason = data.alertReason ? `（${data.alertReason}）` : '';
+    list.push(`⚠️ 该订单已被标记注意，请留意处理${reason}`);
   }
 
   if (data.flowStatus === 'rejected') {
@@ -793,6 +837,11 @@ onMounted(async () => {
   border: 1px solid #dcdfe6;
   vertical-align: middle;
   margin-right: 3px;
+}
+.purity-rate {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 2px;
 }
 
 /* ===== 图片区域 ===== */

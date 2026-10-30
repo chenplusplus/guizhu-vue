@@ -2,83 +2,73 @@
   <div class="factory-summary">
     <el-card>
       <template #header>
-        <el-space>
+        <el-space wrap>
           <span>全工厂汇总</span>
+          <el-tag size="small" type="info" effect="plain">仅进销存 · 不含订单</el-tag>
           <el-date-picker
             v-model="yearMonth"
             type="month"
             value-format="YYYY-M"
             placeholder="选择月份"
             style="width:130px"
-            @change="loadData"
+            @change="loadMonthData"
           />
+          <el-button :type="isToday ? 'success' : 'default'" @click="loadToday">今天</el-button>
           <el-select v-model="filterCategory" placeholder="内容分类筛选" clearable style="width:160px" @change="loadData">
             <el-option v-for="c in categories" :key="c.key" :label="c.label" :value="c.key" />
           </el-select>
-          <el-button type="primary" @click="loadData">刷新</el-button>
+          <el-button type="primary" :loading="loading" @click="loadData">刷新</el-button>
+          <el-button type="success" :disabled="!summaryRows.length" @click="exportExcel">下载 Excel</el-button>
         </el-space>
       </template>
 
-      <!-- 26分类 × 5维度 矩阵表 -->
+      <!-- 26 分类 × 进/出/差额（仅进销存三表，不含订单）-->
       <div class="table-wrapper">
         <table class="matrix-table" border="1">
           <thead>
             <tr>
               <th class="dim-col">维度</th>
-              <th v-for="cat in displayCategories" :key="cat" class="cat-col">{{ cat }}</th>
+              <th v-for="cat in displayCategories" :key="cat" class="cat-col" :class="categoryColorClass(cat)">{{ categoryLabel(cat) }}</th>
               <th class="total-col">合计</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="row in summaryRows" :key="row.dimension">
               <td class="dim-col">{{ row.dimension }}</td>
-              <td v-for="cat in displayCategories" :key="cat" class="num-col">
-                <span v-if="filterCategory && filterCategory !== cat && row.dimension !== '期末数'">-</span>
-                <span v-else>{{ formatNum(row.categories?.[cat] ?? 0, row.dimension) }}</span>
+              <td
+                v-for="cat in displayCategories"
+                :key="cat"
+                class="num-col material-cell"
+                :class="categoryColorClass(cat)"
+              >
+                <span v-if="filterCategory && filterCategory !== cat">-</span>
+                <span v-else :class="{ neg: Number(row.categories?.[cat] ?? 0) < 0 }">{{ formatNum(row.categories?.[cat] ?? 0, row.dimension) }}</span>
               </td>
               <td class="total-col num-col">{{ formatNum(row.total, row.dimension) }}</td>
             </tr>
           </tbody>
         </table>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-dot"></span> 数据来源：进销存「金 / 钻石 / 费用」三张表（不含订单）</span>
+          <span class="legend-item"><span class="legend-dot material-dot"></span> 材料类别以底色区分</span>
+        </div>
       </div>
-
-      <el-divider content-position="left">月度明细</el-divider>
-
-      <el-table :data="details" stripe border size="small" max-height="400">
-        <el-table-column prop="recordDate" label="日期" width="100" />
-        <el-table-column prop="recordNo" label="单号" width="150" />
-        <el-table-column prop="bizType" label="业务类型" width="80" />
-        <el-table-column prop="counterpartyName" label="往来对象" width="140" />
-        <el-table-column prop="contentCategory" label="内容分类" width="100" />
-        <el-table-column prop="kGoldCountPlus" label="件数+" width="70" align="right" />
-        <el-table-column prop="kGoldCountMinus" label="件数-" width="70" align="right" />
-        <el-table-column prop="weight" label="重量(ct)" width="80" align="right" />
-        <el-table-column prop="transactionAmount" label="交易金额" width="100" align="right">
-          <template #default="{ row }">{{ row.transactionAmount > 0 ? '¥' + row.transactionAmount.toFixed(2) : '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="paymentAmount" label="付款金额" width="100" align="right">
-          <template #default="{ row }">{{ row.paymentAmount > 0 ? '¥' + row.paymentAmount.toFixed(2) : '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag v-if="row.status==='approved'||row.status==='running'" type="success" size="small">已生效</el-tag>
-            <el-tag v-else type="info" size="small">{{ row.status }}</el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
     </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import * as XLSX from 'xlsx'
 import { factorySummary } from '@/api/transaction'
 
 const yearMonth = ref(`${new Date().getFullYear()}-${new Date().getMonth() + 1}`)
 const filterCategory = ref('')
 const summaryRows = ref([])
-const details = ref([])
+const selectedDate = ref('')
+const loading = ref(false)
+const isToday = computed(() => selectedDate.value === formatDate(new Date()))
 
 const categories = [
   { key: '18k', label: '18K' },
@@ -114,20 +104,75 @@ const displayCategories = computed(() => {
   return categories.map(c => c.key)
 })
 
+const categoryLabel = (key) => categories.find(c => c.key === key)?.label || key
+
+const categoryColorClass = (key) => ({
+  '18k': 'material-18k',
+  '14k': 'material-14k',
+  '9k': 'material-9k',
+  PT: 'material-pt',
+  银: 'material-silver',
+  铜: 'material-copper',
+  '天然钻石费用': 'material-diamond',
+  '培育钻石费用': 'material-lab-diamond',
+  '黄金': 'material-gold',
+  '钢片': 'material-steel',
+  '贝母': 'material-shell',
+  '彩宝费用': 'material-gem',
+}[key] || '')
+
 function formatNum(val, dimension) {
   if (dimension === '期末数' || dimension === '期初数') return '¥' + (val || 0).toFixed(2)
-  if (dimension === '本月合计重量(ct)') return (val || 0).toFixed(2)
+  if (dimension.endsWith('合计重量(ct)')) return (val || 0).toFixed(2)
   return '¥' + (val || 0).toFixed(2)
 }
 
-function loadData() {
-  const parts = (yearMonth.value || '').split('-')
-  const year = parseInt(parts[0])
-  const month = parseInt(parts[1])
-  factorySummary({ year, month }).then(res => {
+function formatDate(date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function loadMonthData() {
+  selectedDate.value = ''
+  loadData()
+}
+
+function loadToday() {
+  selectedDate.value = formatDate(new Date())
+  loadData()
+}
+
+async function loadData() {
+  loading.value = true
+  try {
+    const parts = (yearMonth.value || '').split('-')
+    const params = selectedDate.value
+      ? { date: selectedDate.value }
+      : { year: parseInt(parts[0]), month: parseInt(parts[1]) }
+    const res = await factorySummary(params)
     summaryRows.value = res.summary || []
-    details.value = res.details || []
-  }).catch(() => {})
+  } catch (error) {
+    console.error('加载全工厂汇总失败:', error)
+    ElMessage.error('加载全工厂汇总失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+function exportExcel() {
+  const headers = ['维度', ...displayCategories.value.map(categoryLabel), '合计']
+  const rows = summaryRows.value.map(row => [
+    row.dimension,
+    ...displayCategories.value.map(category => Number(row.categories?.[category]) || 0),
+    Number(row.total) || 0
+  ])
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+  const workbook = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(workbook, worksheet, '全工厂汇总')
+  const period = selectedDate.value || yearMonth.value
+  XLSX.writeFile(workbook, `全工厂汇总_${period}.xlsx`)
 }
 
 onMounted(loadData)
@@ -136,10 +181,30 @@ onMounted(loadData)
 <style scoped>
 .factory-summary { padding: 16px; }
 .table-wrapper { overflow-x: auto; }
-.matrix-table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 1200px; }
+.matrix-table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 2160px; }
 .matrix-table th, .matrix-table td { padding: 6px 8px; border: 1px solid #d0d0d0; }
-.dim-col { background: #f0f0f0; font-weight: bold; width: 120px; }
+.dim-col { background: #f0f0f0; font-weight: bold; width: 132px; min-width: 132px; white-space: nowrap; }
 .total-col { background: #fffbe6; font-weight: bold; }
-.num-col { text-align: right; }
-.matrix-table tbody tr:nth-child(5) td { background: #fffbe6; font-weight: bold; }
+.num-col { text-align: right; white-space: nowrap; }
+.num-col .neg { color: #d64545; font-weight: 600; }
+.matrix-table tbody tr:last-child td:not(.material-cell) { background: #fffbe6; font-weight: bold; }
+.matrix-table tbody tr:last-child td.material-cell { font-weight: bold; }
+.cat-col { min-width: 72px; }
+.material-18k { background: #fff1bd; }
+.material-14k { background: #fff6d8; }
+.material-9k { background: #fffbea; }
+.material-pt { background: #eee7f8; }
+.material-silver { background: #e9eef2; }
+.material-copper { background: #f7e7dc; }
+.material-diamond { background: #e6f0ff; }
+.material-lab-diamond { background: #e6f7f7; }
+.material-gold { background: #ffe69a; }
+.material-steel { background: #e5e9ed; }
+.material-shell { background: #f5e8f2; }
+.material-gem { background: #fbe4ee; }
+
+.legend { margin-top: 8px; font-size: 12px; color: #606266; }
+.legend-item { margin-right: 16px; display: inline-flex; align-items: center; }
+.legend-dot { display: inline-block; width: 12px; height: 12px; border: 1px solid #d0d0d0; background: #fff; margin-right: 4px; }
+.material-dot { background: linear-gradient(90deg, #fff1bd, #eee7f8, #e6f0ff, #f5e8f2); }
 </style>

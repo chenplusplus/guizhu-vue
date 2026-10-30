@@ -61,34 +61,26 @@
         <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="品名" prop="productName">
-              <div class="product-input-wrapper">
-                <el-autocomplete
-                  v-model="form.productName"
-                  :fetch-suggestions="querySearch"
-                  :disabled="lockCore"
-                  placeholder="输入品名搜索，不存在则自动新增"
-                  style="flex:1;"
-                  clearable
-                  @select="handleSelectProduct"
-                  @focus="handleFocus"
-                >
-                  <template #default="{ item }">
-                    <div class="product-suggestion">
-                      <div class="suggestion-name">{{ item.productName }}</div>
-                      <div class="suggestion-info">
-                        手寸: {{ item.size || '-' }} ｜ 成色: {{ item.color || '-' }}
-                        <span v-if="item.lastOrderDate" class="suggestion-date">最近: {{ formatDate(item.lastOrderDate) }}</span>
-                      </div>
+              <el-autocomplete
+                v-model="form.productName"
+                :fetch-suggestions="querySearch"
+                :disabled="lockCore"
+                placeholder="输入品名（可从历史订单带出）"
+                style="width:100%;"
+                popper-class="name-suggest-popper"
+                clearable
+                @focus="handleFocus"
+              >
+                <template #default="{ item }">
+                  <div class="product-suggestion">
+                    <div class="suggestion-name">{{ item.productName }}</div>
+                    <div class="suggestion-info">
+                      手寸: {{ item.size || '-' }} ｜ 成色: {{ item.color || '-' }}
+                      <span v-if="item.lastOrderDate" class="suggestion-date">最近: {{ formatDate(item.lastOrderDate) }}</span>
                     </div>
-                  </template>
-                </el-autocomplete>
-                <el-button type="primary" @click="openProductDialog">
-                  <el-icon><Search /></el-icon> 浏览
-                </el-button>
-              </div>
-              <div v-if="isNewProduct" class="new-product-tip">
-                <el-tag type="success" size="small">✨ 将自动创建新产品</el-tag>
-              </div>
+                  </div>
+                </template>
+              </el-autocomplete>
             </el-form-item>
           </el-col>
         </el-row>
@@ -131,6 +123,7 @@
                   <span class="purity-option">
                     <span class="color-dot" :style="{ background: item.color }"></span>
                     <span>{{ item.label }}</span>
+                    <span class="purity-rate">折算率 {{ formatRate(item.convertRate) }}</span>
                   </span>
                 </el-option>
               </el-select>
@@ -195,9 +188,9 @@
         <!-- ⭐ 第八行：预警 + 加急 -->
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12">
-            <el-form-item label="标记预警">
+            <el-form-item label="注意">
               <div class="warning-control">
-                <el-switch v-model="form.warnFlag" active-text="预警" inactive-text="正常" active-color="#f56c6c" inline-prompt :disabled="isAuditRestricted" />
+                <el-switch v-model="form.warnFlag" active-text="注意" inactive-text="正常" active-color="#f56c6c" inline-prompt :disabled="isAuditRestricted" />
                 <el-input v-if="form.warnFlag" v-model="form.alertReason" placeholder="请输入预警说明" clearable style="max-width:520px;" />
               </div>
             </el-form-item>
@@ -256,6 +249,16 @@
           value-format="YYYY-MM-DD"
           style="width:240px;"
         />
+        <el-select
+          v-model="historySearch.salesman"
+          placeholder="业务员"
+          clearable
+          filterable
+          style="width:160px;"
+          @change="loadHistoryList"
+        >
+          <el-option v-for="s in historySalesmanList" :key="s" :label="s" :value="s" />
+        </el-select>
         <el-button type="primary" @click="loadHistoryList">查询</el-button>
         <el-button @click="resetHistorySearch">重置</el-button>
       </div>
@@ -314,46 +317,6 @@
       </template>
     </el-dialog>
 
-    <!-- 产品库弹窗 -->
-    <el-dialog v-model="productDialogVisible" title="📦 产品库" width="800px" destroy-on-close>
-      <div class="dialog-search">
-        <el-input v-model="productSearchKeyword" placeholder="搜索品名/规格" clearable prefix-icon="Search" style="width:280px;" @input="loadProductList" />
-        <el-button type="primary" @click="loadProductList">搜索</el-button>
-        <span style="margin-left:12px;color:#999;font-size:13px;">共 {{ productTotal }} 个产品</span>
-      </div>
-      <el-table :data="productList" border stripe v-loading="productLoading" max-height="400" @row-dblclick="selectProductFromDialog" highlight-current-row>
-        <el-table-column prop="productName" label="品名" min-width="140" />
-        <el-table-column prop="size" label="手寸" width="100" />
-        <el-table-column prop="widthThick" label="宽/厚度" width="100" />
-        <el-table-column prop="color" label="成色" width="100" />
-        <el-table-column prop="diamondLevel" label="钻石级别" width="100" />
-        <el-table-column prop="weightRequirement" label="克重要求" width="110" />
-        <el-table-column prop="lastOrderDate" label="最近下单" width="110">
-          <template #default="{ row }">{{ formatDate(row.lastOrderDate) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="80" align="center">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" link @click="selectProductFromDialog(row)">选择</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-empty v-if="!productLoading && productList.length === 0" description="暂无产品" />
-      <div class="dialog-pagination">
-        <el-pagination
-          v-model:current-page="productPage.current"
-          v-model:page-size="productPage.pageSize"
-          :page-sizes="[10, 20, 50]"
-          :total="productTotal"
-          layout="total, sizes, prev, pager, next"
-          @size-change="loadProductList"
-          @current-change="loadProductList"
-          small
-        />
-      </div>
-      <template #footer>
-        <el-button @click="productDialogVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -361,12 +324,12 @@
 import { ref, reactive, onMounted, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowLeft, Document, Check, Search, Clock } from '@element-plus/icons-vue';
+import { ArrowLeft, Document, Check, Clock } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { createOrder, updateOrder, getOrderDetail, submitOrder, auditOrder, acceptOrder, getOrderList } from '@/api/order';
+import { createOrder, updateOrder, getOrderDetail, submitOrder, auditOrder, acceptOrder, getOrderList, getProductSuggest } from '@/api/order';
 import { createManualAlert } from '@/api/alert';
-import { searchProducts, getProductList, createProduct } from '@/api/product';
 import { dictApi } from '@/api/dict';
+import { getUserList } from '@/api/user';
 import MultiImageUpload from '@/components/MultiImageUpload.vue';
 import MultiFileUpload from '@/components/MultiFileUpload.vue';
 
@@ -391,15 +354,6 @@ const dataImages = ref([]);
 const letterImages = ref([]);
 const dataPackages = ref([]);
 
-// ===== 产品相关 =====
-const isNewProduct = ref(false);
-const productList = ref([]);
-const productTotal = ref(0);
-const productLoading = ref(false);
-const productDialogVisible = ref(false);
-const productSearchKeyword = ref('');
-const productPage = reactive({ current: 1, pageSize: 10 });
-
 // ===== ⭐ 历史订单 =====
 const historyDialogVisible = ref(false);
 const historyList = ref([]);
@@ -408,8 +362,31 @@ const historyLoading = ref(false);
 const historySearch = reactive({
   keyword: '',
   dateRange: [],
+  salesman: '',
 });
+const historySalesmanList = ref([]);
 const historyPage = reactive({ current: 1, pageSize: 10 });
+
+// ⭐ 历史订单弹窗：业务员下拉（当前客户公司下的下单员/审核员）
+const loadHistorySalesman = async () => {
+  try {
+    const params = { pageSize: 1000 };
+    if (userStore.customerId) params.customerId = userStore.customerId;
+    const res = await getUserList(params);
+    const list = res?.data || [];
+    historySalesmanList.value = [...new Set(
+      list
+        .filter(u => {
+          const t = String(u.userType || '').trim().replace(/[_-]/g, '').toLowerCase();
+          return t === 'customer' || t === 'customeraudit';
+        })
+        .map(u => u.realName || u.username)
+        .filter(Boolean)
+    )];
+  } catch {
+    historySalesmanList.value = [];
+  }
+};
 
 // ===== 表单 =====
 const form = reactive({
@@ -451,7 +428,7 @@ const statusMap = {
   factory_edit: { text: '工厂编辑中', type: 'primary' },
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
-  billConfirmed: { text: '客户已确认', type: 'success' },
+  billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -490,93 +467,26 @@ const onPurityChange = (purityId) => {
 };
 
 // ============================================================
-// 产品搜索
+// 品名联想：从历史订单带出（不再依赖产品库）
 // ============================================================
 const querySearch = async (queryString, cb) => {
-  if (!queryString || queryString.length < 1) {
-    isNewProduct.value = false;
-    return cb([]);
-  }
   try {
-    const res = await searchProducts({ keyword: queryString, limit: 10 });
+    const res = await getProductSuggest({
+      customerId: userStore.customerId || undefined,
+      keyword: queryString || undefined,
+      limit: 10,
+    });
     const results = res?.data || [];
-    const exists = results.some(item => item.productName === queryString.trim());
-    isNewProduct.value = !exists && queryString.trim().length > 0;
     cb(results.map(item => ({ ...item, value: item.productName })));
   } catch {
-    isNewProduct.value = true;
     cb([]);
   }
 };
-
-const handleSelectProduct = (item) => {
-  if (item && item.productId) {
-    fillFormFromProduct(item);
-    isNewProduct.value = false;
-    ElMessage.success(`已加载产品「${item.productName}」`);
-  }
-};
-
 const handleFocus = () => {
   if (form.productName && form.productName.length >= 1) {
     querySearch(form.productName, () => {});
   }
 };
-
-const openProductDialog = () => {
-  productDialogVisible.value = true;
-  productSearchKeyword.value = form.productName || '';
-  loadProductList();
-};
-
-const loadProductList = async () => {
-  productLoading.value = true;
-  try {
-    const res = await getProductList({
-      keyword: productSearchKeyword.value || undefined,
-      page: productPage.current,
-      pageSize: productPage.pageSize,
-    });
-    const data = res?.data || {};
-    productList.value = data.items || data.list || data || [];
-    productTotal.value = data.total || productList.value.length;
-  } catch {
-    productList.value = [];
-    productTotal.value = 0;
-  } finally {
-    productLoading.value = false;
-  }
-};
-
-const selectProductFromDialog = (row) => {
-  fillFormFromProduct(row);
-  productDialogVisible.value = false;
-  isNewProduct.value = false;
-  ElMessage.success(`已选择产品「${row.productName}」`);
-};
-
-const fillFormFromProduct = (product) => {
-  form.productName = product.productName;
-  form.size = product.size || '';
-  form.widthThick = product.widthThick || '';
-  if (product.purityId) {
-    form.purityId = product.purityId;
-    const item = purityOptions.value.find(x => x.id === product.purityId);
-    if (item) form.color = item.label;
-  } else if (product.color) {
-    const item = purityOptions.value.find(x => x.label === product.color);
-    if (item) {
-      form.purityId = item.id;
-      form.color = item.label;
-    }
-  }
-  form.goldPrice = product.goldPrice || 0;
-  form.diamondLevel = product.diamondLevel || '';
-  form.weightRequirement = product.weightRequirement || '';
-  form.logoText = product.logoText || '';
-  form.deliveryDays = product.deliveryDays || 7;
-};
-
 // ============================================================
 // ⭐ 从历史订单带入
 // ============================================================
@@ -591,11 +501,13 @@ const openHistoryDialog = () => {
     historySearch.dateRange = [fmt(ago30), fmt(today)];
   }
   historyPage.current = 1;
+  loadHistorySalesman();
   loadHistoryList();
 };
 
 const resetHistorySearch = () => {
   historySearch.keyword = '';
+  historySearch.salesman = '';
   const today = new Date();
   const ago30 = new Date();
   ago30.setDate(today.getDate() - 30);
@@ -616,6 +528,9 @@ const loadHistoryList = async () => {
     if (historySearch.dateRange && historySearch.dateRange.length === 2) {
       params.startDate = historySearch.dateRange[0];
       params.endDate = historySearch.dateRange[1];
+    }
+    if (historySearch.salesman) {
+      params.salesman = historySearch.salesman;
     }
 
     const res = await getOrderList(params);
@@ -707,12 +622,17 @@ const fillFromOrderData = (data, isCopyMode) => {
   form.orderDate = isCopyMode ? new Date().toISOString().split('T')[0] : (data.orderDate?.split('T')[0] || '');
   form.productName = data.productName || '';
   form.salesman = userStore.realName || userStore.username || '';
-  form.warnFlag = Boolean(data.warnFlag);
-  form.alertReason = data.alertReason || '';
+  form.warnFlag = !isCopyMode && Boolean(data.warnFlag);
+  form.alertReason = isCopyMode ? '' : (data.alertReason || '');
   form.quantity = data.quantity || 1;
   form.deliveryDays = data.deliveryDays || 7;
   form.color = data.color || '';
   form.purityId = data.purityId || null;
+  // ⭐ 历史订单可能只存了 color 文本、purityId 为空，用 color 反查成色下拉框的 id 回显
+  if (!form.purityId && data.color) {
+    const matched = purityOptions.value.find(x => x.label === data.color);
+    if (matched) form.purityId = matched.id;
+  }
   form.goldPrice = data.goldPrice || 0;
   form.size = data.size || '';
   form.widthThick = data.widthThick || '';
@@ -722,47 +642,40 @@ const fillFromOrderData = (data, isCopyMode) => {
   form.url = data.url || '';
   form.remark = data.remark || '';
   form.gemColor = data.gemColor || '';
-  form.urgentFlag = data.urgentFlag || false;
+  form.urgentFlag = !isCopyMode && Boolean(data.urgentFlag);
 
   orderStatus.value = data.flowStatus || '';
 
-  // 图片按类型拆分
-  const imgs = data.images || [];
-  productImages.value = imgs.filter(x => x.imageType === 'product');
-  dataImages.value = imgs.filter(x => x.imageType === 'data');
-  letterImages.value = imgs.filter(x => x.imageType === 'letter');
+  // 图片按类型拆分（优先 images 明细；若缺失则回退到兼容单图字段，避免历史订单/编辑时带不出图片）
+  const imgs = Array.isArray(data.images) ? data.images : [];
+  const buildFromRaw = (type, raw) => String(raw || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map((url, i) => ({ id: null, imageType: type, imageUrl: url, imageName: '', sortOrder: i, remark: '' }));
+  const pickImages = (type, legacy) => {
+    const hit = imgs.filter(x => x && x.imageType === type);
+    return hit.length ? hit : buildFromRaw(type, legacy);
+  };
+  productImages.value = pickImages('product', data.imageUrl);
+  dataImages.value = pickImages('data', data.dataImageUrl);
+  const letterHit = imgs.filter(x => x && (x.imageType === 'letter' || x.imageType === 'letter_ref'));
+  letterImages.value = letterHit.length ? letterHit : buildFromRaw('letter', data.letterImageUrl);
 
-  // 数据包
-  dataPackages.value = (data.dataPackages || []).map(x => ({ ...x }));
-};
-
-// ============================================================
-// 自动保存新产品
-// ============================================================
-const saveProductIfNew = async () => {
-  if (!isNewProduct.value || !form.productName.trim()) return null;
-  try {
-    const productData = {
-      productName: form.productName.trim(),
-      size: form.size,
-      widthThick: form.widthThick,
-      color: form.color,
-      purityId: form.purityId,
-      goldPrice: form.goldPrice,
-      diamondLevel: form.diamondLevel,
-      weightRequirement: form.weightRequirement,
-      logoText: form.logoText,
-    };
-    const res = await createProduct(productData);
-    if (res?.success !== false) {
-      ElMessage.success(`已自动创建新产品「${form.productName}」`);
-      isNewProduct.value = false;
-      return res?.data || { productId: res?.productId };
-    }
-    return null;
-  } catch (error) {
-    console.warn('创建产品失败:', error);
-    return null;
+  // 数据包（兼容数组 / 逗号分隔字符串）
+  const pkgRaw = data.dataPackages || data.dataPackageUrl;
+  if (Array.isArray(pkgRaw)) {
+    dataPackages.value = pkgRaw.map(x => ({ ...x }));
+  } else if (typeof pkgRaw === 'string' && pkgRaw) {
+    dataPackages.value = pkgRaw.split(',').map(s => s.trim()).filter(Boolean).map((url, i) => ({
+      fileName: url.split('/').pop() || `数据包${i + 1}`,
+      fileUrl: url,
+      fileSize: 0,
+      fileType: (url.split('.').pop() || '').toLowerCase(),
+      sortOrder: i,
+    }));
+  } else {
+    dataPackages.value = [];
   }
 };
 
@@ -821,7 +734,6 @@ const handleSave = async () => {
 
   saving.value = true;
   try {
-    await saveProductIfNew();
     const payload = buildPayload('draft');
 
  
@@ -857,7 +769,6 @@ const handleSubmit = async () => {
 
   submitting.value = true;
   try {
-    await saveProductIfNew();
     let orderId = null;
 
     if (isEdit.value) {
@@ -899,7 +810,6 @@ const handleSubmitToFactory = async () => {
 
   submitting.value = true;
   try {
-    await saveProductIfNew();
     const payload = buildPayload('customerAudited');
     await updateOrder({ ...payload, orderId: parseInt(route.params.id) });
     await saveWarning(parseInt(route.params.id));
@@ -917,6 +827,13 @@ const formatDate = (date) => {
   if (!date) return '-';
   const d = new Date(date);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// 折算率格式化（如 1 → 1.000，0.755 → 0.755）
+const formatRate = (rate) => {
+  const n = Number(rate);
+  if (rate === null || rate === undefined || isNaN(n)) return '-';
+  return n.toFixed(3);
 };
 
 // ============================================================
@@ -973,16 +890,12 @@ onMounted(() => {
 .form-wrapper :deep(.el-form-item) { margin-bottom: 18px; }
 .form-wrapper :deep(.el-form-item__label) { font-weight: 500; color: #4e5969; }
 
-.product-input-wrapper { display: flex; align-items: center; gap: 8px; width: 100%; }
-.product-input-wrapper :deep(.el-autocomplete) { flex: 1; }
-.product-input-wrapper :deep(.el-button) { flex-shrink: 0; height: 32px; padding: 0 16px; }
 
 .product-suggestion { display: flex; flex-direction: column; padding: 4px 0; }
 .suggestion-name { font-size: 14px; font-weight: 500; color: #1d2129; }
 .suggestion-info { font-size: 12px; color: #86909c; margin-top: 2px; }
 .suggestion-date { margin-left: 12px; color: #4e5969; }
 
-.new-product-tip { margin-top: 6px; }
 
 .warning-control { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .warning-control :deep(.el-switch.is-checked .el-switch__core) { background-color: #f56c6c; border-color: #f56c6c; }
@@ -1001,6 +914,7 @@ onMounted(() => {
 
 /* 成色下拉样式 */
 .purity-option { display: flex; align-items: center; gap: 8px; }
+.purity-rate { margin-left: auto; font-size: 12px; color: #909399; }
 .color-dot {
   display: inline-block; width: 12px; height: 12px;
   border-radius: 50%; border: 1px solid #dcdfe6; flex-shrink: 0;
@@ -1015,10 +929,19 @@ onMounted(() => {
   .page-header { flex-direction: column; align-items: stretch; }
   .header-left { flex-wrap: wrap; }
   .header-right { justify-content: flex-end; }
-  .product-input-wrapper { flex-wrap: wrap; }
   .upload-card { min-height: 100px; margin-bottom: 12px; }
 }
 .letter-compact { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .letter-thumb { width:56px; height:56px; border-radius:4px; border:1px solid #ebeef5; cursor:zoom-in; }
 .letter-empty { color:#c0c4cc; font-size:12px; }
+</style>
+
+<style>
+/* 品名联想下拉：popper 挂到 body，必须用全局样式限制宽度 */
+.name-suggest-popper { min-width: 420px !important; max-width: 560px; }
+</style>
+
+<style>
+/* 品名联想下拉：popper 挂到 body，必须用全局样式限制宽度 */
+.name-suggest-popper { min-width: 420px !important; max-width: 560px; }
 </style>

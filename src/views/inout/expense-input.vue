@@ -48,7 +48,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="录入人">
+            <el-form-item label="经办人">
               <el-input v-model="form.createByName" placeholder="默认登录人，可改" />
             </el-form-item>
           </el-col>

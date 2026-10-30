@@ -2,7 +2,7 @@
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
     <div class="page-header">
-      <h2>🏭 工厂订单</h2>
+      <h2>{{ pageTitle }}</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <!-- ⭐ 批量接单：只在"待接单"tab 显示 -->
         <el-button
@@ -31,8 +31,8 @@
       </div>
     </div>
 
-    <!-- ⭐ 一级 Tab -->
-    <div v-show="!isFullscreen" class="order-tabs-wrapper">
+    <!-- ⭐ 一级 Tab（按菜单拆分后不再显示） -->
+    <div v-show="!isFullscreen && !modeConf" class="order-tabs-wrapper">
       <el-tabs v-model="activeTab" @tab-change="onTabChange" class="order-tabs">
         <el-tab-pane name="waitingFactory">
           <template #label>
@@ -156,32 +156,41 @@
       ref="tableRef"
       :class="{ 'table-fullscreen': isFullscreen }"
       :data="tableData"
+      :empty-text="emptyText"
       border
       stripe
       v-loading="loading"
       @selection-change="handleSelectionChange"
       @row-click="handleRowClick"
+      :row-class-name="rowClassName"
       row-key="orderId"
     >
       <el-table-column type="selection" width="45" align="center" @click.stop />
 
-      <el-table-column label="标记" width="48" fixed align="center">
+      <el-table-column label="标记" width="56" fixed align="center">
         <template #default="{ row }">
+          <el-tooltip
+            v-if="row.costWarnFlag"
+            :content="'成本高于销售：' + (row.costWarnReason || '')"
+            placement="top"
+          >
+            <span class="cost-warn-flag">❗</span>
+          </el-tooltip>
           <el-tooltip
             v-if="row.warnFlag || row.alertReason || row.urgentFlag"
             :content="getFlagTooltip(row)"
             placement="top"
           >
             <span class="order-flags">
-              <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">⚠️</span>
+              <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">❗</span>
               <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
             </span>
           </el-tooltip>
-          <span v-else class="order-flag-placeholder">-</span>
+          <span v-if="!row.costWarnFlag && !row.warnFlag && !row.alertReason && !row.urgentFlag" class="order-flag-placeholder">-</span>
         </template>
       </el-table-column>
 
-      <el-table-column prop="orderNo" label="订单号" width="150" fixed>
+      <el-table-column prop="orderNo" label="订单号" :width="mode === 'accept' && !isFullscreen ? 130 : 150" fixed>
         <template #default="{ row }">
           <el-link
             type="primary"
@@ -189,22 +198,29 @@
             @click.stop="viewDetail(row.orderId)"
           >
             {{ row.orderNo }}
-            <span v-if="hasPendingModify(row)" class="modify-badge">✏️</span>
+            <span v-if="hasPendingModify(row)" class="modify-badge"><ModifyTripodIcon /></span>
           </el-link>
         </template>
       </el-table-column>
 
-      <!-- 状态列 -->
-      <el-table-column prop="flowStatus" label="状态" width="120" align="center" fixed>
+      <!-- 状态列：点击可改状态（订单编辑视图 / 全部视图） -->
+      <el-table-column v-if="mode !== 'audit'" prop="flowStatus" label="状态" :width="mode === 'accept' && !isFullscreen ? 100 : 120" align="center" fixed>
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
+          <el-tag
+            :type="getStatusType(row.flowStatus)"
+            size="default"
+            effect="light"
+            :class="{ 'status-clickable': canChangeStatus(row) }"
+            :title="canChangeStatus(row) ? '点击更新状态' : ''"
+            @click.stop="onStatusClick(row)"
+          >
             {{ getStatusText(row.flowStatus) }}
           </el-tag>
         </template>
       </el-table-column>
 
       <!-- 账单列 -->
-      <el-table-column label="账单" width="120" align="center">
+      <el-table-column v-if="mode !== 'edit' && mode !== 'accept' && mode !== 'audit'" label="账单" width="120" align="center">
         <template #default="{ row }">
           <el-link v-if="row.billId" type="primary" @click.stop="viewBill(row.billId)">
             {{ row.billNo || '账单' }}
@@ -214,20 +230,26 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="customerName" label="客户" width="120" />
-      <el-table-column prop="orderDate" label="订单日期" width="110" align="center">
+      <el-table-column label="客户/销售" :width="mode === 'accept' && !isFullscreen ? 140 : 160">
+        <template #default="{ row }">
+          {{ row.customerName || '-' }}<span v-if="row.salesman || row.operatorName" class="customer-salesman">/{{ row.salesman || row.operatorName }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column prop="orderDate" label="订单日期" :width="mode === 'accept' && !isFullscreen ? 100 : 110" align="center">
         <template #default="{ row }">
           {{ formatDate(row.orderDate) }}
         </template>
       </el-table-column>
-      <el-table-column prop="productName" label="品名" min-width="120" />
-      <el-table-column label="图片" width="70" align="center">
+      <el-table-column prop="productName" label="品名" :min-width="mode === 'accept' && !isFullscreen ? 100 : 120" />
+      <el-table-column label="图片" :width="mode === 'accept' && !isFullscreen ? 56 : 70" align="center">
         <template #default="{ row }">
           <el-image
             v-if="row.imageUrl"
             :src="row.imageUrl"
             fit="cover"
-            style="width: 45px; height: 45px; border-radius: 4px; cursor: pointer;"
+            :style="mode === 'accept' && !isFullscreen
+              ? 'width: 36px; height: 36px; border-radius: 4px; cursor: pointer;'
+              : 'width: 45px; height: 45px; border-radius: 4px; cursor: pointer;'"
             :preview-src-list="[row.imageUrl]"
             preview-teleported
             @click.stop
@@ -235,21 +257,21 @@
           <span v-else style="color: #ccc; font-size: 12px;">无图</span>
         </template>
       </el-table-column>
-      <el-table-column prop="size" label="手寸" width="80" align="center" />
-      <el-table-column prop="quantity" label="数量" width="70" align="center" />
-      <el-table-column prop="color" label="成色" width="80" align="center" />
-      <el-table-column prop="goldPrice" label="金价" width="90" align="right">
+      <el-table-column prop="size" label="手寸" :width="mode === 'accept' && !isFullscreen ? 65 : 80" align="center" />
+      <el-table-column prop="quantity" label="数量" :width="mode === 'accept' && !isFullscreen ? 55 : 70" align="center" />
+      <el-table-column prop="color" label="成色" :width="mode === 'accept' && !isFullscreen ? 65 : 80" align="center" />
+      <el-table-column prop="goldPrice" label="金价" :width="mode === 'accept' && !isFullscreen ? 75 : 90" align="right">
         <template #default="{ row }">{{ row.goldPrice || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center" />
-      <el-table-column prop="deliveryDays" label="工期" width="70" align="center" />
-      <el-table-column prop="totalWeight" label="总重" width="85" align="right">
+      <el-table-column prop="diamondLevel" label="钻石级别" :width="mode === 'accept' && !isFullscreen ? 80 : 100" align="center" />
+      <el-table-column prop="deliveryDays" label="工期" :width="mode === 'accept' && !isFullscreen ? 60 : 70" align="center" />
+      <el-table-column v-if="mode !== 'accept' || isFullscreen" prop="totalWeight" label="总重" width="85" align="right">
         <template #default="{ row }">{{ row.totalWeight || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="netWeight" label="净重" width="85" align="right">
+      <el-table-column v-if="mode !== 'accept' || isFullscreen" prop="netWeight" label="净重" width="85" align="right">
         <template #default="{ row }">{{ row.netWeight || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="lossRate" label="损耗" width="84" align="center">
+      <el-table-column v-if="mode !== 'accept' || isFullscreen" prop="lossRate" label="损耗" width="84" align="center">
         <template #default="{ row }">
           <span v-if="isAbnormalLoss(row.lossRate)" class="loss-abnormal" title="非标准损耗（1.08 / 1.10）">
             {{ row.lossRate }}
@@ -257,10 +279,10 @@
           <span v-else>{{ row.lossRate || '-' }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="laborFee" label="工费" width="85" align="right">
+      <el-table-column v-if="mode !== 'accept' || isFullscreen" prop="laborFee" label="工费" width="85" align="right">
         <template #default="{ row }">{{ row.laborFee || '-' }}</template>
       </el-table-column>
-      <el-table-column prop="totalAmount" label="金额" width="110" align="right">
+      <el-table-column v-if="mode !== 'accept' || isFullscreen" prop="totalAmount" label="金额" width="110" align="right">
         <template #default="{ row }">
           <span style="color: #E6A23C; font-weight: bold;">
             ¥{{ (row.totalAmount || 0).toFixed(2) }}
@@ -269,9 +291,39 @@
       </el-table-column>
 
       <!-- 操作列 -->
-      <el-table-column v-if="!isFullscreen" label="操作" width="96" fixed="right" align="center">
+      <el-table-column v-if="!isFullscreen && showActionColumn" label="操作" :width="mode === 'edit' ? 160 : (mode === 'audit' ? 88 : 96)" fixed="right" align="center">
         <template #default="{ row }">
+          <div v-if="mode === 'edit' || mode === 'audit'" class="edit-row-actions">
+            <template v-if="mode === 'edit'">
+              <el-button
+                v-if="allow('edit') && canEditRow(row)"
+                size="small"
+                type="primary"
+                plain
+                @click.stop="goFactoryEdit(row.orderId)"
+              >编辑</el-button>
+              <el-button
+                v-if="allow('repair')"
+                size="small"
+                type="warning"
+                plain
+                @click.stop="goRepair(row)"
+              >维修单</el-button>
+            </template>
+            <!-- ⭐ 待审核视图：直接给审核按钮（不用再展开下拉） -->
+            <template v-else>
+              <el-button
+                v-if="normalizeStatus(row.flowStatus) === 'productionCompleted' && (userStore.isFactoryAudit || userStore.isAdmin)"
+                size="small"
+                type="success"
+                plain
+                @click.stop="handleRowAction('auditProduction', row)"
+              >审核</el-button>
+              <span v-else class="no-action">—</span>
+            </template>
+          </div>
           <el-dropdown
+            v-else
             trigger="hover"
             placement="left-start"
             @command="(cmd) => handleRowAction(cmd, row)"
@@ -283,37 +335,35 @@
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item
-                  v-if="normalizeStatus(row.flowStatus) === 'customerAudited'"
+                  v-if="allow('accept') && normalizeStatus(row.flowStatus) === 'customerAudited'"
                   command="accept"
                 >接单</el-dropdown-item>
 
                 <el-dropdown-item
-                  v-if="isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit'"
+                  v-if="allow('status') && (isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit')"
                   command="status"
                 >更新状态</el-dropdown-item>
 
-                <el-dropdown-item command="repair">维修单</el-dropdown-item>
+                <el-dropdown-item v-if="allow('repair')" command="repair">维修单</el-dropdown-item>
 
                 <!-- ⭐ 已完成 且未生成账单 → 生成账单 -->
                 <el-dropdown-item
-                  v-if="normalizeStatus(row.flowStatus) === 'completed' && !row.billId && (userStore.isFactoryOrder || userStore.isAdmin)"
+                  v-if="allow('bill') && normalizeStatus(row.flowStatus) === 'completed' && !row.billId && (userStore.isFactoryOrder || userStore.isAdmin)"
                   command="bill"
                 >生成账单</el-dropdown-item>
 
                 <!-- ⭐ 制作完成待审核 → 审核制作完成 -->
                 <el-dropdown-item
-                  v-if="normalizeStatus(row.flowStatus) === 'polishing' && (userStore.isFactoryAudit || userStore.isAdmin)"
+                  v-if="allow('auditProduction') && normalizeStatus(row.flowStatus) === 'productionCompleted' && (userStore.isFactoryAudit || userStore.isAdmin)"
                   command="auditProduction"
                 >审核制作完成</el-dropdown-item>
 
                 <el-dropdown-item
-                  v-if="canEditRow(row)"
+                  v-if="allow('edit') && canEditRow(row)"
                   command="edit"
                 >编辑</el-dropdown-item>
 
-                <el-dropdown-item v-if="row._hasPackage" command="downloadPackage">数据包下载</el-dropdown-item>
-
-                <el-dropdown-item command="view" divided>查看</el-dropdown-item>
+                <el-dropdown-item v-if="allow('downloadPackage') && row._hasPackage" command="downloadPackage">数据包下载</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -321,7 +371,7 @@
       </el-table-column>
     </el-table>
 
-    <el-empty v-if="!loading && tableData.length === 0" description="暂无工厂订单" />
+    <!-- 空态由表格的 empty-text 呈现（按菜单视图给不同文案） -->
 
     <!-- 分页 -->
     <div v-show="!isFullscreen" style="margin-top: 16px; display: flex; justify-content: flex-end;">
@@ -418,15 +468,18 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight, Tools, ArrowDown } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList, acceptOrder, updateProduction, getOrderDetail, auditProduction } from '@/api/order';
+import { autoCreateBill } from '@/api/bill';
+import { generateLr } from '@/api/lr';
 import { getCustomerList } from '@/api/customer';
 import { dictApi } from '@/api/dict';
 import { createBill } from '@/api/bill';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -447,7 +500,45 @@ const productionStatuses = ref([]);
 const dateRange = ref([]);
 
 // ===== 一级 Tab =====
-const activeTab = ref('waitingFactory');
+// ⭐ 菜单参数化：同一个页面由路由 meta.mode（或 ?mode=）决定只显示哪一段、只允许哪些操作
+const MODE_MAP = {
+  accept:    { tab: 'waitingFactory',    title: '🏭 待接单',     allow: ['accept'] },
+  edit:      { tab: 'factoryProcessing', title: '✏️ 订单编辑',   allow: ['edit', 'repair', 'status', 'downloadPackage'] },
+  audit:     { tab: 'productionAudit',   title: '🔍 待审核',     allow: ['auditProduction'] },
+  completed: { tab: 'completed',         title: '✅ 已完成订单', allow: ['bill', 'downloadPackage'] },
+};
+const route = useRoute();
+const mode = computed(() => String(route.meta?.mode || route.query.mode || ''));
+const modeConf = computed(() => MODE_MAP[mode.value] || null);
+const pageTitle = computed(() => modeConf.value?.title || '🏭 工厂订单');
+// 没有 mode 时表示「全部」视图，不限制操作
+const allow = (cmd) => !modeConf.value || modeConf.value.allow.includes(cmd);
+
+// 操作列是否显示：待审核视图下只有审核员/管理员才有操作（其他角色是纯查看列表）
+const showActionColumn = computed(() => {
+  if (!modeConf.value) return true;
+  if (mode.value === 'audit') return userStore.isFactoryAudit || userStore.isAdmin;
+  return modeConf.value.allow.length > 0;
+});
+
+// 空态文案：按视图区分
+const emptyText = computed(() => {
+  const map = { accept: '暂无待接单订单', edit: '暂无制作中的订单', audit: '暂无待审核订单', completed: '暂无已完成订单' };
+  return map[mode.value] || '暂无工厂订单';
+});
+
+// 状态穿透：编辑视图（或全部视图）下、处于制作阶段的订单，点状态标签可直接改状态
+const canChangeStatus = (row) => {
+  if (modeConf.value && mode.value !== 'edit') return false;
+  const st = normalizeStatus(row.flowStatus);
+  return st === 'factory_edit' || isInProduction(row.flowStatus);
+};
+const onStatusClick = (row) => {
+  if (!canChangeStatus(row)) return;
+  openStatusDialog(row);
+};
+
+const activeTab = ref(modeConf.value ? modeConf.value.tab : 'waitingFactory');
 const subStatus = ref('');
 
 const tabCounts = reactive({
@@ -463,11 +554,11 @@ const subStatusCounts = ref({});
 const TAB_STATUS_MAP = {
   waitingFactory: ['customerAudited'],
   factoryProcessing: [
-    'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded',
-    'cnc', 'partsMissing', 'stoneReady', 'setting', 'glue',
-    'inlay', 'assembly'
+    'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded', 'partsMissing',
+    'setting', 'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay',
+    'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay'
   ],
-  productionAudit: ['polishing'],
+  productionAudit: ['productionCompleted'],
   completed: ['completed', 'cancelled', 'scrapped'],
   all: null,
 };
@@ -555,7 +646,15 @@ const statusMap = {
   glue: { text: '滴胶/磨石', type: 'primary' },
   inlay: { text: '镶嵌', type: 'primary' },
   assembly: { text: '组装', type: 'primary' },
-  polishing: { text: '制作完成待审核', type: 'warning' },
+  sweeping: { text: '扫镶口', type: 'primary' },
+  stoneCutting: { text: '车石', type: 'primary' },
+  microInlay: { text: '微镶', type: 'primary' },
+  handInlay: { text: '手镶', type: 'primary' },
+  polishing: { text: '抛光', type: 'primary' },
+  paused: { text: '暂停', type: 'warning' },
+  productionCompleted: { text: '制作完成', type: 'warning' },
+  billPending: { text: '账单待审核', type: 'warning' },
+  billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   cancelled: { text: '已取消', type: 'info' },
   scrapped: { text: '已报废', type: 'danger' },
@@ -588,12 +687,15 @@ const getStatusType = (status) => statusMap[normalizeStatus(status)]?.type || 'i
 const getFlagTooltip = (row) => {
   const messages = [];
   if (row.warnFlag || row.alertReason) messages.push(`注意：${row.alertReason || '请关注该订单'}`);
-  if (row.urgentFlag) messages.push('紧急');
+  if (row.urgentFlag) messages.push('加急');
   return messages.join('；');
 };
 
+// ⭐ 成本高于销售的订单：整行标红
+const rowClassName = ({ row }) => (row.costWarnFlag ? 'row-cost-warn' : '');
+
 const hasPendingModify = (row) => {
-  return row.modifyStatus && row.modifyStatus !== 'none';
+  return row.modifyTracking === true;
 };
 
 const isInProduction = (status) => {
@@ -926,9 +1028,10 @@ const openAuditProductionDialog = (row) => {
 
 const confirmAuditProduction = async (approved) => {
   if (!auditProductionRow.value) return;
+  const orderId = auditProductionRow.value.orderId;
   auditProductionLoading.value = true;
   try {
-    const res = await auditProduction(auditProductionRow.value.orderId, {
+    const res = await auditProduction(orderId, {
       approved,
       remark: auditProductionRemark.value,
     });
@@ -936,6 +1039,37 @@ const confirmAuditProduction = async (approved) => {
       ElMessage.success(res.data?.message || (approved ? '审核通过' : '已驳回'));
       auditProductionDialogVisible.value = false;
       loadData();
+
+      // ⭐ 审核通过后自动生成账单 + LR 表（LR 成本行取自订单编辑里录入的成本）
+      if (approved) {
+        try {
+          const r = await autoCreateBill(orderId);
+          const d = r?.data || r;
+          const billId = d?.billId;
+
+          if (d?.skipped) {
+            ElMessage.info('账单：' + (d.message || '当天已有待审账单，未重复生成'));
+          } else if (d?.billNo) {
+            ElMessage.success('已自动生成账单 ' + d.billNo + (d.orderCount ? `（含 ${d.orderCount} 个订单）` : ''));
+          }
+
+          // 新建成功才生成 LR（跳过时该账单可能早已生成过）
+          if (billId && !d?.skipped) {
+            try {
+              const lr = await generateLr({ billId });
+              const lrOk = lr?.success !== false;
+              if (lrOk) ElMessage.success('已自动生成 LR 表');
+              else ElMessage.warning('LR 表生成提示：' + (lr?.message || '请到 LR 表管理查看'));
+            } catch (e2) {
+              console.warn('自动生成 LR 失败:', e2);
+              ElMessage.warning('账单已生成，但 LR 表自动生成失败，可在 LR 表管理手动生成');
+            }
+          }
+        } catch (e) {
+          console.warn('自动生成账单失败:', e);
+          ElMessage.warning('订单已审核，但自动生成账单失败，请在「账单列表 / 生成账单」页手动处理');
+        }
+      }
     } else {
       ElMessage.error(res.message || '操作失败');
     }
@@ -1031,6 +1165,12 @@ onMounted(() => {
 
 <style scoped>
 .page-container { background: #fff; border-radius: 8px; padding: 20px; min-height: 100%; }
+/* 状态标签可点击（订单编辑视图） */
+.status-clickable { cursor: pointer; }
+.status-clickable:hover { text-decoration: underline; }
+.edit-row-actions { display: flex; justify-content: center; gap: 4px; }
+.no-action { color: #c0c4cc; }
+.customer-salesman { color: #606266; }
 
 .page-header {
   display: flex;
@@ -1128,7 +1268,7 @@ onMounted(() => {
 }
 .modify-badge {
   margin-left: 4px;
-  font-size: 14px;
+  font-size: 18px;
 }
 @keyframes blink {
   0%, 100% { opacity: 1; }
@@ -1151,7 +1291,7 @@ onMounted(() => {
 .order-flag {
   font-weight: 600;
   white-space: nowrap;
-  font-size: 16px;
+  font-size: 26px;
   line-height: 1;
 }
 .order-flags {
@@ -1165,6 +1305,27 @@ onMounted(() => {
 }
 .order-flag-placeholder {
   color: #c0c4cc;
+  font-size: 18px;
+}
+
+/* ⭐ 成本高于销售的预警：大号红图标 + 整行淡红底 */
+.cost-warn-flag {
+  font-size: 32px;
+  font-weight: 700;
+  color: #f56c6c;
+  line-height: 1;
+  cursor: help;
+  animation: costWarnBlink 1.4s ease-in-out infinite;
+}
+@keyframes costWarnBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+:deep(.el-table .row-cost-warn td.el-table__cell) {
+  background: #fdecec !important;
+}
+:deep(.el-table .row-cost-warn:hover td.el-table__cell) {
+  background: #fbdcdc !important;
 }
 
 /* ===== 全屏模式 ===== */

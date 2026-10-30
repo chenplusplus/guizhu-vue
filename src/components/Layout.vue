@@ -124,8 +124,22 @@ const currentPath = computed(() => route.path)
 const activeMenu = computed(() => route.path)
 
 const handleMenuSelect = (index) => {
-  if (index && index !== currentPath.value) {
-    router.push(index)
+  if (!index) return
+  // ⭐ 菜单路径统一成绝对路径：数据库里若存成 "order/xxx"（没有前导斜杠），
+  //    router.push 会按「当前路由」做相对解析，拼成 /order/bill/order/xxx 这种错乱地址
+  const target = /^https?:\/\//i.test(index)
+    ? index
+    : (index.startsWith('/') ? index : '/' + index)
+
+  // ⭐ 兜底：菜单指向的页面不存在时给出提示，避免点进去白屏
+  const matched = router.resolve(target).matched
+  if (matched.length === 0) {
+    ElMessage.warning('该菜单未配置对应页面：' + target)
+    return
+  }
+
+  if (target !== currentPath.value) {
+    router.push(target)
   }
 }
 
@@ -137,7 +151,12 @@ const loadUserMenus = async () => {
     if (!Array.isArray(data)) {
       data = []
     }
-    menuList.value = data
+    const removeCompletedOrderMenu = (items) => items
+      .filter(item => String(item.menuPath || '').replace(/^\/+/, '').split('?')[0] !== 'order/factory-completed')
+      .map(item => Array.isArray(item.children)
+        ? { ...item, children: removeCompletedOrderMenu(item.children) }
+        : item)
+    menuList.value = removeCompletedOrderMenu(data)
   } catch (error) {
     console.error('加载菜单失败:', error)
     menuList.value = []
@@ -149,7 +168,8 @@ const loadUserMenus = async () => {
 const addTab = (to) => {
   const title = to.meta?.title || to.name || '页面'
   const path = to.path
-  const closable = path !== '/dashboard'
+  // 工作台（角色首页）常驻，不可关闭
+  const closable = !userStore.homePath || path !== userStore.homePath
   if (tabs.value.find(t => t.path === path)) return
   tabs.value.push({ title, path, closable, name: to.name })
   if (to.name) {
@@ -183,10 +203,11 @@ const closeTab = (tab) => {
 }
 
 const closeAll = () => {
-  const dashboard = tabs.value.find(t => t.path === '/dashboard')
-  tabs.value = dashboard ? [dashboard] : []
+  // 只保留角色首页标签（工作台），其余全部关闭
+  const home = userStore.homePath
   cachedViews.value = []
-  if (dashboard) router.push('/dashboard')
+  tabs.value = home ? tabs.value.filter(t => t.path === home) : []
+  if (home && currentPath.value !== home) router.push(home)
 }
 
 const closeOthers = () => {

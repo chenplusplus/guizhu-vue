@@ -55,12 +55,21 @@ const emit = defineEmits(['update:modelValue'])
 const images = ref([...(props.modelValue || [])])
 const fileInput = ref(null)
 
+// ⭐ 防递归：仅当外部 modelValue 与内部 images 内容实际不同时才同步，避免双向 watch 无限循环
+const isSameArray = (a, b) => {
+  if (a === b) return true
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false
+  return a.every((x, i) => x && b[i] && x.imageUrl === b[i].imageUrl && x.imageType === b[i].imageType)
+}
+
 watch(() => props.modelValue, (val) => {
+  if (isSameArray(val, images.value)) return
   images.value = [...(val || [])]
 })
 
 watch(images, (val) => {
-  emit('update:modelValue', val)
+  if (isSameArray(val, props.modelValue)) return
+  emit('update:modelValue', [...val])
 }, { deep: true })
 
 const triggerFileInput = () => {

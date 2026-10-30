@@ -312,7 +312,7 @@ const handleCreateBill = async () => {
     const res = await createBill({ orderIds });
     if (res.success) {
       ElMessage.success(`账单 ${res.billNo} 生成成功`);
-      router.push(`/order/bill/detail/${res.billId}`);
+      router.push(`/order/bill/edit/${res.billId}`);
     }
   } catch (error) {
     ElMessage.error(error.message || '生成账单失败');

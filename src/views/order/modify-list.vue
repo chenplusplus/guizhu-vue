@@ -22,7 +22,7 @@
             <span :class="{ 'blink-modify': row.modifyTracking }">
               {{ row.orderNo }}
             </span>
-            <span v-if="row.modifyTracking" class="modify-badge">✏️</span>
+            <span v-if="row.modifyTracking" class="modify-badge blink-modify"><ModifyTripodIcon /></span>
           </el-link>
         </template>
       </el-table-column>
@@ -61,23 +61,20 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="200" fixed="right" align="center">
+      <el-table-column label="操作" width="220" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 客户审核员：待客户审核 → 同意 / 驳回 -->
-          <template v-if="isCustomerAudit && row.modifyStatus === 'pendingAudit'">
+          <template v-if="canAudit(row)">
             <el-button size="small" type="success" @click="handleAudit(row, true)">同意</el-button>
             <el-button size="small" type="danger" @click="handleAudit(row, false)">驳回</el-button>
           </template>
 
-          <!-- 工厂操作员：追踪中 + 工厂阶段 → 确认生效 -->
-          <template v-else-if="isFactoryOrder 
-                     && row.modifyTracking 
-                     && row.modifyStatus !== 'pendingAudit'
-                     && (row.modifyOriginStage === 'factory' || row.modifyOriginStage === 'bill')">
+          <!-- 工厂操作员：确认生效 -->
+          <template v-else-if="canConfirmFactory(row)">
             <el-button size="small" type="success" @click="handleConfirm(row)">确认生效</el-button>
           </template>
 
-          <!-- 客户下单员 / 客户审核员 / 管理员：撤回 -->
+          <!-- 客户下单员 / 管理员：撤回 -->
           <el-button
             v-if="canWithdraw(row)"
             size="small"
@@ -125,6 +122,7 @@ import {
   confirmOrderModify,
   withdrawOrderModify
 } from '@/api/order';
+import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -136,9 +134,12 @@ const page = ref(1);
 const pageSize = ref(20);
 const total = ref(0);
 
-const isCustomerAudit = computed(() => userStore.userType === 'customerAudit');
+// ===== 角色 =====
 const isCustomer = computed(() => userStore.userType === 'customer');
+const isCustomerAudit = computed(() => userStore.userType === 'customerAudit');
 const isFactoryOrder = computed(() => userStore.userType === 'factoryOrder');
+const isFactoryAudit = computed(() => userStore.userType === 'factoryAudit');
+const isAdmin = computed(() => userStore.userType === 'admin');
 
 // ===== 阶段显示 =====
 const getOriginStageText = (stage) => {
@@ -150,36 +151,55 @@ const getOriginStageType = (stage) => {
 
 // ===== 当前状态 =====
 const getCurrentStatusText = (row) => {
-  if (row.modifyStatus === 'pendingAudit') return '待客户审核';
+  if (row.status === 'pendingAudit') return '待客户审核';
   if (row.modifyTracking) {
-    if (row.modifyOriginStage === 'customer') return '等待客户重新提交';
+    if (row.flowStatus === 'draft') return '等待客户重新编辑';
+    if (row.flowStatus === 'pending') return '等待客户审核';
     if (row.modifyOriginStage === 'factory' || row.modifyOriginStage === 'bill') return '待工厂确认';
     return '追踪中';
   }
   return '已结束';
 };
 const getCurrentStatusType = (row) => {
-  if (row.modifyStatus === 'pendingAudit') return 'warning';
+  if (row.status === 'pendingAudit') return 'warning';
   if (row.modifyTracking) return 'primary';
   return 'success';
 };
 
 // ===== 权限 =====
+
+// 客户审核员：待客户审核 → 可审
+const canAudit = (row) => {
+  if (row.status !== 'pendingAudit') return false;
+  return isCustomerAudit.value || isAdmin.value;
+};
+
+// 工厂操作员：确认生效
+// 条件：工厂阶段发起 + 追踪中 + 客户审核员已同意 + 订单已回到工厂流程
+const canConfirmFactory = (row) => {
+  if (!isFactoryOrder.value && !isAdmin.value) return false;
+  if (!row.modifyTracking) return false;
+  if (row.status === 'pendingAudit') return false;
+  if (row.modifyOriginStage !== 'factory' && row.modifyOriginStage !== 'bill') return false;
+  // ⭐ 订单必须已经回到工厂流程（不在 draft / pending），才允许确认
+  if (row.flowStatus === 'draft' || row.flowStatus === 'pending') return false;
+  return true;
+};
+
+// 能否操作（同意/驳回/确认生效）
 const canOperate = (row) => {
-  if (isCustomerAudit.value && row.modifyStatus === 'pendingAudit') return true;
-  if (isFactoryOrder.value 
-      && row.modifyTracking 
-      && row.modifyStatus !== 'pendingAudit'
-      && (row.modifyOriginStage === 'factory' || row.modifyOriginStage === 'bill')) return true;
+  if (canAudit(row)) return true;
+  if (canConfirmFactory(row)) return true;
   return false;
 };
 
+// 撤回
 const canWithdraw = (row) => {
-  if (!row.modifyTracking) return false;
-  if (row.modifyStatus !== 'pendingAudit') return false;   // 只有申请阶段能撤回
-  if (userStore.userType === 'admin') return true;
-  if (isCustomer.value && row.applyBy === userStore.userId) return true;
-  if (isCustomerAudit.value) return true;
+  if (row.status !== 'pendingAudit') return false;
+  if (isAdmin.value) return true;
+  // 客户下单员：只能撤回自己提交的
+  if (isCustomer.value && Number(row.applyBy) === Number(userStore.userId)) return true;
+  // 客户审核员不参与撤回
   return false;
 };
 

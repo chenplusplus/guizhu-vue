@@ -94,7 +94,9 @@ const handleLogin = async () => {
           roleId: res.roleId,
         });
         ElMessage.success('登录成功');
-        router.push('/dashboard');
+        // ⭐ 各角色落地自己的专属工作台（homePath 统一维护在 user store）
+        const landing = userStore.homePath || '/login';
+        router.push(landing);
       } else {
         ElMessage.error(res.message || '登录失败');
       }

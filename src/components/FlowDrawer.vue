@@ -177,7 +177,7 @@ const statusMap = {
   assembly: { label: '组装', color: 'primary' },
   polishing: { label: '抛光', color: 'primary' },
   billPending: { label: '账单待审核', color: 'warning' },
-  billConfirmed: { label: '客户待确认', color: 'success' },
+  billConfirmed: { label: '待确认', color: 'success' },
   completed: { label: '已完成', color: 'success' },
   rejected: { label: '已驳回', color: 'danger' },
   cancelled: { label: '已取消', color: 'info' },

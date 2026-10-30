@@ -56,6 +56,10 @@ export const createGold = (data) => {
 export const getGoldList = (params) => {
   return api.get('/inout/gold/list', { params });
 };
+// 按成色汇总（收/支重量）
+export const getGoldSummaryByMaterial = (params) => {
+  return api.get('/inout/gold/summary-by-material', { params });
+};
 // 钻石
 export const getDiamondLastTotal = (recordDate, counterpartyId) => {
   return api.get('/inout/diamond/last-total', { params: { recordDate, counterpartyId } });

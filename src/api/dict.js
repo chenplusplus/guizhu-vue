@@ -25,7 +25,6 @@ export const dictApi = {
 
   // ===== 兼容旧接口（供现有页面使用） =====
   goldPrice: () => request.get('/dict/gold-price'),
-  products: () => request.get('/dict/product'),
   colors: () => request.get('/dict/color'),
   lossRates: () => request.get('/dict/loss-rate'),
 }

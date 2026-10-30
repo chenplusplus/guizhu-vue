@@ -152,7 +152,7 @@
             placement="top"
           >
             <span class="order-flags">
-              <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">⚠️</span>
+              <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">❗</span>
               <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
             </span>
           </el-tooltip>
@@ -168,7 +168,7 @@
             @click.stop="viewDetail(row.orderId)"
           >
             {{ row.orderNo }}
-            <span v-if="hasPendingModify(row)" class="modify-badge">✏️</span>
+            <span v-if="hasPendingModify(row)" class="modify-badge"><ModifyTripodIcon /></span>
           </el-link>
         </template>
       </el-table-column>
@@ -282,7 +282,7 @@
             预警
           </el-button>
 
-          <!-- 申请修改（草稿/驳回状态显示，因为要改得先走草稿流程） -->
+          <!-- 申请修改 -->
           <el-button
             v-if="canApplyModifyRow(row)"
             size="small"
@@ -439,6 +439,7 @@ import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit, app
 import { createManualAlert } from '@/api/alert';
 import { dictApi } from '@/api/dict';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -622,11 +623,11 @@ const TAB_STATUS_MAP = {
   pending: ['draft', 'pending', 'rejected'],
   waitingFactory: ['customeraudited'],
   factoryProcessing: [
-    'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded',
-    'cnc', 'partsMissing', 'stoneReady', 'setting', 'glue',
-    'inlay', 'assembly'
+    'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded', 'partsMissing',
+    'setting', 'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay',
+    'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay'
   ],
-  productionAudit: ['polishing'],
+  productionAudit: ['productionCompleted'],
   completed: ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn'],
   all: null,
 };
@@ -754,18 +755,25 @@ const canDelete = (row) => {
   return status === 'draft' || status === 'rejected';
 };
 
-// ===== 工厂可编辑阶段 =====
+// ===== 可申请修改的阶段 =====
+// 客户阶段：draft / pending / rejected / customeraudited（与后端 ApplyOrderModifyAsync 一致）
+// 工厂阶段：FACTORY_EDITABLE（与后端 FlowStatus.IsFactoryEditable 一致）
 const FACTORY_EDITABLE = [
-  'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
-  'stoneReady', 'setting', 'glue', 'inlay', 'assembly', 'polishing', 'billRejected'
+  'customeraudited', 'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
+  'sweeping', 'stoneCutting', 'microInlay', 'handInlay', 'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay', 'billRejected'
+];
+
+const APPLY_MODIFY_ALLOWED = [
+  'pending', 'rejected',
+  ...FACTORY_EDITABLE
 ];
 
 const canApplyModifyRow = (row) => {
   if (userStore.userType !== 'customer') return false;
   if (Number(row.submittedBy) !== Number(userStore.userId)) return false;
   if (!row.flowStatus) return false;
-  if (!FACTORY_EDITABLE.includes(row.flowStatus)) return false;
-  if (row.modifyStatus && row.modifyStatus !== 'none') return false;
+  if (!APPLY_MODIFY_ALLOWED.includes(row.flowStatus)) return false;
+  if (row.modifyTracking || (row.modifyStatus && row.modifyStatus !== 'none')) return false;
   return true;
 };
 
@@ -784,11 +792,14 @@ const handleApplyModify = async (row) => {
     );
     if (!value || !value.trim()) return;
 
+    const beforeFactoryAcceptance = row.flowStatus === 'customeraudited';
     await applyOrderModify(row.orderId, {
       data: {},
       reason: value.trim()
     });
-    ElMessage.success('修改申请已提交，等待客户审核员审批');
+    ElMessage.success(beforeFactoryAcceptance
+      ? '修改申请已提交，等待工厂审核员审批'
+      : '修改申请已提交，等待客户审核员审批');
     loadData();
   } catch (e) {
     if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
@@ -958,13 +969,13 @@ const viewDetail = (id) => {
 };
 
 const hasPendingModify = (row) => {
-  return row.modifyStatus && row.modifyStatus !== 'none';
+  return row.modifyTracking === true;
 };
 
 const getFlagTooltip = (row) => {
   const messages = [];
   if (row.warnFlag || row.alertReason) messages.push(`注意：${row.alertReason || '请关注该订单'}`);
-  if (row.urgentFlag) messages.push('紧急');
+  if (row.urgentFlag) messages.push('加急');
   return messages.join('；');
 };
 

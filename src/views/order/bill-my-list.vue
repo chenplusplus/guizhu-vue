@@ -1,701 +1,411 @@
-﻿<!-- src/views/order/bill-my-list.vue -->
+﻿<!-- src/views/order/bill-my-list.vue
+     ⭐ 「我的账单 / 账单收款」
+     - 按日期查看账单，展示效果与出货明细预览完全一致
+     - 明细表末尾追加「实际收款 / 已收款」两列
+     - 填写实际收款 → 自动勾选已收款 → 自动汇总 → 提交审核（审核员在工作台处理）
+     - 默认查今天；支持 今天 / 本月 / 自定义
+     - 导出按天进行（当天 1 张导 xlsx，多张打包 zip）
+-->
 <template>
-  <div class="page-container">
+  <div class="page-container" v-loading="loading">
     <div class="page-header">
-      <h2>📄 我的账单</h2>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <!-- ⭐ 批量审核按钮（工厂审核员可见） -->
-        <template v-if="userStore.userType === 'factoryAudit' || userStore.userType === 'admin'">
-          <el-button
-            v-if="selectedRows.length > 0"
-            type="success"
-            @click="handleBatchAudit(true)"
-          >
-            批量通过 ({{ selectedRows.length }})
-          </el-button>
-          <el-button
-            v-if="selectedRows.length > 0"
-            type="danger"
-            @click="handleBatchAudit(false)"
-          >
-            批量驳回 ({{ selectedRows.length }})
-          </el-button>
-        </template>
-
-        <!-- 批量确认（客户可见） -->
-        <template v-if="userStore.userType === 'customer' || userStore.userType === 'admin'">
-          <el-button
-            v-if="selectedRows.length > 0"
-            type="success"
-            @click="handleBatchConfirm"
-          >
-            批量确认 ({{ selectedRows.length }})
-          </el-button>
-        </template>
-
+      <h2>{{ isReceiptMode ? '💰 账单收款' : '📄 我的账单' }}</h2>
+      <div class="header-right">
+        <el-radio-group v-model="dateType" @change="onDateTypeChange">
+          <el-radio-button value="today">今天</el-radio-button>
+          <el-radio-button value="month">本月</el-radio-button>
+          <el-radio-button value="custom">自定义</el-radio-button>
+        </el-radio-group>
+        <el-date-picker
+          v-if="dateType === 'custom'"
+          v-model="customRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          value-format="YYYY-MM-DD"
+          style="width:260px;"
+          @change="loadData"
+        />
+        <span class="range-text">{{ rangeText }}</span>
         <el-button @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
-        <el-button
-          v-if="userStore.isFactoryAudit || userStore.isAdmin"
-          type="warning"
-          @click="goReturnAudit"
-        >
-          退回审核
+        <el-button type="primary" :loading="exporting" @click="handleExport">
+          <el-icon><Download /></el-icon> 导出
         </el-button>
       </div>
     </div>
 
-    <!-- 搜索栏 -->
-    <div class="search-bar">
-      <el-form :inline="true" size="default">
-        <el-form-item label="状态">
-          <el-select
-            v-model="filterStatus"
-            placeholder="全部状态"
-            clearable
-            style="width: 140px;"
-            @change="loadData"
-          >
-            <!-- 工厂审核员看到待审核 -->
-            <template v-if="userStore.userType === 'factoryAudit' || userStore.userType === 'admin'">
-              <el-option label="待审核" value="billPending" />
-            </template>
-            <!-- 客户看到已通过/已确认/已退回 -->
-            <template v-if="userStore.userType === 'customer'">
-              <el-option label="已通过" value="approved" />
-              <el-option label="已确认" value="confirmed" />
-              <el-option label="已退回" value="returned" />
-            </template>
-            <!-- 工厂业务员看到全部 -->
-            <template v-if="userStore.userType === 'factoryOrder'">
-              <el-option label="待审核" value="billPending" />
-              <el-option label="已通过" value="approved" />
-              <el-option label="已确认" value="confirmed" />
-              <el-option label="已退回" value="returned" />
-              <el-option label="已驳回" value="rejected" />
-            </template>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="客户">
-          <el-select
-            v-model="filterCustomerId"
-            placeholder="全部客户"
-            clearable
-            filterable
-            style="width: 180px;"
-            @change="loadData"
-          >
-            <el-option
-              v-for="item in customerList"
-              :key="item.customerId"
-              :label="item.customerName"
-              :value="item.customerId"
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="关键词">
-          <el-input
-            v-model="keyword"
-            placeholder="账单号/客户"
-            clearable
-            style="width: 180px;"
-            @clear="loadData"
-            @keyup.enter="loadData"
-          />
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="loadData">查询</el-button>
-          <el-button @click="resetSearch">重置</el-button>
-        </el-form-item>
-      </el-form>
+    <!-- 顶部汇总 -->
+    <div v-if="bills.length" class="page-summary">
+      <span>共 <b>{{ bills.length }}</b> 张账单</span>
+      <span>应收合计 <b class="money">¥{{ totalReceivable.toFixed(2) }}</b></span>
+      <span>实收合计 <b class="money actual">¥{{ totalActual.toFixed(2) }}</b></span>
+      <span>差额 <b class="money" :class="{ warn: totalDiff !== 0 }">¥{{ totalDiff.toFixed(2) }}</b></span>
+      <span>待审核收款 <b class="money">{{ pendingReceiptCount }}</b> 张</span>
     </div>
 
-    <!-- 统计卡片 -->
-    <el-row :gutter="12" style="margin-bottom: 16px;">
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #E6A23C;">
-          <div class="stat-number">{{ statusCount.billPending || 0 }}</div>
-          <div class="stat-label">待审核</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #409EFF;">
-          <div class="stat-number">{{ statusCount.approved || 0 }}</div>
-          <div class="stat-label">已通过</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #67C23A;">
-          <div class="stat-number">{{ statusCount.confirmed || 0 }}</div>
-          <div class="stat-label">已确认</div>
-        </div>
-      </el-col>
-      <el-col :span="6">
-        <div class="stat-card" style="border-left: 4px solid #F56C6C;">
-          <div class="stat-number">{{ statusCount.returned || 0 }}</div>
-          <div class="stat-label">已退回</div>
-        </div>
-      </el-col>
-    </el-row>
+    <el-empty v-if="!loading && bills.length === 0" description="当前日期没有账单" :image-size="90" />
 
-    <!-- 表格 -->
-    <el-table
-      ref="tableRef"
-      :data="tableData"
-      border
-      stripe
-      v-loading="loading"
-      @row-click="(row) => viewDetail(row.billId)"
-      @selection-change="handleSelectionChange"
-      row-key="billId"
-    >
-      <!-- 多选 -->
-      <el-table-column type="selection" width="55" align="center" />
+    <div v-for="b in bills" :key="b.billId" class="bill-block">
+      <div class="bill-caption">
+        <span class="cap-no">{{ b.billData.billNo }}</span>
+        <span class="cap-item">客户：{{ b.billData.customerName || '—' }}</span>
+        <span class="cap-item">销售：{{ b.billData.operatorName || '—' }}</span>
+        <span class="cap-item">共 {{ (b.details || []).filter(d => d.rowType !== 'return').length }} 项</span>
+        <span class="cap-spacer"></span>
+        <el-tag :type="receiptTagType(b)" size="small" effect="light">{{ receiptText(b) }}</el-tag>
+      </div>
 
-      <el-table-column prop="billNo" label="账单编号" width="150">
-        <template #default="{ row }">
-          <el-link type="primary" @click.stop="viewDetail(row.billId)">
-            {{ row.billNo }}
-          </el-link>
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="customerName" label="客户" width="120" />
-
-      <el-table-column prop="company" label="公司" width="120" />
-
-      <el-table-column prop="color" label="成色" width="80" align="center" />
-
-      <el-table-column prop="orderCount" label="订单数" width="70" align="center" />
-
-      <el-table-column prop="totalQuantity" label="总件数" width="70" align="center" />
-
-      <el-table-column prop="totalAmount" label="总金额" width="120" align="right">
-        <template #default="{ row }">
-          <span style="color: #E6A23C; font-weight: bold;">
-            ¥{{ (row.totalAmount || 0).toFixed(2) }}
-          </span>
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="currentMaterialWeight" label="应收足料" width="100" align="right">
-        <template #default="{ row }">
-          {{ (row.currentMaterial || 0).toFixed(3) }}g
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="currentMoney" label="应收款" width="110" align="right">
-        <template #default="{ row }">
-          ¥{{ (row.currentMoney || 0).toFixed(2) }}
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="receivedMoney" label="来款" width="110" align="right">
-        <template #default="{ row }">
-          ¥{{ (row.receivedMoney || 0).toFixed(2) }}
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="totalDebtMoney" label="累计欠款" width="110" align="right">
-        <template #default="{ row }">
-          <span
-            :style="{
-              color: (row.totalDebtMoney || 0) > 0 ? '#F56C6C' : '#67C23A',
-              fontWeight: 'bold'
-            }"
-          >
-            ¥{{ (row.totalDebtMoney || 0).toFixed(2) }}
-          </span>
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="totalDebtMaterial" label="累欠足料" width="100" align="right">
-        <template #default="{ row }">
-          <span
-            :style="{
-              color: (row.totalDebtMaterial || 0) > 0 ? '#F56C6C' : '#67C23A'
-            }"
-          >
-            {{ (row.totalDebtMaterial || 0).toFixed(3) }}g
-          </span>
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="billDate" label="账单日期" width="110" align="center">
-        <template #default="{ row }">
-          {{ formatDate(row.billDate) }}
-        </template>
-      </el-table-column>
-
-      <el-table-column prop="status" label="状态" width="90" align="center">
-        <template #default="{ row }">
-          <el-tag :type="getStatusType(row.status)" size="small">
-            {{ getStatusText(row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <!-- 操作列 - 完整代码 -->
-      <el-table-column label="操作" width="420" align="center" fixed="right">
-        <template #default="{ row }">
-          <!-- ⭐ 预览按钮：打开 bill-view 风格弹窗 -->
-          <el-button 
-            size="small" 
-            type="info" 
-            plain
-            @click.stop="openPreviewDialog(row.billId)"
-          >
-            <el-icon><View /></el-icon> 预览
-          </el-button>
-
-          <el-button size="small" type="primary" @click.stop="viewDetail(row.billId)">
-            查看
-          </el-button>
-
-          <!-- 需求4：编辑按钮（不限状态） -->
-          <el-button size="small" type="warning" @click.stop="editDetail(row.billId)">
-            编辑
-          </el-button>
-
-          <!-- ⭐ 工厂业务员：提交审核（状态为 pending 时） -->
-          <template v-if="userStore.userType === 'factoryOrder' || userStore.userType === 'admin'">
-            <el-button
-              v-if="row.status === 'pending'"
-              size="small"
-              type="warning"
-              @click.stop="handleSubmitAudit(row)"
-            >
-              提交审核
-            </el-button>
-          </template>
-
-          <!-- ⭐ 工厂审核员：审核通过/驳回 -->
-          <template v-if="userStore.userType === 'factoryAudit' || userStore.userType === 'admin'">
-            <el-button
-              v-if="row.status === 'billPending'"
-              size="small"
-              type="success"
-              @click.stop="handleAudit(row, true)"
-            >
-              通过
-            </el-button>
-            <el-button
-              v-if="row.status === 'billPending'"
-              size="small"
-              type="danger"
-              @click.stop="handleAudit(row, false)"
-            >
-              驳回
-            </el-button>
-          </template>
-
-          <!-- ⭐ 客户：确认/退回 -->
-          <template v-if="userStore.userType === 'customer'">
-            <el-button
-              v-if="row.status === 'approved'"
-              size="small"
-              type="success"
-              @click.stop="handleConfirm(row)"
-            >
-              确认
-            </el-button>
-            <el-button
-              v-if="row.status === 'approved'"
-              size="small"
-              type="danger"
-              @click.stop="handleReturn(row)"
-            >
-              退回
-            </el-button>
-          </template>
-        </template>
-      </el-table-column>
-    </el-table>
-
-    <el-empty v-if="!loading && tableData.length === 0" description="暂无账单" />
-
-    <!-- 分页 -->
-    <div style="margin-top: 16px; display: flex; justify-content: flex-end;">
-      <el-pagination
-        v-model:current-page="pagination.current"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadData"
-        @current-change="loadData"
+      <BillPreviewSheet
+        :ref="(el) => setSheetRef(b.billId, el)"
+        :bill-data="b.billData"
+        :details="b.details"
+        hide-close
+        receipt-mode
+        :editable-receipt="canEditReceipt(b)"
+        @receipt-change="(r) => onReceiptChange(b, r)"
       />
+
+      <!-- 收款汇总与操作 -->
+      <div class="receipt-bar">
+        <div class="rb-left">
+          <span>应收 <b>¥{{ (b._receipt?.receivable || 0).toFixed(2) }}</b></span>
+          <span>实收 <b class="actual">¥{{ (b._receipt?.actual || 0).toFixed(2) }}</b></span>
+          <span>差额
+            <b :class="{ warn: Math.abs(b._receipt?.diff || 0) > 0.001 }">
+              ¥{{ (b._receipt?.diff || 0).toFixed(2) }}
+            </b>
+          </span>
+          <span>已收 <b>{{ b._receipt?.receivedCount || 0 }}/{{ b._receipt?.totalCount || 0 }}</b> 行</span>
+        </div>
+        <div class="rb-right">
+          <template v-if="canEditReceipt(b)">
+            <el-button size="small" type="primary" :loading="!!b._saving" @click="saveOne(b)">保存收款</el-button>
+            <el-button size="small" type="success" :loading="!!b._submitting" @click="submitOne(b)">提交审核</el-button>
+          </template>
+          <template v-else>
+            <span class="rb-tip" :class="'tip-' + receiptStatusOf(b)">
+              {{ receiptTip(b) }}
+            </span>
+          </template>
+        </div>
+      </div>
     </div>
   </div>
-
-  <BillPreviewDialog
-    v-model:visible="previewDialogVisible"
-    :bill-id="previewBillId"
-  />
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { Refresh } from '@element-plus/icons-vue';
-import { useUserStore } from '@/stores/user';
-import { getBillList, confirmBill, auditBill, getCustomerList, submitBillAudit } from '@/api/bill';
-import { View } from '@element-plus/icons-vue';
-import BillPreviewDialog from '@/components/BillPreviewDialog.vue';
+import { Refresh, Download } from '@element-plus/icons-vue';
+import {
+  getBillList, getBillDetail,
+  saveBillReceipt, submitBillReceipt,
+} from '@/api/bill';
+import BillPreviewSheet from '@/components/BillPreviewSheet.vue';
 
-const router = useRouter();
-const userStore = useUserStore();
-const tableRef = ref();
+const route = useRoute();
+const isReceiptMode = computed(() => route.query.mode === 'receipt');
 
+const dateType = ref('today');
+const customRange = ref([]);
+const range = ref([]);           // [start, end]  YYYY-MM-DD
+const bills = ref([]);
 const loading = ref(false);
-const tableData = ref([]);
-const filterStatus = ref('');
-const filterCustomerId = ref('');
-const keyword = ref('');
-const selectedRows = ref([]);
+const exporting = ref(false);
 
-const pagination = reactive({
-  current: 1,
-  pageSize: 20,
-  total: 0,
-});
+const sheetRefs = {};
+const setSheetRef = (id, el) => { if (el) sheetRefs[id] = el; };
 
-const statusCount = reactive({
-  billPending: 0,
-  approved: 0,
-  confirmed: 0,
-  returned: 0,
-  rejected: 0,
-});
+const round2 = (v) => Math.round(Number(v || 0) * 100) / 100;
 
-const customerList = ref([]);
-
-// ===== 状态映射 =====
-const statusMap = {
-  pending: { text: '待审核', type: 'warning' },
-  billPending: { text: '待审核', type: 'warning' },
-  approved: { text: '已通过', type: 'success' },
-  rejected: { text: '已驳回', type: 'danger' },
-  returned: { text: '已退回', type: 'danger' },
-  confirmed: { text: '已确认', type: 'success' },
+const fmt = (d) => {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
 
-const getStatusText = (s) => statusMap[s]?.text || s;
-const getStatusType = (s) => statusMap[s]?.type || 'info';
+const rangeText = computed(() => (range.value.length === 2 ? `${range.value[0]} ~ ${range.value[1]}` : ''));
 
-// ============================================================
-// 加载客户列表
-// ============================================================
-const loadCustomers = async () => {
-  try {
-    const res = await getCustomerList({ includeInactive: false });
-    customerList.value = res?.data || [];
-  } catch {
-    customerList.value = [];
+// ===== 收款状态 =====
+const receiptStatusOf = (b) => (b?.billData?.receiptStatus || 'none');
+
+// 只有账单本身已确认（已审核通过）才允许收款
+const PAYABLE_STATUS = ['confirmed', 'billConfirmed', 'completed'];
+const isBillPayable = (b) => PAYABLE_STATUS.includes(b?.billData?.status);
+
+const RECEIPT_TEXT = {
+  none: '未填写收款',
+  pending: '收款待审核',
+  approved: '收款已通过',
+  rejected: '收款已驳回',
+};
+const receiptText = (b) => {
+  if (!isBillPayable(b)) return '账单待审核';
+  return RECEIPT_TEXT[receiptStatusOf(b)] || '未填写收款';
+};
+const receiptTagType = (b) => {
+  if (!isBillPayable(b)) return 'info';
+  return {
+    none: 'info', pending: 'warning', approved: 'success', rejected: 'danger',
+  }[receiptStatusOf(b)] || 'info';
+};
+
+const canEditReceipt = (b) => isBillPayable(b) && ['none', 'rejected'].includes(receiptStatusOf(b));
+
+const receiptTip = (b) => {
+  const s = receiptStatusOf(b);
+  const d = b.billData || {};
+  if (!isBillPayable(b)) return '账单待审核，暂不可收款';
+  if (s === 'pending') return `已于 ${String(d.receiptSubmittedAt || '').replace('T', ' ').slice(0, 16) || '—'} 提交，等待审核`;
+  if (s === 'approved') return `审核人：${d.receiptAuditedByName || '—'}　实收 ¥${Number(d.receiptActual || 0).toFixed(2)}`;
+  if (s === 'rejected') return `驳回原因：${d.receiptRemark || '—'}`;
+  return '';
+};
+
+// ===== 页面汇总 =====
+const totalReceivable = computed(() => round2(bills.value.reduce((s, b) => s + Number(b._receipt?.receivable || 0), 0)));
+const totalActual = computed(() => round2(bills.value.reduce((s, b) => s + Number(b._receipt?.actual || 0), 0)));
+const totalDiff = computed(() => round2(totalReceivable.value - totalActual.value));
+const pendingReceiptCount = computed(() => bills.value.filter(b => receiptStatusOf(b) === 'pending').length);
+
+// ===== 区间 =====
+const applyRange = () => {
+  const now = new Date();
+  if (dateType.value === 'today') {
+    const t = fmt(now);
+    range.value = [t, t];
+  } else if (dateType.value === 'month') {
+    range.value = [fmt(new Date(now.getFullYear(), now.getMonth(), 1)), fmt(now)];
+  } else if (customRange.value && customRange.value.length === 2) {
+    range.value = [...customRange.value];
   }
 };
 
-// ============================================================
-// 加载数据
-// ============================================================
+const onDateTypeChange = () => {
+  if (dateType.value === 'custom') {
+    range.value = customRange.value && customRange.value.length === 2 ? [...customRange.value] : [];
+    const t = fmt(new Date());
+    if (!range.value.length) { customRange.value = [t, t]; range.value = [t, t]; }
+  } else {
+    applyRange();
+  }
+  loadData();
+};
+
+// ===== 初始化收款汇总（未改动时也要有数）=====
+const initReceiptState = (b) => {
+  const details = b.details || [];
+  const items = details.filter(d => d.id != null).map(d => ({
+    id: d.id,
+    actualReceipt: d.actualReceipt === null || d.actualReceipt === undefined ? null : Number(d.actualReceipt),
+    isReceived: !!d.isReceived,
+  }));
+  const actual = round2(items.reduce((s, x) => s + (x.actualReceipt || 0), 0));
+  const receivable = round2(details.reduce((s, d) => s + Number(d.totalAmount || 0), 0));
+  b._receipt = {
+    items,
+    actual,
+    receivable,
+    diff: round2(receivable - actual),
+    receivedCount: items.filter(x => x.isReceived).length,
+    totalCount: items.length,
+  };
+};
+
+const onReceiptChange = (b, r) => {
+  b._receipt = { ...r, diff: round2((r.receivable || 0) - (r.actual || 0)) };
+};
+
 const loadData = async () => {
+  if (range.value.length !== 2) { bills.value = []; return; }
   loading.value = true;
   try {
-    const params = {
-      status: filterStatus.value || undefined,
-      customerId: filterCustomerId.value || undefined,
-      keyword: keyword.value || undefined,
-      page: pagination.current,
-      pageSize: pagination.pageSize,
-    };
-
-    const res = await getBillList(params);
-    const data = res?.data || [];
-    const total = res?.total || data.length;
-
-    tableData.value = data;
-    pagination.total = total;
-
-    // 统计
-    Object.keys(statusCount).forEach((k) => (statusCount[k] = 0));
-    data.forEach((item) => {
-      if (statusCount[item.status] !== undefined) {
-        statusCount[item.status]++;
-      }
+    const res = await getBillList({
+      startDate: range.value[0],
+      endDate: range.value[1],
+      page: 1,
+      pageSize: 100,
     });
-  } catch (error) {
-    console.error('加载账单失败:', error);
-    ElMessage.error('加载失败');
+    const list = res?.data || [];
+    const detailed = await Promise.all(list.map(async (b) => {
+      try {
+        const d = await getBillDetail(b.billId);
+        const billData = { ...b, ...(d?.data || {}) };
+        if (!billData.operatorName) billData.operatorName = b.operatorName;
+        return { billId: b.billId, billData, details: billData.details || [] };
+      } catch {
+        return { billId: b.billId, billData: b, details: [] };
+      }
+    }));
+    bills.value = detailed.filter(x => x.billData);
+    bills.value.forEach(initReceiptState);
+  } catch (e) {
+    console.error('加载账单失败:', e);
+    ElMessage.error('加载账单失败');
   } finally {
     loading.value = false;
   }
 };
 
-// ============================================================
-// 重置搜索
-// ============================================================
-const resetSearch = () => {
-  filterStatus.value = '';
-  filterCustomerId.value = '';
-  keyword.value = '';
-  pagination.current = 1;
-  loadData();
-};
-
-// ============================================================
-// 多选
-// ============================================================
-const handleSelectionChange = (selection) => {
-  selectedRows.value = selection;
-};
-
-// 提交审核
-const handleSubmitAudit = async (row) => {
+// ===== 收款操作（表格上方的工具条负责填写，这里只负责落库/提交）=====
+const doSave = async (b, silent = false) => {
+  if (!b._receipt) return false;
+  b._saving = true;
   try {
-    await ElMessageBox.confirm(
-      `确定要提交账单 ${row.billNo} 审核吗？提交后不可再编辑。`,
-      '提交审核',
-      { type: 'info' }
-    );
-    await submitBillAudit(row.billId);
-    ElMessage.success('提交审核成功');
-    loadData();
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.message || '提交失败');
-    }
+    const res = await saveBillReceipt(b.billId, { items: b._receipt.items });
+    if (!res.success) { ElMessage.error(res.message || '保存失败'); return false; }
+    const d = res.data || {};
+    b.billData.receiptStatus = d.receiptStatus || b.billData.receiptStatus;
+    b.billData.receiptReceivable = d.receivable;
+    b.billData.receiptActual = d.actual;
+    if (!silent) ElMessage.success('收款已保存');
+    return true;
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || e.message || '保存失败');
+    return false;
+  } finally {
+    b._saving = false;
   }
 };
 
-const goReturnAudit = () => {
-  router.push('/order/returns');
+const saveOne = async (b) => {
+  await doSave(b);
+  await loadData();
 };
-// ============================================================
-// ⭐ 批量审核（工厂审核员）
-// ============================================================
-const handleBatchAudit = async (approved) => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请至少选择一个账单');
+
+const submitOne = async (b) => {
+  const r = b._receipt || {};
+  if (!r.actual || r.actual <= 0) { ElMessage.warning('请先填写实际收款金额'); return; }
+  if ((r.receivedCount || 0) < (r.totalCount || 0)) {
+    ElMessage.warning(`还有 ${r.totalCount - r.receivedCount} 行未勾选「已收款」，请先填写实际收款`);
     return;
   }
-
-  const auditList = selectedRows.value.filter(row => row.status === 'billPending');
-  if (auditList.length === 0) {
-    ElMessage.warning('请选择状态为"待审核"的账单');
-    return;
-  }
-
-  const action = approved ? '通过' : '驳回';
   try {
     await ElMessageBox.confirm(
-      `确定要${action} ${auditList.length} 个账单吗？`,
-      `批量${action}`,
-      { type: approved ? 'info' : 'warning' }
+      `本单应收 ¥${(r.receivable || 0).toFixed(2)}，实收 ¥${(r.actual || 0).toFixed(2)}，提交后需审核员审核，期间不可修改。确认提交？`,
+      '提交收款审核',
+      { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
     );
-    
-    let successCount = 0;
-    let failCount = 0;
+  } catch { return; }
 
-    for (const row of auditList) {
-      try {
-        await auditBill(row.billId, { approved });
-        successCount++;
-      } catch {
-        failCount++;
-      }
-    }
+  const saved = await doSave(b, true);
+  if (!saved) return;
 
-    if (successCount > 0 && failCount === 0) {
-      ElMessage.success(`${successCount} 个账单${action}成功`);
-    } else if (successCount > 0 && failCount > 0) {
-      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
+  b._submitting = true;
+  try {
+    const res = await submitBillReceipt(b.billId);
+    if (res.success) {
+      ElMessage.success('收款已提交审核');
+      await loadData();
     } else {
-      ElMessage.error('全部失败');
+      ElMessage.error(res.message || '提交失败');
     }
-    loadData();
-  } catch {}
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || e.message || '提交失败');
+    await loadData();
+  } finally {
+    b._submitting = false;
+  }
 };
 
-// ============================================================
-// ⭐ 批量确认（客户）
-// ============================================================
-const handleBatchConfirm = async () => {
-  if (selectedRows.value.length === 0) {
-    ElMessage.warning('请至少选择一个账单');
-    return;
-  }
+// ===== 导出：一天一天的导 =====
+const handleExport = async () => {
+  if (range.value.length !== 2) { ElMessage.warning('请先选择日期'); return; }
+  const [s, e] = range.value;
+  const days = [];
+  const cur = new Date(s + 'T00:00:00');
+  const end = new Date(e + 'T00:00:00');
+  while (cur <= end) { days.push(fmt(cur)); cur.setDate(cur.getDate() + 1); }
 
-  const confirmList = selectedRows.value.filter(row => row.status === 'approved');
-  if (confirmList.length === 0) {
-    ElMessage.warning('请选择状态为"已通过"的账单');
-    return;
-  }
+  if (days.length > 62) { ElMessage.warning('导出范围过大，请缩小到 62 天以内'); return; }
 
+  exporting.value = true;
   try {
-    await ElMessageBox.confirm(
-      `确定要确认 ${confirmList.length} 个账单吗？确认后订单将完成。`,
-      '批量确认',
-      { type: 'info' }
-    );
-    
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const row of confirmList) {
-      try {
-        await confirmBill(row.billId);
-        successCount++;
-      } catch {
-        failCount++;
-      }
+    for (const day of days) {
+      const a = document.createElement('a');
+      a.href = `/api/bill/export-day?date=${day}`;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      await new Promise(r => setTimeout(r, 700));
     }
-
-    if (successCount > 0 && failCount === 0) {
-      ElMessage.success(`${successCount} 个账单确认成功`);
-    } else if (successCount > 0 && failCount > 0) {
-      ElMessage.warning(`成功 ${successCount} 个，失败 ${failCount} 个`);
-    } else {
-      ElMessage.error('全部失败');
-    }
-    loadData();
-  } catch {}
-};
-
-// ============================================================
-// 单个审核（工厂审核员）
-// ============================================================
-const handleAudit = async (row, approved) => {
-  try {
-    const action = approved ? '通过' : '驳回';
-    await ElMessageBox.confirm(`确认${action}该账单？`, '审核确认', {
-      type: approved ? 'info' : 'warning'
-    });
-    await auditBill(row.billId, { approved });
-    ElMessage.success(`审核${action}`);
-    loadData();
-  } catch {}
-};
-
-// ============================================================
-// 确认账单（客户）
-// ============================================================
-const handleConfirm = async (row) => {
-  try {
-    await ElMessageBox.confirm('确认账单无误吗？确认后订单将完成。', '确认账单', { type: 'info' });
-    await confirmBill(row.billId);
-    ElMessage.success('账单已确认');
-    loadData();
-  } catch {}
-};
-
-// ============================================================
-// 退回（客户）
-// ============================================================
-const handleReturn = (row) => {
-  router.push(`/order/bill/detail/${row.billId}`);
-};
-
-// ===== 预览弹窗 =====
-const previewDialogVisible = ref(false);
-const previewBillId = ref(null);
-
-const openPreviewDialog = (billId) => {
-  previewBillId.value = billId;
-  previewDialogVisible.value = true;
-};
-// ============================================================
-// 查看详情
-// ============================================================
-const viewDetail = (id) => {
-  if (!id) {
-    ElMessage.error('账单ID无效');
-    return;
+    ElMessage.success(days.length > 1 ? `已按天导出 ${days.length} 天（浏览器可能提示允许多文件下载）` : '导出已开始');
+  } finally {
+    exporting.value = false;
   }
-  router.push({
-    name: 'BillDetail',
-    params: { id: String(id) },
-  });
 };
 
-// 需求4：编辑账单
-const editDetail = (id) => {
-  if (!id) {
-    ElMessage.error('账单ID无效');
-    return;
-  }
-  router.push(`/order/bill/edit/${id}`);
-};
-
-// ============================================================
-// 时间格式化
-// ============================================================
-const formatDate = (date) => {
-  if (!date) return '-';
-  const d = new Date(date);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
-// ============================================================
-// 初始化
-// ============================================================
 onMounted(() => {
-  loadCustomers();
+  applyRange();
   loadData();
 });
 </script>
 
 <style scoped>
-.page-container {
-  background: #fff;
-  border-radius: 8px;
-  padding: 20px;
-  min-height: 100%;
-}
-
+.page-container { padding: 16px; }
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
-.page-header h2 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 0;
-}
+.page-header h2 { margin: 0; font-size: 18px; color: #303133; }
+.header-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.range-text { font-size: 12px; color: #909399; }
 
-.search-bar {
-  background: #f5f7fa;
-  padding: 16px 20px;
-  border-radius: 6px;
-  margin-bottom: 16px;
+.page-summary {
+  display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
+  background: #f7f9fc; border: 1px solid #ebeef5; border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 12px; font-size: 13px; color: #606266;
 }
-.search-bar :deep(.el-form-item) {
-  margin-bottom: 0;
-}
+.page-summary b { color: #303133; }
+.page-summary .money { color: #c0392b; font-family: Consolas, Monaco, monospace; }
+.page-summary .money.actual { color: #1f9254; }
+.page-summary .money.warn { color: #d64545; }
 
-.stat-card {
-  background: #fafafa;
-  padding: 12px 16px;
-  border-radius: 6px;
-  border-left: 4px solid #ddd;
+.bill-block {
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 8px;
+  padding: 10px 12px 14px;
+  margin-bottom: 14px;
 }
-.stat-card .stat-number {
-  font-size: 22px;
-  font-weight: bold;
-  color: #303133;
-}
-.stat-card .stat-label {
+.bill-caption {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 6px 10px;
+  border-bottom: 1px dashed #ebeef5;
+  margin-bottom: 8px;
   font-size: 13px;
-  color: #909399;
-  margin-top: 4px;
+  color: #606266;
 }
+.cap-no { font-weight: 600; color: #303133; font-family: Consolas, Monaco, monospace; }
+.cap-item { color: #909399; }
+.cap-spacer { flex: 1; }
 
-:deep(.el-table .el-table__row) {
-  cursor: pointer;
+/* ===== 收款操作条 ===== */
+.receipt-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+  margin-top: 10px; padding: 9px 12px;
+  background: #fafbfd; border: 1px solid #ebeef5; border-radius: 6px;
+  font-size: 13px; color: #606266;
 }
-:deep(.el-table .cell) {
-  padding: 6px 8px;
-}
+.rb-left { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.rb-left b { color: #303133; font-family: Consolas, Monaco, monospace; }
+.rb-left b.actual { color: #1f9254; }
+.rb-left b.warn { color: #d64545; }
+.rb-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rb-tip { font-size: 12px; }
+.rb-tip.tip-pending { color: #d98600; }
+.rb-tip.tip-approved { color: #1f9254; }
+.rb-tip.tip-rejected { color: #d64545; }
 </style>

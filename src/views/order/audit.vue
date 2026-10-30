@@ -88,8 +88,13 @@
 
       <el-table-column prop="orderNo" label="订单号" width="150" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click.stop="viewDetail(row.orderId)">
+          <el-link
+            type="primary"
+            :class="{ 'blink-modify': hasPendingModify(row) }"
+            @click.stop="viewDetail(row.orderId)"
+          >
             {{ row.orderNo }}
+            <span v-if="hasPendingModify(row)" class="modify-badge"><ModifyTripodIcon /></span>
           </el-link>
         </template>
       </el-table-column>
@@ -269,6 +274,7 @@ import { Refresh, Search, RefreshRight, FullScreen } from '@element-plus/icons-v
 import { useUserStore } from '@/stores/user';
 import { getOrderList, auditOrder } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -331,7 +337,7 @@ const statusMap = {
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
   billRejected: { text: '账单驳回', type: 'danger' },
-  billConfirmed: { text: '客户已确认', type: 'success' },
+  billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -437,6 +443,11 @@ const handleSelectionChange = (selection) => {
 // ===== 查看详情 =====
 const viewDetail = (id) => {
   router.push(`/order/detail/${id}`);
+};
+
+// ===== 待处理修改申请：订单号闪烁（与客户列表保持一致） =====
+const hasPendingModify = (row) => {
+  return row.modifyTracking === true;
 };
 
 // ===== 处理修改申请（跳转待办列表） =====
@@ -649,5 +660,20 @@ onMounted(() => {
   transform: scale(2.5);
   z-index: 10;
   position: relative;
+}
+
+/* ⭐ 待处理修改申请：订单号闪烁（与客户列表保持一致） */
+.blink-modify {
+  animation: blink 1s infinite;
+  color: #f56c6c !important;
+  font-weight: 700;
+}
+.modify-badge {
+  margin-left: 4px;
+  font-size: 14px;
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 </style>

@@ -31,6 +31,7 @@
             <el-option label="下单超时" value="pending" />
             <el-option label="制作超时" value="production" />
             <el-option label="账单超时" value="bill" />
+            <el-option label="环节停留超时" value="stagnation" />
             <el-option label="手工预警" value="manual" />
           </el-select>
         </el-form-item>
@@ -360,6 +361,7 @@ const typeName = (type) => ({
   pending: '下单超时',
   production: '制作超时',
   bill: '账单超时',
+  stagnation: '环节停留超时',
   manual: '手工预警',
 })[type] || type || '未知'
 
@@ -367,6 +369,7 @@ const typeTag = (type) => ({
   pending: 'warning',
   production: 'danger',
   bill: 'warning',
+  stagnation: 'danger',
   manual: 'primary',
 })[type] || 'info'
 

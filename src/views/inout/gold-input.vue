@@ -1,9 +1,59 @@
 ﻿<template>
   <div class="inout-input-page">
+    <GoldMaterialSummary ref="summaryComp" :title="summaryTitle">
+      <template #footer>
+        <div class="cum-block">
+          <div class="cum-head">
+            <span class="cum-title">📊 累计</span>
+            <span class="cum-tip">上单 = 该往来单位在所选日期之前的累计；本单 = 上单 {{ form.direction === 1 ? '+' : '−' }} 本单{{ foldLabel }}</span>
+          </div>
+
+          <el-row :gutter="12">
+            <el-col :xs="12" :sm="8" :md="4">
+              <div class="stat-box">
+                <div class="stat-label">上单累计折足金</div>
+                <div class="stat-value">{{ formatNum(lastTotal.lastTotalFold, 4) }} g</div>
+              </div>
+            </el-col>
+            <el-col :xs="12" :sm="8" :md="4">
+              <div class="stat-box">
+                <div class="stat-label">上单累计折银</div>
+                <div class="stat-value">{{ formatNum(lastTotal.lastTotalSilver, 4) }} g</div>
+              </div>
+            </el-col>
+            <el-col :xs="12" :sm="8" :md="4">
+              <div class="stat-box">
+                <div class="stat-label">上单累计折铜</div>
+                <div class="stat-value">{{ formatNum(lastTotal.lastTotalCopper, 4) }} g</div>
+              </div>
+            </el-col>
+            <el-col :xs="12" :sm="8" :md="4">
+              <div class="stat-box">
+                <div class="stat-label">上单累计金额</div>
+                <div class="stat-value">¥{{ formatNum(lastTotal.lastTotalAmount, 2) }}</div>
+              </div>
+            </el-col>
+            <el-col :xs="12" :sm="8" :md="4">
+              <div class="stat-box highlight">
+                <div class="stat-label">本单累计{{ foldLabel }}</div>
+                <div class="stat-value">{{ formatNum(currentTotalFold, 4) }} g</div>
+              </div>
+            </el-col>
+            <el-col :xs="12" :sm="8" :md="4">
+              <div class="stat-box highlight">
+                <div class="stat-label">本单累计金额</div>
+                <div class="stat-value">¥{{ formatNum(currentTotalAmount, 2) }}</div>
+              </div>
+            </el-col>
+          </el-row>
+        </div>
+      </template>
+    </GoldMaterialSummary>
+
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span class="title">🥇 金录入</span>
+          <span class="title">🥇 {{ pageTitle }}</span>
           <el-button type="primary" size="small" @click="$router.push('/inout/gold-list')">查看列表 →</el-button>
         </div>
       </template>
@@ -48,7 +98,7 @@
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="录入人">
+            <el-form-item label="经办人">
               <el-input v-model="form.createByName" placeholder="默认登录人，可改" />
             </el-form-item>
           </el-col>
@@ -147,52 +197,12 @@
           </el-col>
         </el-row>
 
-        <el-divider content-position="left">累计</el-divider>
-
-        <el-row :gutter="16">
-          <el-col :span="6">
-            <div class="stat-box">
-              <div class="stat-label">上单累计折足金</div>
-              <div class="stat-value">{{ formatNum(lastTotal.lastTotalFold, 4) }} g</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-box">
-              <div class="stat-label">上单累计折银</div>
-              <div class="stat-value">{{ formatNum(lastTotal.lastTotalSilver, 4) }} g</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-box">
-              <div class="stat-label">上单累计折铜</div>
-              <div class="stat-value">{{ formatNum(lastTotal.lastTotalCopper, 4) }} g</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-box">
-              <div class="stat-label">上单累计金额</div>
-              <div class="stat-value">¥{{ formatNum(lastTotal.lastTotalAmount, 2) }}</div>
-            </div>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="16" style="margin-top:12px;">
-          <el-col :span="6">
-            <div class="stat-box highlight">
-              <div class="stat-label">本单累计{{ foldLabel }}</div>
-              <div class="stat-value">{{ formatNum(currentTotalFold, 4) }} g</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-box highlight">
-              <div class="stat-label">本单累计金额</div>
-              <div class="stat-value">¥{{ formatNum(currentTotalAmount, 2) }}</div>
-            </div>
-          </el-col>
-        </el-row>
-
         <el-form-item label="备注" style="margin-top:16px;">
           <el-input v-model="form.remark" type="textarea" :rows="2" />
+        </el-form-item>
+
+        <el-form-item label="图片" style="margin-top:8px;">
+          <MultiImageUpload v-model="imageList" :max-count="10" type="inout" tip="可上传凭证、实物照片等，最多10张" />
         </el-form-item>
 
         <el-form-item>
@@ -211,21 +221,44 @@ import { createGold, getGoldLastTotal, getGoldById } from '@/api/inout'
 import { useRoute } from 'vue-router'
 import { getCounterpartyAll } from '@/api/counterparty'
 import { getMaterialLossList } from '@/api/materialLoss'
+import MultiImageUpload from '@/components/MultiImageUpload.vue'
+import GoldMaterialSummary from '@/components/GoldMaterialSummary.vue'
+import { dictApi } from '@/api/dict'
 
 const formRef = ref()
+const summaryComp = ref()
+const route = useRoute()
 const submitting = ref(false)
 const counterparties = ref([])
 const counterpartyConfigs = ref([])
 
-const materialOptions = [
+const materialOptions = ref([
   '黄金', '18K黄757‰', '18K白757‰', '18K红757‰',
   '14K黄', '14K白', '9K', '22K', 'PT',
   '足银', '925银', '铜'
-]
+])
+
+// ⭐ 材质选项与订单成色下拉一致（成色字典 purity），加载后覆盖写死选项
+const loadMaterialOptions = async () => {
+  try {
+    const res = await dictApi.getItemsByKey('purity')
+    const labels = (res?.data || []).map(x => x.itemLabel || x.itemValue).filter(Boolean)
+    if (labels.length) materialOptions.value = labels
+  } catch {}
+}
+
+// ⭐ 路由决定默认方向（/inout/gold/in = 收入，/inout/gold/out = 支出）
+const defaultDirection = Number(route.meta?.direction ?? 1)
+
+// ⭐ 汇总卡标题跟随页面（金入库 / 金出库）
+const summaryTitle = computed(() => defaultDirection === 0 ? '🧮 金料汇总 · 累计（金出库）' : '🧮 金料汇总 · 累计（金入库）')
+
+// ⭐ 表单卡标题跟随路由（金入库 / 金出库）
+const pageTitle = computed(() => route.meta?.title || '金录入')
 
 const form = reactive({
   recordDate: new Date().toISOString().slice(0, 10),
-  direction: 1,
+  direction: defaultDirection,
   counterpartyId: null,
   materialType: '',
   goldWeight: 0,
@@ -250,6 +283,24 @@ try {
   const ui = JSON.parse(localStorage.getItem('userInfo') || '{}')
   currentUserName.value = ui.realName || ui.name || ''
 } catch {}
+
+// ⭐ 图片列表（v-model 绑定到 MultiImageUpload，元素为 {imageUrl,...}）
+const imageList = ref([])
+
+// 解析后端返回的 images JSON 字符串 -> 图片对象数组
+const parseImages = (s) => {
+  if (!s) return []
+  try {
+    const arr = JSON.parse(s)
+    if (Array.isArray(arr)) return arr.map(u => ({ imageUrl: u, imageName: '', imageType: 'inout', sortOrder: 0, remark: '' }))
+  } catch {}
+  return []
+}
+// 序列化图片对象数组 -> JSON 字符串
+const serializeImages = (list) => {
+  const urls = (list || []).map(x => x?.imageUrl).filter(Boolean)
+  return urls.length ? JSON.stringify(urls) : ''
+}
 
 const lastTotal = reactive({
   lastTotalFold: 0,
@@ -400,13 +451,15 @@ const handleSubmit = async () => {
     try {
       const submitData = {
         ...form,
-        foldCategory: foldCategory.value
+        foldCategory: foldCategory.value,
+        images: serializeImages(imageList.value)
       }
       const res = await createGold(submitData)
       if (res.success) {
         ElMessage.success('录入成功')
         handleReset()
         loadLastTotal()
+        summaryComp.value?.reload()
       }
     } catch (e) {
       ElMessage.error('提交失败')
@@ -419,7 +472,7 @@ const handleSubmit = async () => {
 const handleReset = () => {
   formRef.value?.resetFields()
   form.recordDate = new Date().toISOString().slice(0, 10)
-  form.direction = 1
+  form.direction = defaultDirection
   form.materialType = ''
   form.goldWeight = 0
   form.lossRate = 1
@@ -436,11 +489,12 @@ const handleReset = () => {
   form.productName = ''
   form.content = ''
   form.createByName = currentUserName.value
+  imageList.value = []
 }
 
 onMounted(async () => {
-  const route = useRoute()
   loadCounterparties()
+  loadMaterialOptions()
   if (route.query.id) {
     try {
       const res = await getGoldById(route.query.id)
@@ -448,6 +502,7 @@ onMounted(async () => {
         Object.assign(form, res.data)
         if (form.recordDate && form.recordDate.length > 10) form.recordDate = form.recordDate.slice(0, 10)
         if (!form.createByName) form.createByName = currentUserName.value
+        imageList.value = parseImages(res.data.images)
       }
     } catch {}
   }
@@ -460,8 +515,16 @@ onMounted(async () => {
 .inout-input-page { padding: 16px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; font-size: 16px; }
-.stat-box { background: #f5f7fa; border-radius: 6px; padding: 10px 14px; border-left: 3px solid #909399; }
+
+/* 累计区块（与「金料按材质汇总」同卡展示） */
+.cum-block { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #e4e7ed; }
+.cum-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.cum-title { font-weight: 600; font-size: 14px; color: #409EFF; }
+.cum-tip { font-size: 12px; color: #a8abb2; }
+.cum-block :deep(.el-col) { margin-bottom: 10px; }
+
+.stat-box { height: 100%; box-sizing: border-box; background: #f5f7fa; border-radius: 6px; padding: 10px 14px; border-left: 3px solid #909399; }
 .stat-box.highlight { border-left-color: #409EFF; background: #ecf5ff; }
 .stat-label { font-size: 12px; color: #909399; margin-bottom: 4px; }
-.stat-value { font-size: 16px; font-weight: 600; color: #303133; }
+.stat-value { font-size: 16px; font-weight: 600; color: #303133; white-space: nowrap; }
 </style>

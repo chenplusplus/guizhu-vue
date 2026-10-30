@@ -39,9 +39,9 @@
           </el-button>
         </template>
 
-        <!-- ⭐ 客户（含下单员和审核员）：确认/退回（flowStatus = billConfirmed） -->
-        <template v-if="userStore.isCustomerType && billData?.status  === 'billConfirmed'">
-          <el-button type="success" @click="handleConfirm" :loading="confirming">
+        <!-- ⭐ 客户（含下单员和审核员）：确认/退回（flowStatus = billConfirmed 或 returned） -->
+        <template v-if="userStore.isCustomerType && (billData?.status === 'billConfirmed' || billData?.status === 'returned')">
+          <el-button v-if="billData?.status === 'billConfirmed'" type="success" @click="handleConfirm" :loading="confirming">
             <el-icon><Check /></el-icon> 确认账单
           </el-button>
           <el-button type="danger" @click="openReturnDialog">
@@ -59,6 +59,9 @@
           </el-button>
         </template>
 
+        <el-button type="info" plain @click="previewVisible = true">
+          <el-icon><View /></el-icon> 预览
+        </el-button>
         <el-button type="primary" plain @click="handleExport">
           <el-icon><Download /></el-icon> 导出
         </el-button>
@@ -206,16 +209,18 @@
             <el-table-column prop="lossRate" label="损耗" width="70" align="right">
               <template #default="{ row }">{{ row.lossRate || '-' }}</template>
             </el-table-column>
+            <el-table-column prop="addLossWeight" label="加耗重" width="80" align="right">
+              <template #default="{ row }">{{ row.addLossWeight || '-' }}</template>
+            </el-table-column>
             <el-table-column prop="goldPrice" label="金价" width="80" align="right">
               <template #default="{ row }">{{ row.goldPrice || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="goldMaterialFee" label="足金料" width="90" align="right">
+            <el-table-column prop="goldMaterialFee" label="足金料金额" width="100" align="right">
               <template #default="{ row }">{{ row.goldMaterialFee || '-' }}</template>
             </el-table-column>
-            <el-table-column label="折足金料" width="100" align="center">
+            <el-table-column prop="goldMaterialWeight" label="足金料" width="100" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.goldConvertCash" type="warning" size="small">折现</el-tag>
-                <span v-else style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
+                <span style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
               </template>
             </el-table-column>
 
@@ -275,9 +280,11 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="退回" width="65" align="center" fixed="right">
+            <el-table-column label="退回" width="100" align="center" fixed="right">
               <template #default="{ row }">
-                <el-tag v-if="row.isReturned" type="danger" size="small">已退</el-tag>
+                <el-tag v-if="row.isReturned" :type="row.returnType === 'labor' ? 'warning' : 'danger'" size="small">
+                  {{ row.returnType === 'labor' ? '退料留工费' : '全部退回' }}
+                </el-tag>
                 <span v-else style="color:#ccc;">-</span>
               </template>
             </el-table-column>
@@ -315,14 +322,6 @@
               <span class="label">本单应收足料</span>
               <span class="value" style="color:#E6A23C;font-weight:bold;">
                 {{ (billData?.currentMaterialWeight || 0).toFixed(3) }}g
-              </span>
-            </div>
-          </el-col>
-          <el-col v-if="userStore.isFactoryOrder || userStore.isAdmin" :xs="12" :sm="6">
-            <div class="summary-item">
-              <span class="label">折足金料（内部）</span>
-              <span class="value" style="color:#909399;">
-                {{ (billData?.internalMaterialWeight || 0).toFixed(3) }}g
               </span>
             </div>
           </el-col>
@@ -406,39 +405,63 @@
         <div class="footer-notice">
           <p>📌 注：为了保证您的利益，请将以上产品送当地部门检测，如发现成色不足等问题，请立即与我司联系，未经质检部门检测而进行销售，发生一切纠纷后果与我司无关，谢谢合作！</p>
         </div>
-        <div class="footer-signature">
-          <span>制单：____________________</span>
-          <span>复核：____________________</span>
-          <span>客户签名：____________________</span>
-        </div>
-        <div class="footer-remark">
-          <p><b>备注：</b>请自觉按照拿货量，及时安排货款。谢谢！</p>
-        </div>
       </div>
+
+      <!-- ===== 6. 修改记录（账单确认后的字段级变更日志） ===== -->
+      <ChangeLogTimeline
+        :source-type="'bill'"
+        :source-id="billId"
+        :field-labels="BILL_FIELD_LABELS"
+      />
     </div>
 
     <!-- ===== 退回弹窗 ===== -->
-    <el-dialog v-model="returnDialogVisible" title="退回明细" width="650px" destroy-on-close>
+    <el-dialog v-model="returnDialogVisible" title="退回明细" width="680px" destroy-on-close>
       <el-alert 
-        title="选择要退回的明细，并填写退回原因。退回后需要工厂审核员审批。" 
+        title="选择要退回的明细，选择退回方式，并填写退回原因。退回后需要工厂审核员审批。" 
         type="warning" 
         :closable="false" 
         show-icon 
         style="margin-bottom:16px;" 
       />
+
+      <!-- 退回方式选择 -->
+      <div class="return-type-select">
+        <div class="return-type-label">退回方式：</div>
+        <el-radio-group v-model="returnForm.returnType">
+          <el-radio value="full" border>全部退回（材料+工费都不算）</el-radio>
+          <el-radio value="labor" border>退材料留工费（工费照算）</el-radio>
+        </el-radio-group>
+        <div class="return-type-tip">
+          <span v-if="returnForm.returnType === 'full'" style="color:#f56c6c;">所选明细金额全部退回，应收金额清零</span>
+          <span v-else style="color:#e6a23c;">所选明细只退回材料费，工费仍计入账单应收</span>
+        </div>
+      </div>
+
       <el-table
         :data="billData?.details || []"
         border
         stripe
         @selection-change="handleReturnSelection"
-        max-height="300"
+        max-height="280"
         size="small"
       >
         <el-table-column type="selection" width="55" />
         <el-table-column prop="seqNo" label="#" width="50" align="center" />
         <el-table-column prop="productName" label="品名" min-width="120" />
+        <el-table-column label="工费" width="90" align="right">
+          <template #default="{ row }">¥{{ (row.laborFee || 0).toFixed(2) }}</template>
+        </el-table-column>
         <el-table-column prop="totalAmount" label="金额" width="110" align="right">
           <template #default="{ row }">¥{{ (row.totalAmount || 0).toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column label="本次退回" width="110" align="right">
+          <template #default="{ row }">
+            <span v-if="isSelected(row)" style="color:#f56c6c;font-weight:bold;">
+              ¥{{ returnAmountOf(row).toFixed(2) }}
+            </span>
+            <span v-else style="color:#ccc;">-</span>
+          </template>
         </el-table-column>
         <el-table-column prop="isReturned" label="状态" width="80" align="center">
           <template #default="{ row }">
@@ -467,6 +490,13 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- ===== 出货明细预览（与主页明细样式一致） ===== -->
+    <BillPreviewDialog
+      v-model:visible="previewVisible"
+      :bill-data="billData"
+      :details="billData?.details || []"
+    />
   </div>
 </template>
 
@@ -476,7 +506,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox,ElLoading } from 'element-plus';
 import { 
   ArrowLeft, Check, Close, Select, RefreshLeft, Upload, Download,
-  Document, User, Money, Goods
+  Document, User, Money, Goods, View
 } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { 
@@ -490,12 +520,27 @@ import {
   auditReturn
 } from '@/api/bill';
 import FlowLog from '@/components/FlowLog.vue';
+import ChangeLogTimeline from '@/components/ChangeLogTimeline.vue';
+import BillPreviewDialog from '@/components/BillPreviewDialog.vue';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
 const billId = computed(() => Number(route.params.id));
+
+// 字段标签：与后端 ChangeLogHelper.BillFieldLabels 对应
+const BILL_FIELD_LABELS = {
+  totalAmount: '总金额', totalQuantity: '总数量', currentMaterial: '应收足料',
+  currentMoney: '应收款', receivedMaterial: '来料量', receivedMoney: '来款金额',
+  totalDebtMaterial: '累欠足料', totalDebtMoney: '累欠款', totalWeight: '总重',
+  netWeight: '净重', lossRate: '损耗率', addLossWeight: '加耗重',
+  goldMaterialWeight: '足金料克重', goldMaterialFee: '足金料金额', goldPrice: '金价',
+  mainStoneAmount: '主石金额', mainStoneSettingFee: '主石镶石工费',
+  subStoneAmount: '副石金额', subStoneSettingFee: '副石镶石工费',
+  packingFee: '包装费', certificateFee: '证书费', postageFee: '邮费',
+  moldFee: '版费', laborFee: '工费',
+};
 
 const loading = ref(false);
 const auditing = ref(false);
@@ -504,9 +549,10 @@ const returning = ref(false);
 const returnAuditing = ref(false);
 const submitting = ref(false);
 const billData = ref(null);
+const previewVisible = ref(false);   // 出货明细预览弹窗
 const returnDialogVisible = ref(false);
 const returnSelected = ref([]);
-const returnForm = ref({ reason: '', remark: '' });
+const returnForm = ref({ reason: '', remark: '', returnType: 'full' });
 
 // ===== 汇总计算 =====
 const totalWeightSum = computed(() => {
@@ -518,7 +564,10 @@ const netWeightSum = computed(() => {
 });
 
 const goldMaterialSum = computed(() => {
-  return (billData.value?.details || []).reduce((sum, d) => sum + (d.goldMaterialFee || 0), 0);
+  // 已退回明细不参与合计（与"应收合计"口径一致）
+  return (billData.value?.details || [])
+    .filter(d => !d.isReturned)
+    .reduce((sum, d) => sum + (d.goldMaterialFee || 0), 0);
 });
 
 const laborFeeSum = computed(() => {
@@ -543,7 +592,7 @@ const flowStatusMap = {
   factory_edit: { text: '工厂编辑中', type: 'primary' },
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
-  billConfirmed: { text: '待客户确认', type: 'success' },
+  billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -658,12 +707,27 @@ const openReturnDialog = () => {
     return;
   }
   returnSelected.value = [];
-  returnForm.value = { reason: '', remark: '' };
+  returnForm.value = { reason: '', remark: '', returnType: 'full' };
   returnDialogVisible.value = true;
 };
 
 const handleReturnSelection = (selection) => {
   returnSelected.value = selection;
+};
+
+// 某明细是否被选中退回
+const isSelected = (row) => {
+  return returnSelected.value.some(s => s.id === row.id);
+};
+
+// 某明细按当前退回方式应退回的金额
+const returnAmountOf = (row) => {
+  const total = Number(row.totalAmount || 0);
+  const labor = Number(row.laborFee || 0);
+  if (returnForm.value.returnType === 'labor') {
+    return Math.max(0, total - labor);
+  }
+  return total;
 };
 
 const confirmReturn = async () => {
@@ -681,6 +745,7 @@ const confirmReturn = async () => {
     await returnBill(billId.value, {
       reason: returnForm.value.reason,
       remark: returnForm.value.remark,
+      returnType: returnForm.value.returnType,
       detailIds: returnSelected.value.map(d => d.id),
     });
     ElMessage.success('退回申请已提交，等待工厂审核员审批');
@@ -1114,6 +1179,30 @@ onMounted(() => {
   margin-top: 18px;
   padding-top: 16px;
   border-top: 1px solid #e8ecf1;
+}
+
+/* ===== 退回方式选择 ===== */
+.return-type-select {
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: #f8faff;
+  border: 1px solid #e8f0fe;
+  border-radius: 8px;
+}
+.return-type-label {
+  font-size: 13px;
+  color: #606266;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.return-type-select :deep(.el-radio) {
+  margin-right: 16px;
+  height: auto;
+  padding: 8px 12px;
+}
+.return-type-tip {
+  margin-top: 8px;
+  font-size: 12px;
 }
 .log-section :deep(.el-timeline) {
   padding-left: 8px;

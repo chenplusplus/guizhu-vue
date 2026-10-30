@@ -29,3 +29,8 @@ export function counterpartSummary(params) {
   return request({ url: '/transaction/summary/counterpart', method: 'get', params })
 }
 
+// 往来单位 × 材质明细矩阵（金料/钻石/费用/其他材料 分组）
+export function counterpartMaterialSummary(params) {
+  return request({ url: '/transaction/summary/counterpart-material', method: 'get', params })
+}
+

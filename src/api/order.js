@@ -36,6 +36,22 @@ export const deleteOrder = (id) => {
   return api.delete(`/order/${id}`);
 };
 
+// ===== 订单成本（LR 成本行）=====
+// 获取订单成本（含销售行、是否已录、预警明细）
+export const getOrderCost = (orderId) => {
+  return api.get(`/order/cost/${orderId}`);
+};
+
+// 保存订单成本（upsert，后端会重算预警）
+export const saveOrderCost = (orderId, data) => {
+  return api.post(`/order/cost/${orderId}`, data);
+};
+
+// 删除订单成本（恢复未录入）
+export const deleteOrderCost = (orderId) => {
+  return api.delete(`/order/cost/${orderId}`);
+};
+
 // ===== 审核订单 =====
 export const auditOrder = (id, data) => {
   return api.post(`/order/${id}/audit`, data);
@@ -97,10 +113,6 @@ export const getPendingCount = (auditType) => {
   return api.get('/order/stats/pending-count', { params: { auditType } });
 };
 
-export const getStatusCount = (customerId) => {
-  return api.get('/order/stats/status-count', { params: { customerId } });
-};
-
 export const submitOrder = (id) => {
   return  api.post(`/order/${id}/submit`);
 }; 
@@ -150,13 +162,12 @@ export const getOrderModifyDiff = (requestId) => {
   return api.get(`/order/${requestId}/modify/diff`);
 };
 
-// src/api/order.js
-export function getBillPendingOrders(params) {
-  return request({
-    url: '/api/order/pending-bills',
-    method: 'get',
-    params
-  });
+// ===== 待出账订单 =====
+export const getBillPendingOrders = (params) => {
+  return api.get('/order/pending-bills', { params });
+};
 
-
-}
+// ===== 品名历史联想（从历史订单带出，不再依赖产品库）=====
+export const getProductSuggest = (params) => {
+  return api.get('/order/product-suggest', { params });
+};

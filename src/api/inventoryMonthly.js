@@ -9,3 +9,7 @@ export const confirmMonthly = (yearMonth, data) => api.post(`/inventory/monthly/
 export const unconfirmMonthly = (yearMonth) => api.post(`/inventory/monthly/${yearMonth}/unconfirm`);
 export const getCustomerShangdan = (customerId, recordDate) =>
   api.get(`/inventory/monthly/customer-shangdan/${customerId}`, { params: { recordDate } });
+
+// 月度经营报表（periodType = month | year | all；customerIds 逗号分隔，不传=全部）
+export const getOperationReport = (params) =>
+  api.get('/inventory/operation-report', { params });

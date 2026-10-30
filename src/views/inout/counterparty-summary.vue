@@ -46,7 +46,7 @@
       <el-table :data="tableData" border stripe v-loading="loading" show-summary>
         <el-table-column prop="counterpartyName" label="单位名称" min-width="150">
           <template #default="{ row }">
-            <el-link type="primary" @click="goReconciliation(row)">{{ row.counterpartyName }}</el-link>
+            {{ row.counterpartyName }}
           </template>
         </el-table-column>
         <el-table-column prop="typeLabel" label="类型" width="90" align="center">
@@ -71,9 +71,6 @@
         <el-table-column prop="outCount" label="支出笔数" width="100" align="center">
           <template #default="{ row }"><el-tag type="danger" size="small">{{ row.outCount || 0 }}</el-tag></template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right" align="center">
-          <template #default="{ row }"><el-button size="small" type="primary" link @click="goReconciliation(row)">对账</el-button></template>
-        </el-table-column>
       </el-table>
 
       <div class="pagination">
@@ -87,12 +84,10 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { getCounterpartySummary } from '@/api/inoutReport';
 
-const router = useRouter();
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth() + 1;
 const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -115,20 +110,16 @@ const loadData = async () => {
     });
     tableData.value = res.data || [];
     total.value = res.total || 0;
-    // 简单统计
-    stats.customerCount = tableData.value.filter(r => r.counterpartyType === 'customer').length;
-    stats.supplierCount = tableData.value.filter(r => r.counterpartyType === 'supplier').length;
-    stats.totalIn = tableData.value.reduce((s, r) => s + (r.totalIn || 0), 0);
-    stats.totalOut = tableData.value.reduce((s, r) => s + (r.totalOut || 0), 0);
+    // 统计（优先后端全局口径，避免只统计当前页）
+    stats.customerCount = res.customerCount ?? tableData.value.filter(r => r.counterpartyType === 'customer').length;
+    stats.supplierCount = res.supplierCount ?? tableData.value.filter(r => r.counterpartyType === 'supplier').length;
+    stats.totalIn = res.totalIn ?? tableData.value.reduce((s, r) => s + (r.totalIn || 0), 0);
+    stats.totalOut = res.totalOut ?? tableData.value.reduce((s, r) => s + (r.totalOut || 0), 0);
   } catch { ElMessage.error('加载失败'); }
   finally { loading.value = false; }
 };
 
 const resetSearch = () => { searchForm.type = ''; searchForm.keyword = ''; pagination.current = 1; loadData(); };
-
-const goReconciliation = (row) => {
-  router.push(`/inout/reconciliation?counterpartyId=${row.counterpartyId}&year=${searchForm.year}&month=${searchForm.month}`);
-};
 
 onMounted(loadData);
 </script>

@@ -41,10 +41,42 @@
           />
         </el-form-item>
 
-        <el-form-item label="状态">
-          <el-select v-model="search.status" placeholder="全部状态" clearable style="width: 140px;">
-            <el-option label="已完成" value="completed" />
-            <el-option label="已取消" value="cancelled" />
+        <!-- 客户筛选：客户角色只能看自己公司（禁用），工厂/管理员可筛选 -->
+        <el-form-item label="客户">
+          <el-select
+            v-model="search.customerId"
+            placeholder="全部客户"
+            clearable
+            filterable
+            :disabled="userStore.isCustomerType"
+            style="width: 180px;"
+            @change="handleCustomerChange"
+          >
+            <el-option
+              v-for="item in customerList"
+              :key="item.customerId"
+              :label="item.customerName"
+              :value="item.customerId"
+            />
+          </el-select>
+        </el-form-item>
+
+        <!-- 销售筛选 -->
+        <el-form-item label="销售">
+          <el-select
+            v-model="search.salesman"
+            placeholder="全部销售"
+            clearable
+            filterable
+            style="width: 160px;"
+            @change="loadData"
+          >
+            <el-option
+              v-for="item in salesmanList"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
 
@@ -61,9 +93,7 @@
 
     <!-- 汇总 -->
     <div v-show="!isFullscreen" class="summary-bar" v-if="pagination.total > 0">
-      <span>共 <b>{{ pagination.total }}</b> 个订单</span>
-      <span style="color:#67C23A;">已完成：<b>{{ completedCount }}</b></span>
-      <span style="color:#909399;">已取消：<b>{{ cancelledCount }}</b></span>
+      <span>共 <b>{{ pagination.total }}</b> 个已完成订单</span>
     </div>
 
     <!-- 表格 -->
@@ -84,14 +114,6 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="flowStatus" label="状态" width="110" align="center" fixed>
-        <template #default="{ row }">
-          <el-tag :type="row.flowStatus === 'completed' ? 'success' : 'info'" size="default" effect="light">
-            {{ row.flowStatus === 'completed' ? '已完成' : '已取消' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-
       <!-- 账单列 -->
       <el-table-column label="账单" width="120" align="center">
         <template #default="{ row }">
@@ -103,6 +125,13 @@
       </el-table-column>
 
       <el-table-column prop="customerName" label="客户" width="120" />
+
+      <!-- ⭐ 销售名称（下单员） -->
+      <el-table-column label="销售名称" width="110" align="center">
+        <template #default="{ row }">
+          {{ row.salesman || row.operatorName || '-' }}
+        </template>
+      </el-table-column>
 
       <el-table-column prop="orderDate" label="订单日期" width="110" align="center">
         <template #default="{ row }">
@@ -140,7 +169,7 @@
 
       <el-table-column prop="completedAt" label="完成时间" width="160">
         <template #default="{ row }">
-          {{ formatDateTime(row.completedAt || row.updatedAt) }}
+          {{ formatDateTime(row.completedAt) }}
         </template>
       </el-table-column>
 
@@ -223,6 +252,8 @@ import { ElMessage } from 'element-plus';
 import { Refresh, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList } from '@/api/order';
+import { getCustomerList } from '@/api/customer';
+import { getUserList } from '@/api/user';
 import FlowDrawer from '@/components/FlowDrawer.vue';
 
 const router = useRouter();
@@ -250,6 +281,7 @@ const columnVisibleDialog = ref(false);
 // ===== 列定义 =====
 const allColumns = ref([
   { prop: 'customerName', label: '客户', width: 120, visible: true },
+  { prop: 'salesman', label: '销售名称', width: 110, align: 'center', visible: true },
   { prop: 'orderDate', label: '订单日期', width: 110, align: 'center', visible: true, sortable: true },
   { prop: 'productName', label: '品名', minWidth: 120, visible: true },
   { prop: 'imageUrl', label: '图片', width: 70, align: 'center', visible: true },
@@ -311,7 +343,8 @@ const loadColumnSettings = () => {
 const search = reactive({
   dateRange: [],
   keyword: '',
-  status: '',
+  customerId: null,
+  salesman: '',
 });
 
 const pagination = reactive({
@@ -320,14 +353,59 @@ const pagination = reactive({
   total: 0,
 });
 
-// ===== 统计 =====
-const completedCount = computed(() => {
-  return tableData.value.filter(o => o.flowStatus === 'completed').length;
-});
+// ===== 客户/销售下拉 =====
+const customerList = ref([]);
+const salesmanList = ref([]);
 
-const cancelledCount = computed(() => {
-  return tableData.value.filter(o => o.flowStatus === 'cancelled').length;
-});
+const loadCustomers = async () => {
+  try {
+    const res = await getCustomerList({ includeInactive: false });
+    customerList.value = res?.data || [];
+  } catch {
+    customerList.value = [];
+  }
+};
+
+const loadSalesman = async (customerId) => {
+  try {
+    // 确定目标客户：客户账号锁定自己公司，工厂/管理员按当前筛选的客户
+    const targetCustomerId = userStore.isCustomerType
+      ? userStore.customerId
+      : (customerId ?? search.customerId);
+
+    let list = [];
+    if (targetCustomerId) {
+      // 加载该客户公司的所有用户，前端过滤出销售类型（下单员+审核员）
+      const res = await getUserList({ customerId: targetCustomerId, pageSize: 1000 });
+      list = res?.data || [];
+    } else {
+      // 未选客户：加载所有销售类型用户
+      const res = await getUserList({ pageSize: 1000 });
+      list = res?.data || [];
+    }
+
+    // 只保留销售类用户（customer 下单员 / customerAudit 审核员）
+    salesmanList.value = list
+      .filter(u => {
+        const t = String(u.userType || '').trim().replace(/[_-]/g, '').toLowerCase();
+        return t === 'customer' || t === 'customeraudit';
+      })
+      .map(u => ({
+        value: u.realName || u.username,
+        label: u.realName || u.username,
+      }));
+  } catch {
+    salesmanList.value = [];
+  }
+};
+
+// ===== 客户切换：联动刷新销售下拉并重新加载数据 =====
+const handleCustomerChange = () => {
+  search.salesman = '';
+  loadSalesman(search.customerId);
+  pagination.current = 1;
+  loadData();
+};
 
 // ===== 获取默认日期范围（30天前 ~ 今天） =====
 const getDefaultDateRange = () => {
@@ -351,14 +429,21 @@ const loadData = async () => {
   try {
     const params = {
       keyword: search.keyword || undefined,
-      status: search.status || undefined,
+      status: 'completed',
       page: pagination.current,
       pageSize: pagination.pageSize,
     };
 
-    // 只查已完成和已取消
-    if (!search.status) {
-      params.statuses = ['completed', 'cancelled'];
+    // 客户筛选：客户角色强制锁定为自己公司
+    if (userStore.isCustomerType && userStore.customerId) {
+      params.customerId = userStore.customerId;
+    } else if (search.customerId) {
+      params.customerId = search.customerId;
+    }
+
+    // 销售筛选
+    if (search.salesman) {
+      params.salesman = search.salesman;
     }
 
     if (search.dateRange && search.dateRange.length === 2) {
@@ -374,7 +459,7 @@ const loadData = async () => {
     
     if (Array.isArray(responseData)) {
       data = responseData;
-      total = responseData.length;
+      total = res?.total || responseData.length;
     } else if (responseData.items && Array.isArray(responseData.items)) {
       data = responseData.items;
       total = responseData.total || data.length;
@@ -383,10 +468,7 @@ const loadData = async () => {
       total = data.length;
     }
 
-    // 只显示 completed 和 cancelled
-    tableData.value = data.filter(item => 
-      item.flowStatus === 'completed' || item.flowStatus === 'cancelled'
-    );
+    tableData.value = data;
     pagination.total = total;
     
   } catch (error) {
@@ -400,9 +482,11 @@ const loadData = async () => {
 
 const resetSearch = () => {
   search.keyword = '';
-  search.status = '';
+  search.customerId = null;
+  search.salesman = '';
   search.dateRange = getDefaultDateRange();
   pagination.current = 1;
+  loadSalesman(null);
   loadData();
 };
 
@@ -416,7 +500,14 @@ const handleRowClick = (row) => {
 
 // ===== 查看详情 =====
 const viewDetail = (id) => {
+  if (!id) return;
   router.push(`/order/detail/${id}`);
+};
+
+// ===== 查看账单 =====
+const viewBill = (id) => {
+  if (!id) return;
+  router.push(`/order/bill/detail/${id}`);
 };
 
 // ===== ⭐ 再次下单 =====
@@ -441,6 +532,8 @@ const formatDateTime = (date) => {
 onMounted(() => {
   loadColumnSettings();
   search.dateRange = getDefaultDateRange();
+  loadCustomers();
+  loadSalesman();
   loadData();
   window.addEventListener('keydown', handleEsc);
 });

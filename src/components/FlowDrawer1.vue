@@ -95,7 +95,7 @@ const statusMap = {
   assembly: { label: '组装', color: 'primary', step: 12 },
   polishing: { label: '抛光', color: 'primary', step: 13 },
   billPending: { label: '账单待审核', color: 'warning', step: 14 },
-  billConfirmed: { label: '客户已确认', color: 'success', step: 15 },
+  billConfirmed: { label: '待确认', color: 'success', step: 15 },
   completed: { label: '已完成', color: 'success', step: 16 },
   scrapped: { label: '已报废', color: 'danger', step: -1 },
   rejected: { label: '已驳回', color: 'danger', step: -1 },
@@ -118,7 +118,7 @@ const stepStatusList = computed(() => {
     { key: 'customerAudited', label: '客户已审核' },
     ...factoryFlow.map(key => ({ key, label: statusMap[key]?.label || key })),
     { key: 'billPending', label: '账单待审核' },
-    { key: 'billConfirmed', label: '客户已确认' },
+    { key: 'billConfirmed', label: '待确认' },
     { key: 'completed', label: '已完成' },
   ];
 

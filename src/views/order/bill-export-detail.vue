@@ -100,10 +100,9 @@
             <span v-else class="summary-cell">{{ fmt(row.GoldMaterialFee) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="折足金料" width="100" align="center">
+        <el-table-column prop="GoldMaterialWeight" label="足金料(g)" width="100" align="center">
           <template #default="{ row }">
-            <span v-if="row.GoldConvertCash" style="color:#E6A23C;font-size:12px;">折现</span>
-            <span v-else>{{ fmt(row.GoldMaterialWeight) }}g</span>
+            <span style="color:#67C23A;font-size:12px;">{{ fmt(row.GoldMaterialWeight) }}</span>
           </template>
         </el-table-column>
 

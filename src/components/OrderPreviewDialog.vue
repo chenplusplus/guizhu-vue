@@ -83,12 +83,7 @@
             <td class="value-td">{{ orderData?.goldMaterialWeight ?? '-' }}</td>
             <td class="label-td">足金料金额</td>
             <td class="value-td money">{{ formatMoney(orderData?.goldMaterialFee) }}</td>
-            <td class="label-td">折现金</td>
-            <td class="value-td" colspan="5">
-              <el-tag :type="orderData?.goldConvertCash ? 'warning' : 'info'" size="small">
-                {{ orderData?.goldConvertCash ? '是' : '否' }}
-              </el-tag>
-            </td>
+            <td class="value-td" colspan="6"></td>
           </tr>
         </tbody>
       </table>

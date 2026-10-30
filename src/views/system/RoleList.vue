@@ -101,6 +101,7 @@
         ref="menuTreeRef"
         :data="menuTree"
         show-checkbox
+        check-strictly
         node-key="menuId"
         default-expand-all
         :props="{ label: 'menuName', children: 'children' }"
@@ -253,24 +254,41 @@ const assignMenus = async (row) => {
       menuIds = [];
     }
     const selected = new Set(menuIds.map(Number));
-    const normalizeCheckedKeys = (nodes) => {
-      const keys = [];
+
+    // 严格模式下（check-strictly），setCheckedKeys 精确按 key 勾选，不会级联。
+    // 回显策略：
+    //  1) 叶子节点：只要在已授权集合中就勾选；
+    //  2) 父节点：仅当其所有子节点都被授权（全选）时才勾选，避免「父节点被存库导致整棵子节点被连带全选」。
+    const checkedKeys = [];
+    const collectChecked = (nodes) => {
       nodes.forEach(node => {
         const key = Number(node.menuId);
         const children = Array.isArray(node.children) ? node.children : [];
         if (children.length > 0) {
-          const childKeys = normalizeCheckedKeys(children);
-          const allChildrenSelected = childKeys.every(childKey => selected.has(childKey));
-          if (selected.has(key) && allChildrenSelected) keys.push(key);
-          keys.push(...childKeys);
+          const childKeys = [];
+          collectChildrenKeys(children, childKeys);
+          // 所有子节点（含深层）都在已授权集合中 => 父节点视为全选
+          const allChildrenAuthorized = childKeys.length > 0 && childKeys.every(k => selected.has(k));
+          if (allChildrenAuthorized) checkedKeys.push(key);
+          // 递归处理子节点本身（把被授权的子节点也加入勾选）
+          collectChecked(children);
         } else if (selected.has(key)) {
-          keys.push(key);
+          checkedKeys.push(key);
         }
       });
-      return keys;
     };
+    const collectChildrenKeys = (nodes, acc) => {
+      nodes.forEach(node => {
+        acc.push(Number(node.menuId));
+        if (Array.isArray(node.children) && node.children.length) {
+          collectChildrenKeys(node.children, acc);
+        }
+      });
+    };
+    collectChecked(menuTree.value);
+
     await nextTick();
-    menuTreeRef.value?.setCheckedKeys(normalizeCheckedKeys(menuTree.value));
+    menuTreeRef.value?.setCheckedKeys(checkedKeys);
   } catch {
     // ignore
   }

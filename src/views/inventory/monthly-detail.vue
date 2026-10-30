@@ -13,6 +13,24 @@
       </div>
     </div>
 
+    <!-- 配色图例 -->
+    <el-card shadow="never" style="margin-bottom:12px;">
+      <div class="legend-row">
+        <span class="legend-title">颜色说明</span>
+        <span class="legend-chip mat-gold-999">足金</span>
+        <span class="legend-chip mat-gold-18k">18K金</span>
+        <span class="legend-chip mat-gold-14k">14K金</span>
+        <span class="legend-chip mat-gold-9k">9K金</span>
+        <span class="legend-chip mat-pt">PT铂金</span>
+        <span class="legend-chip mat-silver">银</span>
+        <span class="legend-chip mat-copper">铜</span>
+        <span class="legend-chip mat-diamond">钻石</span>
+        <span class="legend-chip mat-fee-blue">费用/镶石</span>
+        <span class="legend-chip mat-fee-green">工费</span>
+        <span class="legend-tip">金按成色由浓黄到淡黄；钻石水光闪烁</span>
+      </div>
+    </el-card>
+
     <!-- 合计卡片 -->
     <el-card shadow="never" style="margin-bottom:16px;">
       <el-row :gutter="16">
@@ -61,7 +79,7 @@
       </template>
 
       <!-- 利润对比表 -->
-      <el-table :data="profitRows(c)" border size="small" style="margin-bottom:12px;">
+      <el-table :data="profitRows(c)" border size="small" :row-class-name="profitRowClass" style="margin-bottom:12px;">
         <el-table-column prop="label" label="项目" width="140" />
         <el-table-column prop="sys" label="系统" align="right" />
         <el-table-column prop="manual" label="人工" align="right" />
@@ -73,8 +91,12 @@
       </el-table>
 
       <!-- 材料明细 -->
-      <el-table :data="c.materials" border size="small" style="margin-bottom:12px;">
-        <el-table-column prop="color" label="成色" width="100" />
+      <el-table :data="c.materials" border size="small" :row-class-name="materialRowClass" style="margin-bottom:12px;">
+        <el-table-column prop="color" label="成色" width="110">
+          <template #default="{ row }">
+            <span class="color-mark" :class="materialRowClass({ row })"></span>{{ row.color || '-' }}
+          </template>
+        </el-table-column>
         <el-table-column label="系统净重" align="right">
           <template #default="{ row }">{{ fmt4(row.sysNetWeight) }}</template>
         </el-table-column>
@@ -115,6 +137,7 @@ import { ref, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { getMonthlyDetail, recalcMonthly, saveMonthlyManual, confirmMonthly, unconfirmMonthly } from '@/api/inventoryMonthly';
+import { materialRowClass, profitRowClass } from '@/utils/inventoryColors';
 
 const route = useRoute();
 const yearMonth = route.params.yearMonth;
@@ -238,6 +261,73 @@ onMounted(loadData);
 .page-container { padding: 16px; }
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .stat-box { background: #f5f7fa; border-radius: 6px; padding: 10px 14px; border-left: 3px solid #909399; }
+
+/* ===== 物料配色（金按成色由浓到淡 / 钻石水光 / 费用蓝绿） ===== */
+.legend-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.legend-title { font-size: 13px; color: #606266; margin-right: 4px; font-weight: 600; }
+.legend-chip {
+  display: inline-flex; align-items: center;
+  padding: 3px 10px; border-radius: 12px;
+  font-size: 12px; color: #4a4a4a;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+.legend-tip { font-size: 12px; color: #909399; margin-left: 6px; }
+.color-mark {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 3px; margin-right: 6px; vertical-align: middle;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+/* 金：由浓黄 → 淡黄（足金最黄，成色越低越淡） */
+:deep(.el-table__row.mat-gold-999) > td.el-table__cell { background: #FFE9A3 !important; }
+:deep(.el-table__row.mat-gold-18k) > td.el-table__cell { background: #FDF0BE !important; }
+:deep(.el-table__row.mat-gold-14k) > td.el-table__cell { background: #FDF6D9 !important; }
+:deep(.el-table__row.mat-gold-9k) > td.el-table__cell { background: #FEFAEC !important; }
+:deep(.el-table__row.mat-gold-other) > td.el-table__cell { background: #FBF3E4 !important; }
+:deep(.el-table__row.mat-pt) > td.el-table__cell { background: #F0EBF9 !important; }
+:deep(.el-table__row.mat-silver) > td.el-table__cell { background: #EDF1F4 !important; }
+:deep(.el-table__row.mat-copper) > td.el-table__cell { background: #F7EAE0 !important; }
+
+/* 钻石：水光闪闪（流动高光） */
+:deep(.el-table__row.mat-diamond) > td.el-table__cell {
+  background: linear-gradient(100deg, #E4F0FF 0%, #FBFDFF 35%, #DCEAFF 50%, #FBFDFF 65%, #E4F0FF 100%) !important;
+  background-size: 300% 100%;
+  animation: matShine 3.2s linear infinite;
+}
+@keyframes matShine {
+  0%   { background-position: 160% 0; }
+  100% { background-position: -60% 0; }
+}
+
+/* 费用 / 工费：普通蓝、绿；合计行中性灰 */
+:deep(.el-table__row.mat-fee-blue) > td.el-table__cell { background: #E8F2FD !important; }
+:deep(.el-table__row.mat-fee-green) > td.el-table__cell { background: #E7F6EC !important; }
+:deep(.el-table__row.mat-total) > td.el-table__cell { background: #F4F5F7 !important; }
+
+/* 图例芯片与色块用同一套配色 */
+.legend-chip.mat-gold-999 { background: #FFE9A3; }
+.legend-chip.mat-gold-18k { background: #FDF0BE; }
+.legend-chip.mat-gold-14k { background: #FDF6D9; }
+.legend-chip.mat-gold-9k { background: #FEFAEC; }
+.legend-chip.mat-pt { background: #F0EBF9; }
+.legend-chip.mat-silver { background: #EDF1F4; }
+.legend-chip.mat-copper { background: #F7EAE0; }
+.legend-chip.mat-fee-blue { background: #E8F2FD; }
+.legend-chip.mat-fee-green { background: #E7F6EC; }
+.legend-chip.mat-diamond {
+  background: linear-gradient(100deg, #E4F0FF 0%, #FBFDFF 35%, #DCEAFF 50%, #FBFDFF 65%, #E4F0FF 100%);
+  background-size: 300% 100%;
+  animation: matShine 3.2s linear infinite;
+}
+.color-mark.mat-gold-999 { background: #FFE9A3; }
+.color-mark.mat-gold-18k { background: #FDF0BE; }
+.color-mark.mat-gold-14k { background: #FDF6D9; }
+.color-mark.mat-gold-9k { background: #FEFAEC; }
+.color-mark.mat-gold-other { background: #FBF3E4; }
+.color-mark.mat-pt { background: #F0EBF9; }
+.color-mark.mat-silver { background: #EDF1F4; }
+.color-mark.mat-copper { background: #F7EAE0; }
+.color-mark.mat-diamond { background: linear-gradient(135deg, #DCE9FF, #FFFFFF 60%, #CFE2FF); }
 .stat-box.highlight { border-left-color: #409EFF; background: #ecf5ff; }
 .stat-label { font-size: 12px; color: #909399; margin-bottom: 4px; }
 .stat-value { font-size: 16px; font-weight: 600; color: #303133; }

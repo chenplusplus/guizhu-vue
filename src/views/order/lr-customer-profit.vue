@@ -72,6 +72,9 @@
           </span>
         </template>
       </el-table-column>
+      <el-table-column prop="goldProfit" label="金利润" width="120" align="right">
+        <template #default="{ row }">¥{{ fmt(row.goldProfit) }}</template>
+      </el-table-column>
       <el-table-column prop="diamondProfit" label="钻石利润" width="120" align="right">
         <template #default="{ row }">¥{{ fmt(row.diamondProfit) }}</template>
       </el-table-column>
@@ -125,7 +128,7 @@ const getSummary = ({ columns, data }) => {
       sums[index] = data.reduce((s, r) => s + (Number(r.lrCount) || 0), 0);
       return;
     }
-    if (['totalSale', 'totalCost', 'profit', 'diamondProfit', 'settingProfit', 'laborProfit', 'netWeight', 'addLossWeight'].includes(col.property)) {
+    if (['totalSale', 'totalCost', 'profit', 'goldProfit', 'diamondProfit', 'settingProfit', 'laborProfit', 'netWeight', 'addLossWeight'].includes(col.property)) {
       const total = data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0);
       const digits = col.property === 'netWeight' || col.property === 'addLossWeight' ? 3 : 2;
       const prefix = col.property === 'netWeight' || col.property === 'addLossWeight' ? '' : '¥';

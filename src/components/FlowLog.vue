@@ -78,7 +78,7 @@ const statusMap = {
   billPending: { label: '账单待审核', type: 'warning' },
   billApproved: { label: '账单已通过', type: 'success' },
   billReturned: { label: '账单已退回', type: 'danger' },
-  billConfirmed: { label: '账单已确认', type: 'success' },
+  billConfirmed: { label: '待确认', type: 'success' },
   completed: { label: '已完成', type: 'success' },
   rejected: { label: '已驳回', type: 'danger' },
   cancelled: { label: '已取消', type: 'info' },

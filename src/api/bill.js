@@ -11,6 +11,11 @@ export const createBill = (data) => {
   return api.post('/bill/create', data);
 };
 
+// ===== 自动生成账单（制作完成审核通过后触发）=====
+export const autoCreateBill = (orderId, remark) => {
+  return api.post('/bill/auto-create', null, { params: { orderId, remark } });
+};
+
 // ===== 获取账单列表 =====
 export const getBillList = (params) => {
   return api.get('/bill/list', { params });
@@ -86,15 +91,36 @@ export const auditReturn = (id, data) => {
   return api.post(`/bill/${id}/return-audit`, data);
 };
 
-export function getBillStats(params) {
-  return request({
-    url: '/api/bill/stats',
-    method: 'get',
-    params
-  });
-}
-
 // ⭐ 出货明细（按客户汇总）
 export const getBillExportData = (params) => {
   return api.get('/bill/export-data', { params });
+};
+
+// ⭐ 树形账单汇总（客户 → 销售 → 明细）
+// params: { dateType: 'today' | 'month' | 'custom', startDate?, endDate?, customerId?, salesman?, productName?, color? }
+export const getBillTree = (params) => {
+  return api.get('/bill/tree', { params });
+};
+
+// ⭐ 树形账单汇总筛选项（客户 / 销售 / 品名 / 成色）
+export const getBillTreeOptions = (params) => {
+  return api.get('/bill/tree/options', { params });
+};
+
+// ===== ⭐ 账单收款 =====
+// 保存实际收款（行级 + 已收款勾选），后端自动汇总
+export const saveBillReceipt = (id, data) => {
+  return api.post(`/bill/${id}/receipt/save`, data);
+};
+// 提交收款审核
+export const submitBillReceipt = (id) => {
+  return api.post(`/bill/${id}/receipt/submit`);
+};
+// 收款审核（approved: true 通过 / false 驳回）
+export const auditBillReceipt = (id, data) => {
+  return api.post(`/bill/${id}/receipt/audit`, data);
+};
+// 收款列表（status: none|pending|approved|rejected|all）
+export const getBillReceiptList = (params) => {
+  return api.get('/bill/receipt/list', { params });
 };

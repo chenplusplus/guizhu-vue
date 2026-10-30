@@ -125,11 +125,15 @@
 
         <el-row :gutter="16">
           <el-col :span="12">
-            <el-form-item label="录入人">
+            <el-form-item label="经办人">
               <el-input v-model="form.createByName" placeholder="默认登录人，可改" />
             </el-form-item>
           </el-col>
         </el-row>
+
+        <el-form-item label="图片" style="margin-top:8px;">
+          <MultiImageUpload v-model="imageList" :max-count="10" type="inout" tip="可上传凭证、实物照片等，最多10张" />
+        </el-form-item>
 
         <el-form-item style="margin-top:16px;">
           <el-button type="primary" :loading="submitting" @click="handleSubmit">提交录入</el-button>
@@ -146,6 +150,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { createDiamond, getDiamondLastTotal, getDiamondById } from '@/api/inout'
 import { getCounterpartyAll } from '@/api/counterparty'
+import MultiImageUpload from '@/components/MultiImageUpload.vue'
 
 const route = useRoute()
 const formRef = ref()
@@ -172,6 +177,21 @@ try {
   const ui = JSON.parse(localStorage.getItem('userInfo') || '{}')
   currentUserName.value = ui.realName || ui.name || ''
 } catch {}
+
+// ⭐ 图片列表
+const imageList = ref([])
+const parseImages = (s) => {
+  if (!s) return []
+  try {
+    const arr = JSON.parse(s)
+    if (Array.isArray(arr)) return arr.map(u => ({ imageUrl: u, imageName: '', imageType: 'inout', sortOrder: 0, remark: '' }))
+  } catch {}
+  return []
+}
+const serializeImages = (list) => {
+  const urls = (list || []).map(x => x?.imageUrl).filter(Boolean)
+  return urls.length ? JSON.stringify(urls) : ''
+}
 
 const presetDirection = computed(() => {
   const d = route.meta.direction

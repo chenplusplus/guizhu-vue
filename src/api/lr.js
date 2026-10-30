@@ -114,3 +114,19 @@ export const getCustomerProfitSummary = (params) => {
     params
   });
 };
+
+// ===== 树形LR汇总（客户 → 明细，含销售行/成本行 + 利润）=====
+// params: { dateType: 'all' | 'today' | 'month' | 'custom', startDate?, endDate?, customerId?, productName?, color? }
+export const getLrTree = (params) => {
+  return api.get('/lr/tree', { params });
+};
+
+// ===== 树形LR汇总筛选项（客户 / 品名 / 成色）=====
+export const getLrTreeOptions = (params) => {
+  return api.get('/lr/tree/options', { params });
+};
+
+// ===== 树形LR底部汇总（按客户 + 按成色）=====
+export const getLrTreeSummary = (params) => {
+  return api.get('/lr/tree/summary', { params });
+};

@@ -248,27 +248,6 @@
             </template>
           </el-table-column>
 
-          <el-table-column label="金料方式" width="88">
-            <template #default="{ row }">
-              <div class="cell-with-handle">
-                <el-select
-                  v-model="row.goldConvertCash"
-                  size="small"
-                  :disabled="!row._editable || row._saved"
-                  style="width: 100%"
-                  @change="() => recalcRow(row)"
-                >
-                  <el-option label="算料" :value="false" />
-                  <el-option label="折现" :value="true" />
-                </el-select>
-                <FillHandle
-                  v-if="row._editable && !row._saved"
-                  @fill-start="(e) => startFill(e, row, 'goldConvertCash')"
-                />
-              </div>
-            </template>
-          </el-table-column>
-
           <el-table-column label="足金料克重" width="95">
             <template #default="{ row }">
               <span>{{ (row.goldMaterialWeight || 0).toFixed(3) }}</span>
@@ -633,7 +612,7 @@ const statusMap = {
   handInlay: { text: '手镶', type: 'primary' },
   polishing: { text: '制作完成', type: 'success' },
   billPending: { text: '账单待审核', type: 'warning' },
-  billConfirmed: { text: '客户已确认', type: 'success' },
+  billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' }
 }
 
@@ -679,9 +658,10 @@ const statusOptions = computed(() => {
         { value: 'stoneCutting', label: '车石' },
         { value: 'microInlay', label: '微镶' },
         { value: 'handInlay', label: '手镶' },
-        { value: 'polishing', label: '制作完成' },
+        { value: 'polishing', label: '抛光' },
+        { value: 'productionCompleted', label: '制作完成' },
         { value: 'billPending', label: '账单待审核' },
-        { value: 'billConfirmed', label: '客户已确认' },
+        { value: 'billConfirmed', label: '待确认' },
         { value: 'completed', label: '已完成' }
       ]
 })
@@ -692,7 +672,7 @@ const BILL_STAGE_STATUSES = ['billPending', 'billRejected', 'billConfirmed', 'co
 const PRE_BILL_STATUSES = [
   'customeraudited', 'accepted', 'dataConfirm', 'factory_edit', 'waxing', 'molded',
   'cnc', 'partsMissing', 'sweeping', 'stoneCutting', 'stoneReady', 'setting',
-  'microInlay', 'handInlay', 'glue', 'inlay', 'assembly', 'polishing', 'billRejected'
+  'microInlay', 'handInlay', 'assembly', 'polishing', 'paused', 'glue', 'inlay', 'billRejected'
 ]
 
 const canEditRow = (row) => {
@@ -722,8 +702,6 @@ const getPurityRate = (purityId) => {
   return !isNaN(rate) && rate > 0 && rate <= 1 ? rate.toFixed(3) : '1.000'
 }
 
-const getPurityRateNum = (purityId) => Number(getPurityRate(purityId))
-
 // ==================== 标准损耗 ====================
 const isStandardLoss = (lr) => {
   if (lr === null || lr === undefined || lr === '') return true
@@ -736,21 +714,17 @@ const recalcRow = (row) => {
   const netWeight = Number(row.netWeight) || 0
   const loss = Number(row.lossRate) || 1.10
   const gold = Number(row.goldPrice) || 0
-  const convertRate = getPurityRateNum(row.purityId)
 
   // 加耗重
   const addLossWeight = netWeight * loss
   row.addLossWeight = parseFloat(addLossWeight.toFixed(3))
 
-  if (row.goldConvertCash) {
-    // 折现：足金料克重=0，足金料金额 = 加耗重 × 金价（不乘折算率）
-    row.goldMaterialWeight = 0
-    row.goldMaterialFee = parseFloat((addLossWeight * gold).toFixed(2))
-  } else {
-    // 算料：足金料克重 = 加耗重 × 折算率
-    row.goldMaterialWeight = parseFloat((addLossWeight * convertRate).toFixed(3))
-    row.goldMaterialFee = parseFloat((row.goldMaterialWeight * gold).toFixed(2))
-  }
+  // ⭐ 统一按克计料：足金料克重 = 加耗重（不乘折算率，与后端账单重算一致）
+  row.goldMaterialWeight = parseFloat(addLossWeight.toFixed(3))
+  row.goldMaterialFee = parseFloat((row.goldMaterialWeight * gold).toFixed(2))
+
+  // 统一不计折现金
+  row.goldConvertCash = false
 
   // 主石金额 = 石重 × 单价 + 粒数 × 镶石工费
   const mainQty = Number(row.mainStoneQty) || 0
@@ -766,8 +740,8 @@ const recalcRow = (row) => {
   const subSetting = Number(row.subStoneSettingFee) || 0
   row.subStoneAmount = parseFloat((subWeight * subPrice + subQty * subSetting).toFixed(2))
 
-  // 合计
-  const goldMaterial = row.goldConvertCash ? (row.goldMaterialFee || 0) : 0
+  // 合计：足金料金额统一计入
+  const goldMaterial = row.goldMaterialFee || 0
   const packing = Number(row.packingFee) || 0
   const certificate = Number(row.certificateFee) || 0
   const postage = Number(row.postageFee) || 0
@@ -816,7 +790,7 @@ const normalizeRow = (detail, editable) => ({
   lossRate: detail.lossRate || 1.10,
   addLossWeight: detail.addLossWeight || 0,
   goldPrice: detail.goldPrice || 0,
-  goldConvertCash: !!detail.goldConvertCash,
+  goldConvertCash: false, // 统一不计折现金
   goldMaterialWeight: detail.goldMaterialWeight || 0,
   goldMaterialFee: detail.goldMaterialFee || 0,
   // 主石
@@ -920,7 +894,7 @@ const resetSearch = () => {
 
 // ==================== 拖拽填充 ====================
 const FILLABLE_FIELDS = new Set([
-  'totalWeight', 'netWeight', 'lossRate', 'goldPrice', 'goldConvertCash',
+  'totalWeight', 'netWeight', 'lossRate', 'goldPrice',
   'mainStoneWeight', 'mainStonePrice', 'mainStoneQty', 'mainStoneSettingFee',
   'subStoneWeight', 'subStonePrice', 'subStoneQty', 'subStoneSettingFee',
   'packingFee', 'certificateFee', 'postageFee', 'moldFee', 'laborFee'
@@ -993,7 +967,7 @@ const onFillEnd = () => {
 
 // ==================== Enter 跳下一行同列 ====================
 const FOCUS_FIELDS = [
-  'totalWeight', 'netWeight', 'lossRate', 'goldPrice', 'goldConvertCash',
+  'totalWeight', 'netWeight', 'lossRate', 'goldPrice',
   'mainStoneWeight', 'mainStonePrice', 'mainStoneQty', 'mainStoneSettingFee',
   'subStoneWeight', 'subStonePrice', 'subStoneQty', 'subStoneSettingFee',
   'packingFee', 'certificateFee', 'postageFee', 'moldFee', 'laborFee'

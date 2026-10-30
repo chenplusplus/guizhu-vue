@@ -23,14 +23,41 @@ const routes = [
     path: '/',
     component: () => import('@/components/Layout.vue'),
     meta: { requiresAuth: true },
-    redirect: '/dashboard',
+    redirect: () => {
+      const userStore = useUserStore();
+      return userStore.homePath || '/login';
+    },
     children: [
-      // ===== 工作台 =====
+      // ===== 审核工作台（仅工厂审核员 / 管理员） =====
       {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('@/views/dashboard/Index.vue'),
-        meta: { title: '工作台' }
+        path: 'audit/workbench',
+        name: 'AuditWorkbench',
+        component: () => import('@/views/audit/workbench.vue'),
+        meta: { title: '审核工作台', roles: ['factoryAudit', 'admin'] }
+      },
+
+      // ===== 录入工作台（仅工厂操作员 / 管理员） =====
+      {
+        path: 'workbench/entry',
+        name: 'EntryWorkbench',
+        component: () => import('@/views/workbench/entry.vue'),
+        meta: { title: '录入工作台', roles: ['factoryOrder', 'admin'] }
+      },
+
+      // ===== 客户下单工作台（客户下单员 / 管理员） =====
+      {
+        path: 'workbench/customer',
+        name: 'CustomerWorkbench',
+        component: () => import('@/views/workbench/customer.vue'),
+        meta: { title: '下单工作台', roles: ['customer', 'admin'] }
+      },
+
+      // ===== 客户审核工作台（客户审核员 / 管理员） =====
+      {
+        path: 'workbench/customer-audit',
+        name: 'CustomerAuditWorkbench',
+        component: () => import('@/views/workbench/customer.vue'),
+        meta: { title: '客户审核工作台', roles: ['customerAudit', 'admin'] }
       },
 
       // ===== 订单模块 =====
@@ -59,22 +86,28 @@ const routes = [
         meta: { title: '盘点管理' }
       },
       {
-        path: 'inventory/detail',
-        name: 'InventoryDetail',
-        component: () => import('@/views/inventory/detail.vue'),
-        meta: { title: '盘点详情', hidden: true }
-      },
-      {
         path: 'inventory/monthly',
         name: 'InventoryMonthly',
+        component: () => import('@/views/inventory/monthly-report.vue'),
+        meta: { title: '月度经营报表' }
+      },
+      {
+        path: 'inventory/monthly-list',
+        name: 'InventoryMonthlyList',
         component: () => import('@/views/inventory/monthly-list.vue'),
-        meta: { title: '月度盘点' }
+        meta: { title: '盘点核算', hidden: true }
       },
       {
         path: 'inventory/monthly/:yearMonth',
         name: 'InventoryMonthlyDetail',
         component: () => import('@/views/inventory/monthly-detail.vue'),
         meta: { title: '月度盘点详情', hidden: true }
+      },
+      {
+        path: 'inventory/monthly-report/:yearMonth?',
+        name: 'InventoryMonthlyReport',
+        component: () => import('@/views/inventory/monthly-report.vue'),
+        meta: { title: '月度经营报表', hidden: true }
       },
       {
         path: 'inventory/monthly-profit/:yearMonth?',
@@ -105,6 +138,31 @@ const routes = [
         name: 'FactoryList',
         component: () => import('@/views/order/factory-list.vue'),
         meta: { title: '工厂订单' }
+      },
+      // ⭐ 工厂订单按阶段拆分（复用同一个页面，meta.mode 决定只显示哪一段、只允许哪些操作）
+      {
+        path: 'order/factory-accept',
+        name: 'FactoryAccept',
+        component: () => import('@/views/order/factory-accept.vue'),
+        meta: { title: '待接单', mode: 'accept', roles: ['factoryOrder', 'admin'] }
+      },
+      {
+        path: 'order/factory-edit-list',
+        name: 'FactoryEditList',
+        component: () => import('@/views/order/factory-list.vue'),
+        meta: { title: '订单编辑', mode: 'edit', roles: ['factoryOrder', 'admin'] }
+      },
+      {
+        path: 'order/factory-audit-list',
+        name: 'FactoryAuditList',
+        component: () => import('@/views/order/factory-list.vue'),
+        meta: { title: '待审核', mode: 'audit', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'order/factory-completed',
+        name: 'FactoryCompleted',
+        redirect: '/order/factory-history',
+        meta: { title: '已完成订单', hidden: true }
       },
       {
         path: '/order/factory-batch-edit',
@@ -145,7 +203,7 @@ const routes = [
         path: 'order/modify-list',
         name: 'OrderModifyList',
         component: () => import('@/views/order/modify-list.vue'),
-        meta: { title: '修改订单', roles: ['customer', 'customerAudit', 'factoryOrder', 'admin'] }
+        meta: { title: '修改订单', roles: ['customer', 'customerAudit', 'factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
         path: 'order/import',
@@ -157,21 +215,19 @@ const routes = [
 
       // 退货记录
       {
-        path: 'order/returns',
+        path: 'order/return',
         name: 'ReturnList',
         component: () => import('@/views/order/return-list.vue'),
         meta: { title: '退货记录', icon: '↩️' }
       },
 
-      // 账单统计
-      {
-        path: 'bill/stats',
-        name: 'BillStats',
-        component: () => import('@/views/order/bill-stats.vue'),
-        meta: { title: '账单统计', icon: '📊' }
-      },
-
       // ===== 账单模块 =====
+      {
+        path: 'order/bill/list',
+        name: 'BillList',
+        component: () => import('@/views/order/bill-list.vue'),
+        meta: { title: '账单列表', roles: ['factoryOrder', 'admin'] }
+      },
       {
         path: 'order/bill/create',
         name: 'BillCreate',
@@ -197,6 +253,20 @@ const routes = [
         meta: { title: '我的账单' }
       },
       {
+        // ⭐ 账单收款（填写实际收款 → 提交审核）
+        path: 'order/bill/receipt',
+        name: 'BillReceipt',
+        component: () => import('@/views/order/bill-my-list.vue'),
+        meta: { title: '账单收款', roles: ['factoryOrder', 'admin'] }
+      },
+      {
+        // ⭐ 账单收款审核（工厂审核员）
+        path: 'order/bill/receipt-audit',
+        name: 'BillReceiptAudit',
+        component: () => import('@/views/order/bill-receipt-audit.vue'),
+        meta: { title: '收款审核', roles: ['factoryAudit', 'admin'] }
+      },
+      {
         path: 'order/bill/detail/:id',
         name: 'BillDetail',
         component: () => import('@/views/order/bill-detail.vue'),
@@ -207,6 +277,12 @@ const routes = [
         name: 'BillExportDetail',
         component: () => import('@/views/order/bill-export-detail.vue'),
         meta: { title: '出货明细', hidden: true }
+      },
+      {
+        path: 'order/bill/tree',
+        name: 'BillTreeView',
+        component: () => import('@/views/order/bill-tree-view.vue'),
+        meta: { title: '树形汇总' }
       },
 
       // 维修单
@@ -242,11 +318,29 @@ const routes = [
         component: () => import('@/views/order/lr-list.vue'),
         meta: { title: 'LR表管理', icon: '📊' }
       },
+      {
+        path: 'order/lr/tree',
+        name: 'LrTree',
+        component: () => import('@/views/order/lr-tree-view.vue'),
+        meta: { title: 'LR表树形汇总', icon: '🌳', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
+      },
+      {
+        path: 'order/lr/tree-summary',
+        name: 'LrTreeSummary',
+        component: () => import('@/views/order/lr-tree-summary.vue'),
+        meta: { title: 'LR表汇总', icon: '📊', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
+      },
             {
         path: 'order/customer-monthly-bill',
         name: 'CustomerMonthlyBill',
         component: () => import('@/views/order/customer-monthly-bill.vue'),
         meta: { title: '客户月度账单', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
+      },
+      {
+        path: 'order/customer-bill-detail',
+        name: 'CustomerBillDetail',
+        component: () => import('@/views/order/customer-bill-detail.vue'),
+        meta: { title: '客户账单明细', hidden: true, roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
       },
             {
         path: 'order/lr/customer-profit',
@@ -304,7 +398,7 @@ const routes = [
         path: 'system/operation-log',
         name: 'OperationLog',
         component: () => import('@/views/system/operation-log.vue'),
-        meta: { title: '操作日志', roles: ['admin'] }
+        meta: { title: '操作日志', roles: ['admin', 'factoryOrder', 'factoryAudit'] }
       },
       {
         path: '/system/flow-config',
@@ -333,22 +427,10 @@ const routes = [
         meta: { title: '总进出详情' }
       },
       {
-        path: 'inout/report/monthly',
-        name: 'MonthlyTotal',
-        component: () => import('@/views/inout/monthly-total.vue'),
-        meta: { title: '月度总汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
-      },
-      {
         path: 'inout/report/counterparty',
         name: 'CounterpartySummary',
         component: () => import('@/views/inout/counterparty-summary.vue'),
         meta: { title: '往来单位汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
-      },
-      {
-        path: 'inout/reconciliation',
-        name: 'Reconciliation',
-        component: () => import('@/views/inout/reconciliation.vue'),
-        meta: { title: '对账明细', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
 
       // ===== 总进出新模块（26分类×5维度矩阵） =====
@@ -375,6 +457,12 @@ const routes = [
         name: 'CounterpartSummary',
         component: () => import('@/views/transaction/counterpart-summary.vue'),
         meta: { title: '往来单位汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'transaction/operating-dashboard',
+        name: 'OperatingDashboard',
+        component: () => import('@/views/transaction/operating-dashboard.vue'),
+        meta: { title: '经营看板', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
       },
       {
         path: 'system/counterparty',
@@ -450,6 +538,19 @@ const routes = [
       },
 
       // ===== 进销存（金/钻石/费用）新模块 =====
+      // ⭐ 进 / 出 两个模块首页（大按钮直达三类录入）
+      {
+        path: 'inout/in-hub',
+        name: 'InoutInHub',
+        component: () => import('@/views/inout/hub.vue'),
+        meta: { title: '进模块', direction: 1, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'inout/out-hub',
+        name: 'InoutOutHub',
+        component: () => import('@/views/inout/hub.vue'),
+        meta: { title: '出模块', direction: 0, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
       // 金：入库 / 出库
       {
         path: 'inout/gold/in',
@@ -521,6 +622,14 @@ const routes = [
       },
     ],
   },
+  // ===== 兜底：未知 / 已下线的旧路径一律回各自的工作台（原来是空白页）=====
+  {
+    path: '/:pathMatch(.*)*',
+    redirect: () => {
+      const userStore = useUserStore();
+      return userStore.homePath || '/login';
+    },
+  },
 ];
 
 const router = createRouter({
@@ -548,7 +657,10 @@ router.beforeEach(async (to, from, next) => {
   const allowedRoles = (to.meta.roles || []).map(role => String(role).replace(/[_-]/g, '').toLowerCase());
   if (allowedRoles.length > 0 && !allowedRoles.includes(currentRole)) {
      ElMessage.warning('您没有访问该页面的权限');
-     next('/dashboard');
+     // 回各自的工作台；若连工作台都进不去（角色未配置）则停在原地，避免重定向死循环
+     const home = userStore.homePath;
+     if (home && home !== to.path) next(home);
+     else next(false);
      return;
   }
 

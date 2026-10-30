@@ -1,28 +1,8 @@
 // src/api/inoutReport.js
 import api from './index';
 
-export const getMonthlyTotal = (params) => {
-  return api.get('/inout/report/monthly-total', { params });
-};
-
-export const getYearlyTrend = (params) => {
-  return api.get('/inout/report/trend', { params });
-};
-
 export const getCounterpartySummary = (params) => {
   return api.get('/inout/report/counterparty-summary', { params });
-};
-
-export const getReconciliation = (params) => {
-  return api.get('/inout/report/reconciliation', { params });
-};
-
-export const regenerateReport = (params) => {
-  return api.post('/inout/report/regenerate', null, { params });
-};
-
-export const regenerateYearReport = (params) => {
-  return api.post('/inout/report/regenerate-year', null, { params });
 };
 
 
@@ -42,4 +22,8 @@ export const getEntryReconciliation = (params) => {
 // 往来单位汇总
 export const getSummaryByCounterparty = (params) => {
   return api.get('/inout-report/summary-by-counterparty', { params });
+};
+// 按成色（materialType）汇总金料重量
+export const getSummaryByMaterialType = (params) => {
+  return api.get('/inout-report/summary-by-material-type', { params });
 };

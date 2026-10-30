@@ -91,17 +91,36 @@ const loadAll = async () => {
     params.endDate = dateRange.value[1]
   }
   try {
-    // 库存核算（按折算类别）
+    // 库存核算（按折算类别）—— 接口返回 { category, label, openingWeight, inWeight, outWeight, closingWeight, openingAmount, inAmount, outAmount, closingAmount }
     const invRes = await getInventory(params)
-    if (invRes.success) summaryData.value = invRes.data || []
+    if (invRes.success) {
+      summaryData.value = (invRes.data || []).map(x => ({
+        foldLabel: x.label || x.category,
+        openingFold: x.openingWeight,
+        inFold: x.inWeight,
+        outFold: x.outWeight,
+        closingFold: x.closingWeight,
+        openingAmount: x.openingAmount,
+        inAmount: x.inAmount,
+        outAmount: x.outAmount,
+        closingAmount: x.closingAmount
+      }))
+    }
 
-    // 对账
+    // 对账：接口返回 { success, data: [{ module, label, totalAmount, totalPayment, balance }] }
     const recRes = await getEntryReconciliation(params)
     if (recRes.success) {
+      const map = {}
+      ;(recRes.data || []).forEach(x => { map[x.module] = x })
+      const pick = (m) => ({
+        totalAmount: map[m]?.totalAmount || 0,
+        totalPayment: map[m]?.totalPayment || 0,
+        balance: map[m]?.balance || 0
+      })
       reconciliationData.value = [
-        { label: '金录入', totalAmount: recRes.gold?.totalAmount || 0, totalPayment: recRes.gold?.totalPayment || 0, balance: recRes.gold?.balance || 0 },
-        { label: '钻石', totalAmount: recRes.diamond?.totalAmount || 0, totalPayment: recRes.diamond?.totalPayment || 0, balance: recRes.diamond?.balance || 0 },
-        { label: '费用', totalAmount: recRes.expense?.totalAmount || 0, totalPayment: recRes.expense?.totalPayment || 0, balance: recRes.expense?.balance || 0 }
+        { label: '金录入', ...pick('gold') },
+        { label: '钻石', ...pick('diamond') },
+        { label: '费用', ...pick('expense') }
       ]
     }
   } catch (e) {

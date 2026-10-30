@@ -179,6 +179,7 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Refresh, Search, RefreshRight } from '@element-plus/icons-vue';
 import { getOrderList, auditProduction } from '@/api/order';
+import { autoCreateBill } from '@/api/bill';
 import OrderPreviewDialog from '@/components/OrderPreviewDialog.vue';
 
 
@@ -228,7 +229,7 @@ const loadData = async () => {
   try {
     const params = {
       // ⭐ 只要 polishing（制作完成待审核）
-      status: 'polishing',
+      status: 'productionCompleted',
       keyword: keyword.value || undefined,
       page: pagination.current,
       pageSize: pagination.pageSize,
@@ -295,6 +296,23 @@ const confirmAudit = async (approved) => {
       remark: auditRemark.value || '',
     });
     ElMessage.success(approved ? '审核通过' : '已驳回');
+
+    // ⭐ 审核通过后自动生成账单（同客户当天已有待审账单则跳过）
+    if (approved) {
+      try {
+        const r = await autoCreateBill(currentOrder.value.orderId);
+        const d = r?.data || r;
+        if (d?.skipped) {
+          ElMessage.info('账单：' + (d.message || '当天已有待审账单，未重复生成'));
+        } else if (d?.billNo) {
+          ElMessage.success('已自动生成账单 ' + d.billNo + (d.orderCount ? `（含 ${d.orderCount} 个订单）` : ''));
+        }
+      } catch (e) {
+        console.warn('自动生成账单失败:', e);
+        ElMessage.warning('订单已审核，但自动生成账单失败，请在「生成账单」页手动生成');
+      }
+    }
+
     auditDialogVisible.value = false;
     loadData();
   } catch (e) {

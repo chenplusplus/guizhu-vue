@@ -59,6 +59,22 @@ export const useUserStore = defineStore('user', {
       const type = getNormalizedUserType(state);
       return type === 'factoryOrder' || type === 'factoryAudit';
     },
+
+    // ============================================================
+    // ⭐ 角色专属工作台（登录落地 / 无权限兜底 / 标签页首页 统一用这个）
+    //    通用工作台 /dashboard 已下线，每个角色只回自己的专门工作台
+    // ============================================================
+    homePath: (state) => {
+      const type = getNormalizedUserType(state);
+      switch (type) {
+        case 'customer': return '/workbench/customer';
+        case 'customerAudit': return '/workbench/customer-audit';
+        case 'factoryOrder': return '/workbench/entry';
+        case 'factoryAudit': return '/audit/workbench';
+        case 'admin': return '/transaction/operating-dashboard';
+        default: return '';   // 未知角色：由路由守卫拦回登录页，避免死循环
+      }
+    },
   },
 
   actions: {

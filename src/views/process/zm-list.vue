@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="header-left"><h2>🔧 执模单据列表</h2><el-tag type="info">共 {{ total }} 条</el-tag></div>
       <div class="header-right">
-        <el-button type="primary" @click="$router.push({ path: '/process/zm-input', query: { master: searchForm.masterName || undefined } })"><el-icon><Plus /></el-icon> 录入</el-button>
+        <el-button v-if="!auditOnly" type="primary" @click="$router.push({ path: '/process/zm-input', query: { master: searchForm.masterName || undefined } })"><el-icon><Plus /></el-icon> 录入</el-button>
         <el-button @click="loadData"><el-icon><Refresh /></el-icon> 刷新</el-button>
       </div>
     </div>
@@ -76,8 +76,8 @@
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="$router.push(`/process/zm-detail/${row.id}`)">查看</el-button>
-            <el-button v-if="row.status === 0" size="small" type="warning" link @click="openEdit(row)">编辑</el-button>
-            <el-button v-if="isAdmin && row.status === 0" size="small" type="success" link @click="openAudit(row)">审核</el-button>
+            <el-button v-if="row.status === 0 && !auditOnly" size="small" type="warning" link @click="openEdit(row)">编辑</el-button>
+            <el-button v-if="(isAdmin || isAuditUser) && row.status === 0" size="small" type="success" link @click="openAudit(row)">审核</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -113,15 +113,19 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Plus, Refresh } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getProcessList, auditProcessReceipt, getProcessOptions } from '@/api/process';
 
+const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 const isAdmin = computed(() => userStore.userType === 'admin');
+// ⭐ 审核只读模式（审核工作台跳转带 mode=audit）：隐藏录入/编辑，保留审核
+const auditOnly = computed(() => route.query.mode === 'audit');
+const isAuditUser = computed(() => ['factoryaudit', 'admin'].includes(String(userStore.userType || '').toLowerCase()));
 
 const loading = ref(false);
 const tableData = ref([]);

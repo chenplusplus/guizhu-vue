@@ -13,11 +13,11 @@
         <el-tag v-if="!isNew" type="primary" size="large">{{ billNo }}</el-tag>
       </div>
       <div class="header-right">
+        <el-button type="info" plain @click="openPreview">
+          <el-icon><View /></el-icon> 预览
+        </el-button>
         <el-button type="primary" @click="handleSave" :loading="saving">
           <el-icon><Check /></el-icon> 保存
-        </el-button>
-        <el-button type="success" @click="handleGenerateLr" :loading="lrGenerating" v-if="!isNew">
-          <el-icon><Document /></el-icon> 生成LR表
         </el-button>
         <el-button type="warning" @click="handleSubmitAudit" v-if="!isNew && billStatus === 'pending'">
           <el-icon><Select /></el-icon> 提交审核
@@ -27,55 +27,22 @@
 
     <!-- ===== 整体内容区域 ===== -->
     <div class="content-body">
-      <!-- ===== 账单信息 ===== -->
+      <!-- ===== 账单信息（一行显示） ===== -->
       <div class="info-section">
-        <el-row :gutter="16">
-          <el-col :xs="12" :sm="4">
-            <div class="info-item"><span class="label">账单号：</span><span class="value">{{ billNo || '-' }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="4">
-            <div class="info-item"><span class="label">客户：</span><span class="value">{{ customerName || '-' }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="4">
-            <div class="info-item"><span class="label">状态：</span>
-              <el-tag :type="statusType" size="small">{{ statusText }}</el-tag>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="4">
-            <div class="info-item"><span class="label">合计件数：</span><span class="value">{{ totalQuantity }}</span></div>
-          </el-col>
-          <el-col :xs="12" :sm="3">
-            <div class="info-item"><span class="label">应收足料：</span>
-              <el-tooltip placement="top" effect="dark">
-                <template #content>仅统计按克计料订单（未折现金）</template>
-                <span class="value" style="color:#E6A23C;font-weight:bold;">{{ totalMaterialWeight.toFixed(3) }}g</span>
-              </el-tooltip>
-            </div>
-          </el-col>
-          <el-col v-if="userStore.isFactoryOrder || userStore.isAdmin" :xs="12" :sm="3">
-            <div class="info-item"><span class="label">折足金料(内部)：</span>
-              <el-tooltip placement="top" effect="dark">
-                <template #content>含折现金订单折算克重</template>
-                <span class="value" style="color:#909399;">{{ totalInternalWeight.toFixed(3) }}g</span>
-              </el-tooltip>
-            </div>
-          </el-col>
-          <el-col :xs="12" :sm="4">
-            <div class="info-item"><span class="label">应收合计：</span>
-              <el-tooltip placement="top" effect="dark">
-                <template #content>
-                  <div style="font-size:13px;line-height:1.8;">
-                    计算公式：足金料 + 主石金额 + 副石金额 + 工费 + 包装费 + 证书费 + 邮费 + 版费<br>
-                    足金料 = 净重 × 损耗 × 金价
-                  </div>
-                </template>
-                <span class="value" style="color:#E6A23C;font-weight:bold;font-size:18px;cursor:help;border-bottom:1px dashed #E6A23C;">
-                  ¥{{ totalAmount.toFixed(2) }}
-                </span>
-              </el-tooltip>
-            </div>
-          </el-col>
-        </el-row>
+        <div class="info-line">
+          <span class="info-item"><span class="label">账单号：</span><span class="value">{{ billNo || '-' }}</span></span>
+          <span class="info-item"><span class="label">客户：</span><span class="value">{{ customerName || '-' }}</span></span>
+          <span class="info-item"><span class="label">状态：</span>
+            <el-tag :type="statusType" size="small">{{ statusText }}</el-tag>
+          </span>
+          <span class="info-item"><span class="label">合计件数：</span><span class="value">{{ totalQuantity }}</span></span>
+          <span class="info-item"><span class="label">足金料：</span>
+            <span class="value" style="color:#67C23A;font-weight:bold;">{{ totalMaterialWeight.toFixed(3) }}g</span>
+          </span>
+          <span class="info-item"><span class="label">应收合计：</span>
+            <span class="value" style="color:#E6A23C;font-weight:bold;font-size:18px;">¥{{ totalAmount.toFixed(0) }}</span>
+          </span>
+        </div>
       </div>
 
       <!-- ===== 分割线 ===== -->
@@ -171,15 +138,17 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="损耗" width="70">
+            <el-table-column label="损耗" width="110">
               <template #default="{ row }">
-                <el-input-number v-model="row.lossRate" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
+                <el-select v-model="row.lossRate" size="small" style="width:100%;" @change="calcRow(row)">
+                  <el-option v-for="item in lossRateOptions" :key="item.value" :value="item.value" :label="item.label" />
+                </el-select>
               </template>
             </el-table-column>
 
-            <el-table-column label="加耗重"  width="110">
+            <el-table-column label="加耗重" width="100" align="center">
               <template #default="{ row }">
-                <el-input-number v-model="row.addLossWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
+                <span class="calc-text">{{ (row.addLossWeight || 0).toFixed(3) }}</span>
               </template>
             </el-table-column>
 
@@ -189,15 +158,14 @@
               </template>
             </el-table-column>
 
-            <el-table-column label="足金料金额"  width="120">
+            <el-table-column label="足金料金额" width="120" align="center">
               <template #default="{ row }">
-                <el-input-number v-model="row.goldMaterialFee" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
+                <span class="calc-text" style="color:#E6A23C;">{{ (row.goldMaterialFee || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="足金料" width="120" align="center">
+            <el-table-column label="足金料" width="100" align="center">
               <template #default="{ row }">
-                <span style="font-size:12px;color:#67C23A;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
-                <el-tag v-if="row.goldConvertCash" type="warning" size="small" style="margin-left:4px;">折现</el-tag>
+                <span class="calc-text" style="color:#67C23A;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
               </template>
             </el-table-column>
 
@@ -217,9 +185,9 @@
                 <el-input-number v-model="row.mainStonePrice" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="主石金额" width="120">
+            <el-table-column label="主石金额" width="110" align="center">
               <template #default="{ row }">
-                <el-input-number v-model="row.mainStoneAmount" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
+                <span class="calc-text" style="color:#E6A23C;">{{ (row.mainStoneAmount || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="主石镶石工费" width="100">
@@ -244,9 +212,9 @@
                 <el-input-number v-model="row.subStonePrice" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="副石金额"  width="120">
+            <el-table-column label="副石金额" width="110" align="center">
               <template #default="{ row }">
-                <el-input-number v-model="row.subStoneAmount" :precision="2" :step="10" size="small" style="width:100%;" @change="calcRow(row)" />
+                <span class="calc-text" style="color:#E6A23C;">{{ (row.subStoneAmount || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="副石镶石工费" width="100">
@@ -316,20 +284,22 @@
           <span>总重：<b>{{ totalWeightSum.toFixed(3) }}</b></span>
           <span>净重：<b>{{ totalNetWeightSum.toFixed(3) }}</b></span>
 
-          <!-- ⭐ 应收足料：只统计按克计料 -->
+          <!-- 足金料 -->
           <span>
-            应收足料：
-            <b style="color:#E6A23C;">{{ totalMaterialWeight.toFixed(3) }}g</b>
+            足金料：
+            <b style="color:#67C23A;">{{ totalMaterialWeight.toFixed(3) }}g</b>
           </span>
 
-          <!-- ⭐ 折足金料（内部）：含折现金 -->
+          <!-- 钻石卡重 = 主石石重 + 副石石重 -->
           <span>
-            折足金料（内部）：
-            <b style="color:#909399;">{{ totalInternalWeight.toFixed(3) }}g</b>
+            钻石卡重：
+            <b style="color:#409EFF;">{{ totalStoneWeight.toFixed(3) }}ct</b>
           </span>
+
+          <!-- 工费合计 = 镶石工费(主+副) + 工费 + 包装 + 证书 + 邮费 + 版费 -->
           <span>工费合计：<b>¥{{ totalLaborFee.toFixed(2) }}</b></span>
           <span style="color:#E6A23C;font-size:16px;">
-            应收合计：<b>¥{{ totalAmount.toFixed(2) }}</b>
+            应收合计：<b>¥{{ totalAmount.toFixed(0) }}</b>
           </span>
         </div>
       </div>
@@ -419,6 +389,13 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- ===== 出货明细预览（与主页明细样式一致） ===== -->
+    <BillPreviewDialog
+      v-model:visible="previewVisible"
+      :bill-data="previewBillData"
+      :details="details"
+    />
   </div>
 </template>
 
@@ -426,19 +403,20 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ArrowLeft, Check, Document, Select } from '@element-plus/icons-vue';
-import { getBillDetail, updateBillDetails, submitBillAudit, generateLr, returnBillItem } from '@/api/bill';
+import { ArrowLeft, Check, Select, View } from '@element-plus/icons-vue';
+import { getBillDetail, updateBillDetails, submitBillAudit, returnBillItem } from '@/api/bill';
 import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
+import BillPreviewDialog from '@/components/BillPreviewDialog.vue';
 const userStore = useUserStore();
 const purityDict = ref([]);
+const lossRateOptions = ref([]);
 const route = useRoute();
 const router = useRouter();
 const billId = computed(() => Number(route.params.id));
 
 const loading = ref(false);
 const saving = ref(false);
-const lrGenerating = ref(false);
 const returnLoading = ref(false);
 const isNew = ref(false);
 const billNo = ref('');
@@ -446,6 +424,11 @@ const customerName = ref('');
 const billStatus = ref('');
 const details = ref([]);
 const lrData = ref(null);
+const billHeader = ref({});        // 账单头部原始数据（供预览底部汇总用）
+
+// ===== 预览弹窗 =====
+const previewVisible = ref(false);
+const openPreview = () => { previewVisible.value = true; };
 
 // 退回相关
 const returnDialogVisible = ref(false);
@@ -464,9 +447,11 @@ const statusText = computed(() => statusMap[billStatus.value]?.text || billStatu
 const statusType = computed(() => statusMap[billStatus.value]?.type || 'info');
 
 // ===== 汇总计算 =====
-const totalAmount = computed(() => {
+// ⭐ 应收合计四舍五入取整（不保留小数）；明细金额仍保留两位
+const totalAmountRaw = computed(() => {
   return activeDetails.value.reduce((sum, row) => sum + (row.totalAmount || 0), 0);
 });
+const totalAmount = computed(() => Math.round(totalAmountRaw.value));
 
 const totalQuantity = computed(() => {
   return activeDetails.value.reduce((sum, row) => sum + (row.quantity || 1), 0);
@@ -484,51 +469,69 @@ const totalGoldFee = computed(() => {
   return activeDetails.value.reduce((sum, row) => sum + (row.goldMaterialFee || 0), 0);
 });
 
+// 应收足料 = 全部足金料克重
 const totalMaterialWeight = computed(() => {
-  return activeDetails.value.reduce((sum, row) => {
-    if (row.goldConvertCash) return sum;
-    return sum + (row.goldMaterialWeight || 0);
-  }, 0);
-});
-
-const totalInternalWeight = computed(() => {
   return activeDetails.value.reduce((sum, row) => sum + (row.goldMaterialWeight || 0), 0);
 });
 
 const totalLaborFee = computed(() => {
-  return activeDetails.value.reduce((sum, row) => sum + (row.laborFee || 0), 0);
+  return activeDetails.value.reduce((sum, row) => {
+    const setting = (row.mainStoneSettingFee || 0) + (row.subStoneSettingFee || 0);
+    const labor = row.laborFee || 0;
+    const packing = row.packingFee || 0;
+    const certificate = row.certificateFee || 0;
+    const postage = row.postageFee || 0;
+    const mold = row.moldFee || 0;
+    return sum + setting + labor + packing + certificate + postage + mold;
+  }, 0);
+});
+
+// 钻石卡重 = 主石石重 + 副石石重
+const totalStoneWeight = computed(() => {
+  return activeDetails.value.reduce((sum, row) => sum + (row.mainStoneWeight || 0) + (row.subStoneWeight || 0), 0);
 });
 
 const isReturnedDetail = (row) => Boolean(row.isReturned ?? row.IsReturned);
 const activeDetails = computed(() => details.value.filter(row => !isReturnedDetail(row)));
 const getDetailRowClass = ({ row }) => isReturnedDetail(row) ? 'returned-detail-row' : '';
 
+// ===== 预览用的账单数据（头部取原账单，本单应收取当前编辑值，实时刷新） =====
+const previewBillData = computed(() => {
+  const h = billHeader.value || {};
+  const curMat = totalMaterialWeight.value;      // 本单应收足料（当前编辑）
+  const curMoney = totalAmountRaw.value;         // 本单应收款（当前编辑，保留两位，与主页一致）
+  const lastMat = Number(h.lastDebtMaterial || 0);
+  const recvMat = Number(h.receivedMaterial || 0);
+  const lastMoney = Number(h.lastDebtMoney || 0);
+  const recvMoney = Number(h.receivedMoney || 0);
+  return {
+    billNo: billNo.value || h.billNo || '',
+    customerName: customerName.value || h.customerName || '',
+    color: h.color || '14K金',
+    billDate: h.billDate || new Date().toISOString(),
+    status: billStatus.value || h.status || '',
+    lastDebtMaterial: lastMat,
+    currentMaterialWeight: curMat,
+    receivedMaterial: recvMat,
+    totalDebtMaterial: lastMat + curMat - recvMat,
+    lastDebtMoney: lastMoney,
+    currentMoney: curMoney,
+    receivedMoney: recvMoney,
+    totalDebtMoney: lastMoney + curMoney - recvMoney,
+    remark: h.remark,
+  };
+});
+
 // ===== 计算单行 =====
-// ⭐ 从成色拿折算率（跟 factory-edit.vue 一样）
-const getConvertRate = (row) => {
-  // 1. 优先用 purityId
-  if (row.purityId) {
-    const item = purityDict.value.find(x => x.id === row.purityId);
-    if (item) {
-      try {
-        const extra = item.extraData ? JSON.parse(item.extraData) : {};
-        if (extra.convertRate) return Number(extra.convertRate);
-      } catch {}
-      const rate = Number(item.itemValue);
-      if (!isNaN(rate) && rate > 0 && rate <= 1) return rate;
-    }
-  }
-  // 2. 降级：用 color 匹配
-  const label = (row.color || '').trim();
+
+// ⭐ 按成色取折算率（与订单页/后端账单同一口径：足金料克重 = 加耗重 × 折算率）
+const getPurityRate = (row) => {
+  const label = String(row.color || '').trim();
   if (label) {
-    const item = purityDict.value.find(x => x.itemLabel === label);
+    const item = purityDict.value.find(x => String(x.itemLabel || '').trim() === label);
     if (item) {
-      try {
-        const extra = item.extraData ? JSON.parse(item.extraData) : {};
-        if (extra.convertRate) return Number(extra.convertRate);
-      } catch {}
       const rate = Number(item.itemValue);
-      if (!isNaN(rate)) return rate;
+      if (!isNaN(rate) && rate > 0) return rate;
     }
   }
   return 1;
@@ -538,20 +541,28 @@ const calcRow = (row) => {
   const netWeight = row.netWeight || 0;
   const goldPrice = row.goldPrice || 0;
   const lossRate = row.lossRate || 1.0;
-  const convertRate = getConvertRate(row);
 
   row.addLossWeight = parseFloat((netWeight * lossRate).toFixed(3));
 
-  // ⭐ 折现金：金料金额 = 加耗重 × 金价；足金料克重 = 0（内部统计用 addLossWeight 也行）
-  //    按克计料：足金料克重 = 加耗重 × 折算率；金料金额 = 克重 × 金价
-  if (row.goldConvertCash) {
-    row.goldMaterialFee = parseFloat((row.addLossWeight * goldPrice).toFixed(2));
-    // 内部统计：折现金也要记克重（用户看）
-    row.goldMaterialWeight = parseFloat((row.addLossWeight * convertRate).toFixed(3));
-  } else {
-    row.goldMaterialWeight = parseFloat((row.addLossWeight * convertRate).toFixed(3));
-    row.goldMaterialFee = parseFloat((row.goldMaterialWeight * goldPrice).toFixed(2));
-  }
+  // ⭐ 足金料克重 = 加耗重 × 成色折算率（与订单页、后端账单重算一致）
+  const purityRate = getPurityRate(row);
+  row.goldMaterialWeight = parseFloat((row.addLossWeight * purityRate).toFixed(3));
+  row.goldMaterialFee = parseFloat((row.goldMaterialWeight * goldPrice).toFixed(2));
+
+  // 统一不计折现金
+  row.goldConvertCash = false;
+
+  // ⭐ 主石金额 = 石重 × 单价 + 粒数 × 镶石工费
+  row.mainStoneAmount = parseFloat((
+    (row.mainStoneWeight || 0) * (row.mainStonePrice || 0) +
+    (row.mainStoneQty || 0) * (row.mainStoneSettingFee || 0)
+  ).toFixed(2));
+
+  // ⭐ 副石金额 = 石重 × 单价 + 粒数 × 镶石工费
+  row.subStoneAmount = parseFloat((
+    (row.subStoneWeight || 0) * (row.subStonePrice || 0) +
+    (row.subStoneQty || 0) * (row.subStoneSettingFee || 0)
+  ).toFixed(2));
 
   const mainStone = row.mainStoneAmount || 0;
   const subStone = row.subStoneAmount || 0;
@@ -561,11 +572,10 @@ const calcRow = (row) => {
   const postage = row.postageFee || 0;
   const mold = row.moldFee || 0;
 
-  // ⭐ 折现金才把金料金额加进应收款；按克计料算料不算钱
-  const goldMaterial = row.goldConvertCash ? row.goldMaterialFee : 0;
-
+  // ⭐ 足金料金额统一计入
   row.totalAmount = parseFloat((
-    goldMaterial + mainStone + subStone + labor + packing + certificate + postage + mold
+    row.goldMaterialFee + mainStone + subStone +
+    labor + packing + certificate + postage + mold
   ).toFixed(2));
 };
 const calcTotal = () => {
@@ -649,6 +659,7 @@ const loadData = async () => {
       return;
     }
 
+    billHeader.value = data || {};
     billNo.value = data.billNo || '';
     customerName.value = data.customerName || '';
     billStatus.value = data.status || '';
@@ -688,22 +699,6 @@ const handleSave = async () => {
     ElMessage.error(error.message || '保存失败');
   } finally {
     saving.value = false;
-  }
-};
-
-// ===== 生成LR表 =====
-const handleGenerateLr = async () => {
-  lrGenerating.value = true;
-  try {
-    const res = await generateLr(billId.value);
-    if (res.success) {
-      lrData.value = res.data;
-      ElMessage.success('LR表生成成功');
-    }
-  } catch {
-    ElMessage.error('生成LR表失败');
-  } finally {
-    lrGenerating.value = false;
   }
 };
 
@@ -765,7 +760,23 @@ const goBack = () => {
   router.back();
 };
 
-onMounted(loadData);
+// ⭐ 加载损耗字典（损耗下拉选项），再加载账单数据
+onMounted(async () => {
+  try {
+    const [purityRes, lossRateRes] = await Promise.all([
+      dictApi.getItemsByKey('purity'),
+      dictApi.getItemsByKey('lossrate'),
+    ]);
+    purityDict.value = purityRes?.data || [];
+    lossRateOptions.value = (lossRateRes?.data || []).map(item => ({
+      label: item.itemLabel || item.itemValue,
+      value: Number(item.itemValue),
+    }));
+  } catch {
+    ElMessage.error('加载字典失败');
+  }
+  loadData();
+});
 </script>
 
 <style scoped>
@@ -847,9 +858,18 @@ onMounted(loadData);
 }
 
 /* ===== 信息区域 ===== */
+.info-section .info-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 28px;
+  padding: 8px 0;
+}
 .info-section .info-item {
-  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
   font-size: 14px;
+  white-space: nowrap;
 }
 .info-section .info-item .label {
   color: #909399;
@@ -857,6 +877,13 @@ onMounted(loadData);
 .info-section .info-item .value {
   color: #303133;
   font-weight: 500;
+}
+
+/* 只读自动计算文本 */
+.calc-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #303133;
 }
 
 /* ===== 表格区域 ===== */

@@ -14,6 +14,9 @@
       </div>
       <div class="header-right">
         <el-tag size="small" type="info" effect="plain" style="margin-right:4px;">{{ userStore.userTypeName }}</el-tag>
+        <el-button type="info" plain @click="openPreview">
+          <el-icon><View /></el-icon> 预览
+        </el-button>
         <el-button v-if="canEdit" type="primary" @click="handleSave" :loading="saving">
           <el-icon><Check /></el-icon> 保存
         </el-button>
@@ -112,27 +115,16 @@
                 <span v-else>{{ row.goldPrice || '-' }}</span>
               </template>
             </el-table-column>
-            <!-- ⭐ 足金料：销售行只读、成本行可编辑 -->
-            <el-table-column prop="goldMaterialFee" label="足金料" width="90" align="center">
+            <!-- ⭐ 足金料金额：自动计算（= 足金料克重 × 金价） -->
+            <el-table-column prop="goldMaterialFee" label="足金料金额" width="95" align="center">
               <template #default="{ row }">
-                <el-input
-                  v-if="row.rowType === 'cost' && canEdit"
-                  v-model.number="row.goldMaterialFee"
-                  size="small"
-                  class="cell-input"
-                  @change="onCellChange(row)"
-                />
-                <span v-else>{{ (row.goldMaterialFee || 0).toFixed(2) }}</span>
+                <span>{{ (row.goldMaterialFee || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
-
-            <!-- ⭐ 折现金（只显示，不编辑） -->
-            <el-table-column label="折现金" width="70" align="center">
+            <!-- ⭐ 足金料(g)：克重（只读） -->
+            <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="90" align="center">
               <template #default="{ row }">
-                <template v-if="row.rowType === 'sale'">
-                  <el-tag v-if="row.goldConvertCash" type="warning" size="small">是</el-tag>
-                  <span v-else style="color:#909399;">否</span>
-                </template>
+                <span style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}</span>
               </template>
             </el-table-column>
 
@@ -338,8 +330,46 @@
             </tr>
           </tbody>
         </table>
+
+        <!-- 第三部分：进销存模块 -->
+        <div class="section-title" style="margin-top:16px;">📦 进销存</div>
+        <table class="excel-summary-table">
+          <tbody>
+            <tr>
+              <td class="label-cell">上单累计收入：</td>
+              <td class="value-cell">¥{{ inoutSummary.prevIncome.toFixed(2) }}</td>
+              <td class="label-cell">上单累计开支：</td>
+              <td class="value-cell">¥{{ inoutSummary.prevExpense.toFixed(2) }}</td>
+              <td class="label-cell">上单累计结余：</td>
+              <td class="value-cell" :class="getProfitClass(inoutSummary.prevNet)">¥{{ inoutSummary.prevNet.toFixed(2) }}</td>
+            </tr>
+            <tr>
+              <td class="label-cell">本单每日收入：</td>
+              <td class="value-cell" :class="getProfitClass(inoutSummary.todayIncome)">¥{{ inoutSummary.todayIncome.toFixed(2) }}</td>
+              <td class="label-cell">本单每日开支：</td>
+              <td class="value-cell">¥{{ inoutSummary.todayExpense.toFixed(2) }}</td>
+              <td class="label-cell">本单每日结余：</td>
+              <td class="value-cell" :class="getProfitClass(inoutSummary.todayNet)">¥{{ inoutSummary.todayNet.toFixed(2) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
+
+    <!-- ===== 修改记录（LR确认后的字段级变更日志） ===== -->
+    <ChangeLogTimeline
+      v-if="lrId"
+      :source-type="'lr'"
+      :source-id="lrId"
+      :field-labels="LR_FIELD_LABELS"
+    />
+
+    <!-- ===== LR表预览（与LR列表的预览一模一样，组件复用） ===== -->
+    <LrPreviewDialog
+      v-model:visible="previewVisible"
+      :lr-data="previewData"
+      :rows="previewRowsData"
+    />
   </div>
 </template>
 
@@ -347,22 +377,27 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus';
-import { ArrowLeft, Check, Download, Upload } from '@element-plus/icons-vue';
+import { ArrowLeft, Check, Download, Upload, View } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getLrTable, saveLr, generateLr, exportLr, getLrCurrentNode, getLrNodeActions, executeLrAction, getLrSummary } from '@/api/lr';
 import { getCustomerShangdan } from '@/api/inventoryMonthly';
-import { dictApi } from '@/api/dict';
 import * as XLSX from 'xlsx';
+import ChangeLogTimeline from '@/components/ChangeLogTimeline.vue';
+import LrPreviewDialog from '@/components/LrPreviewDialog.vue';
 
 const route = useRoute();
 const userStore = useUserStore();
+
+// 字段标签：与后端 ChangeLogHelper.LrFieldLabels 对应
+const LR_FIELD_LABELS = {
+  totalSale: '销售总额', totalCost: '成本总额', profit: '利润',
+  goldProfit: '金利润', diamondProfit: '钻石利润', settingProfit: '镶石利润',
+  laborProfit: '工费利润', netWeight: '净重', addLossWeight: '加耗重',
+};
 const fileInput = ref(null);
 const billId = ref(Number(route.params.billId));
 const lrId = ref(0);
-const lrInfo = ref(null);
-const purityDict = ref([]);
-
-const summaryData = ref({
+const lrInfo = ref(null);const summaryData = ref({
   prevProfit: { diamondProfit: 0, goldProfit: 0, settingProfit: 0, laborProfit: 0, totalProfit: 0 },
   prevBillAmount: { income: 0, expense: 0, qty: 0 },
   todayProfit: { diamondProfit: 0, goldProfit: 0, settingProfit: 0, laborProfit: 0, totalProfit: 0 },
@@ -370,6 +405,7 @@ const summaryData = ref({
   totalReceivable: 0,
   inoutIncome: 0,
   inoutExpense: 0,
+  inout: { prevIncome: 0, prevExpense: 0, prevNet: 0, todayIncome: 0, todayExpense: 0, todayNet: 0 },
 });
 
 const loadSummary = async () => {
@@ -452,88 +488,48 @@ const headerCellStyle = {
 };
 
 // ==================== 核心：自动计算 ====================
-// ⭐ 从 color 拿成色折算率
-const getConvertRate = (row) => {
-  const label = (row.color || '').trim();
-  if (!label) return 1;
-  const item = purityDict.value.find(x => x.itemLabel === label);
-  if (!item) return 1;
-  try {
-    const extra = item.extraData ? JSON.parse(item.extraData) : {};
-    if (extra.convertRate) return Number(extra.convertRate);
-  } catch {}
-  const rate = Number(item.itemValue);
-  return isNaN(rate) || rate <= 0 ? 1 : rate;
-};
-
 const recalcRow = (row) => {
   if (!row) return;
+
+  // ⭐ 销售行已出账单，全部字段固定，不做任何重算
+  if (row.rowType === 'sale') return;
 
   const goldPrice = Number(row.goldPrice) || 0;
   const netWeight = Number(row.netWeight) || 0;
   const lossRate = Number(row.lossRate) || 0;
-  const convertRate = getConvertRate(row);
 
   // 加耗重 = 净重 × 损耗
   row.addLossWeight = +(netWeight * lossRate).toFixed(3);
 
-  // 折足金料克重 = 加耗重 × 折算率
-  row.goldMaterialWeight = +(row.addLossWeight * convertRate).toFixed(3);
+  // 足金料克重 = 加耗重（统一按克计料，不折算成色）
+  row.goldMaterialWeight = row.addLossWeight;
 
-  // ⭐ 金料金额
-  if (row.rowType === 'sale') {
-    // 销售行：自动算
-    if (row.goldConvertCash) {
-      // 折现金：加耗重 × 金价
-      row.goldMaterialFee = +(row.addLossWeight * goldPrice).toFixed(2);
-    } else {
-      // 按克计料：克重 × 金价
-      row.goldMaterialFee = +(row.goldMaterialWeight * goldPrice).toFixed(2);
-    }
-  }
-  // 成本行：goldMaterialFee 不覆盖（用户手填）
+  // 足金料金额 = 足金料克重 × 金价（联动）
+  row.goldMaterialFee = +(row.goldMaterialWeight * goldPrice).toFixed(2);
 
   // 主石金额 = 卡重 × 单价 + 粒数 × 镶石工费
   const sw = Number(row.stoneWeight) || 0;
   const sp = Number(row.stonePrice) || 0;
   const sq = Number(row.stoneQty) || 0;
   const ssf = Number(row.stoneSettingFee) || 0;
-  if (sw || sp || sq || ssf) {
-    row.stoneAmount = +(sw * sp + sq * ssf).toFixed(2);
-  }
+  row.stoneAmount = +(sw * sp + sq * ssf).toFixed(2);
 
   // 副石金额 = 卡重 × 单价 + 粒数 × 镶石工费
   const ssw = Number(row.subStoneWeight) || 0;
   const ssp = Number(row.subStonePrice) || 0;
   const ssq = Number(row.subStoneQty) || 0;
   const sssf = Number(row.subStoneSettingFee) || 0;
-  if (ssw || ssp || ssq || sssf) {
-    row.subStoneAmount = +(ssw * ssp + ssq * sssf).toFixed(2);
-  }
+  row.subStoneAmount = +(ssw * ssp + ssq * sssf).toFixed(2);
 
-  // 总金额
-  if (row.rowType === 'sale') {
-    // 销售行：折现金时才把金料金额计入
-    const goldMaterial = row.goldConvertCash ? (row.goldMaterialFee || 0) : 0;
-    row.totalAmount = +(
-      goldMaterial +
-      (row.stoneAmount || 0) +
-      (row.subStoneAmount || 0) +
-      (row.packingFee || 0) +
-      (row.moldFee || 0) +
-      (row.laborFee || 0)
-    ).toFixed(2);
-  } else {
-    // 成本行：金料金额一定计入（用户手填的）
-    row.totalAmount = +(
-      (row.goldMaterialFee || 0) +
-      (row.stoneAmount || 0) +
-      (row.subStoneAmount || 0) +
-      (row.packingFee || 0) +
-      (row.moldFee || 0) +
-      (row.laborFee || 0)
-    ).toFixed(2);
-  }
+  // 成本行总金额：金料 + 主石金额 + 副石金额 + 包装 + 版费 + 工费（镶石工费已含在主副石金额内，不重复加）
+  row.totalAmount = +(
+    (row.goldMaterialFee || 0) +
+    (row.stoneAmount || 0) +
+    (row.subStoneAmount || 0) +
+    (row.packingFee || 0) +
+    (row.moldFee || 0) +
+    (row.laborFee || 0)
+  ).toFixed(2);
 };
 
 const syncRowToSource = (row) => {
@@ -622,15 +618,49 @@ const prevSummary = computed(() => {
   };
 });
 
-const currSummary = computed(() => {
-  const p = summaryData.value.todayProfit || {};
-  const b = summaryData.value.todayBillAmount || {};
+// ==================== 本单利润（实时计算：销售 - 成本） ====================
+const currProfit = computed(() => {
+  const sum = (rows, field) => rows.reduce((s, r) => s + (Number(r[field]) || 0), 0);
+  const sale = saleRows.value;
+  const cost = costRows.value;
+
+  // 金利润 = 金料金额（销售 - 成本）
+  const goldProfit = sum(sale, 'goldMaterialFee') - sum(cost, 'goldMaterialFee');
+
+  // 钻石利润 = 主石金额 + 副石金额（销售 - 成本）
+  const diamondProfit =
+    (sum(sale, 'stoneAmount') + sum(sale, 'subStoneAmount')) -
+    (sum(cost, 'stoneAmount') + sum(cost, 'subStoneAmount'));
+
+  // 镶石利润 = 主石镶石工费 + 副石镶石工费（销售 - 成本），镶石工费总额 = 粒数 × 单粒工费
+  const settingProfit =
+    (sale.reduce((s, r) => s + (Number(r.stoneQty) || 0) * (Number(r.stoneSettingFee) || 0) + (Number(r.subStoneQty) || 0) * (Number(r.subStoneSettingFee) || 0), 0)) -
+    (cost.reduce((s, r) => s + (Number(r.stoneQty) || 0) * (Number(r.stoneSettingFee) || 0) + (Number(r.subStoneQty) || 0) * (Number(r.subStoneSettingFee) || 0), 0));
+
+  // 工费利润 = 工费（销售 - 成本）
+  const laborProfit = sum(sale, 'laborFee') - sum(cost, 'laborFee');
+
+  // 总利润 = 应收金额（销售 - 成本）
+  const totalProfit = sum(sale, 'totalAmount') - sum(cost, 'totalAmount');
+
   return {
-    diamondProfit: p.diamondProfit || 0,
-    goldProfit: p.goldProfit || 0,
-    settingProfit: p.settingProfit || 0,
-    laborProfit: p.laborProfit || 0,
-    totalProfit: p.totalProfit || 0,
+    goldProfit: +goldProfit.toFixed(2),
+    diamondProfit: +diamondProfit.toFixed(2),
+    settingProfit: +settingProfit.toFixed(2),
+    laborProfit: +laborProfit.toFixed(2),
+    totalProfit: +totalProfit.toFixed(2),
+  };
+});
+
+const currSummary = computed(() => {
+  const b = summaryData.value.todayBillAmount || {};
+  const p = currProfit.value;
+  return {
+    diamondProfit: p.diamondProfit,
+    goldProfit: p.goldProfit,
+    settingProfit: p.settingProfit,
+    laborProfit: p.laborProfit,
+    totalProfit: p.totalProfit,
     totalAmount: b.income || 0,
     dailyExpense: (b.expense || 0).toFixed(2),
     qty: b.qty || 0,
@@ -639,18 +669,18 @@ const currSummary = computed(() => {
 
 const totalSummary = computed(() => {
   const prev = summaryData.value.prevProfit || {};
-  const curr = summaryData.value.todayProfit || {};
+  const curr = currProfit.value;
   const prevB = summaryData.value.prevBillAmount || {};
   const currB = summaryData.value.todayBillAmount || {};
   const balance = (summaryData.value.totalReceivable || 0)
     + (summaryData.value.inoutIncome || 0)
     - (summaryData.value.inoutExpense || 0);
   return {
-    diamondProfit: (prev.diamondProfit || 0) + (curr.diamondProfit || 0),
-    goldProfit: (prev.goldProfit || 0) + (curr.goldProfit || 0),
-    settingProfit: (prev.settingProfit || 0) + (curr.settingProfit || 0),
-    laborProfit: (prev.laborProfit || 0) + (curr.laborProfit || 0),
-    totalProfit: (prev.totalProfit || 0) + (curr.totalProfit || 0),
+    diamondProfit: (prev.diamondProfit || 0) + curr.diamondProfit,
+    goldProfit: (prev.goldProfit || 0) + curr.goldProfit,
+    settingProfit: (prev.settingProfit || 0) + curr.settingProfit,
+    laborProfit: (prev.laborProfit || 0) + curr.laborProfit,
+    totalProfit: (prev.totalProfit || 0) + curr.totalProfit,
     dailyIncome: (prevB.income || 0) + (currB.income || 0),
     dailyExpense: (prevB.expense || 0) + (currB.expense || 0),
     qty: (prevB.qty || 0) + (currB.qty || 0),
@@ -663,6 +693,19 @@ const getProfitClass = (value) => {
   if (isNaN(num)) return '';
   return num >= 0 ? 'profit-positive' : 'profit-negative';
 };
+
+// ==================== 进销存模块 ====================
+const inoutSummary = computed(() => {
+  const i = summaryData.value.inout || {};
+  return {
+    prevIncome: Number(i.prevIncome) || 0,
+    prevExpense: Number(i.prevExpense) || 0,
+    prevNet: Number(i.prevNet) || 0,
+    todayIncome: Number(i.todayIncome) || 0,
+    todayExpense: Number(i.todayExpense) || 0,
+    todayNet: Number(i.todayNet) || 0,
+  };
+});
 
 // ==================== 加载上单数据 ====================
 const loadPrevData = async () => {
@@ -783,7 +826,7 @@ const handleSave = async () => {
         const cleaned = { ...row };
         const numberFields = [
           'quantity', 'totalWeight', 'netWeight', 'lossRate', 'addLossWeight',
-          'goldPrice', 'goldMaterialFee', 'stoneQty', 'stoneWeight', 'stonePrice',
+          'goldPrice', 'goldMaterialFee', 'goldMaterialWeight', 'stoneQty', 'stoneWeight', 'stonePrice',
           'stoneAmount', 'stoneSettingFee', 'subStoneQty', 'subStoneWeight',
           'subStonePrice', 'subStoneAmount', 'subStoneSettingFee', 'packingFee',
           'moldFee', 'laborFee', 'totalAmount'
@@ -950,15 +993,29 @@ const handleExport = async () => {
   }
 };
 
+// ==================== LR表预览（复用 LrPreviewDialog，与LR列表的预览一模一样） ====================
+const previewVisible = ref(false);
+// 预览用账单头：直接取当前 lrInfo（含 id / billNo / customerName / color / customerId / createdAt）
+const previewData = computed(() => lrInfo.value || {});
+// 预览用明细行：销售行在前、成本行在后，与Excel/列表预览顺序一致（取当前正在编辑的值）
+const previewRowsData = computed(() => [
+  ...saleRows.value.map(r => ({ ...r, rowType: 'sale' })),
+  ...costRows.value.map(r => ({ ...r, rowType: 'cost' })),
+]);
+
+const openPreview = () => {
+  if (!lrInfo.value) {
+    ElMessage.warning('数据还在加载中，请稍后再试');
+    return;
+  }
+  // 先按当前输入重算一次，保证预览与页面上看到的一致
+  displayRows.value.forEach(r => recalcRow(r));
+  previewVisible.value = true;
+};
+
 watch(displayRows, () => {}, { deep: true });
 
 onMounted(async () => {
-  // ⭐ 加载成色字典（用于折算率）
-  try {
-    const res = await dictApi.getItemsByKey('purity');
-    purityDict.value = res?.data || [];
-  } catch {}
-
   loadData();
 });
 </script>
