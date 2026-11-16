@@ -1,1 +1,0 @@
-import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/alert/list`,{params:t}),n=t=>e.post(`/alert/manual`,t),r=t=>e.post(`/alert/${t}/resolve`);export{t as n,r,n as t};

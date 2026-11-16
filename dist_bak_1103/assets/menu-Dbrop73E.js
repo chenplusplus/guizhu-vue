@@ -1,1 +1,0 @@
-import{t as e}from"./api-B3ZF2141.js";var t={getUserMenus:()=>e.get(`/menu/user-menus`),tree:()=>e.get(`/menu/tree`),get:t=>e.get(`/menu/${t}`),create:t=>e.post(`/menu`,t),update:t=>e.put(`/menu`,t),delete:t=>e.delete(`/menu/${t}`),hasPermission:t=>e.get(`/menu/has-permission`,{params:{code:t}})};export{t};

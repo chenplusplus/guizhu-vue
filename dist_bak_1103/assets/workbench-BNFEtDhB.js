@@ -1,1 +1,0 @@
-import{t as e}from"./request-Co5gBVqw.js";var t=()=>e.get(`/workbench/entry-summary`),n=()=>e.get(`/workbench/customer-summary`);export{t as n,n as t};

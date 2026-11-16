@@ -1,1 +1,0 @@
-import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/user/list`,{params:t}),n=t=>e.post(`/user`,t),r=t=>e.put(`/user`,t),i=(t,n)=>e.post(`/user/${t}/reset-password`,{newPassword:n}),a=(t,n)=>e.patch(`/user/${t}/toggle`,null,{params:{isActive:n}});export{r as a,a as i,t as n,i as r,n as t};

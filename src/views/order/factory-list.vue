@@ -152,6 +152,17 @@
         @keyup.enter="handleSearch"
       />
 
+      <!-- ⭐ 维修单编号：编号是手工填的（不是系统流水），单独一个查询字段，
+           输入纸质维修单上的编号即可联查回对应订单 -->
+      <el-input
+        v-model="filterRepairNo"
+        placeholder="维修单编号"
+        style="width: 150px;"
+        clearable
+        @clear="handleSearch"
+        @keyup.enter="handleSearch"
+      />
+
       <el-select
         v-model="filterCustomerId"
         placeholder="全部客户"
@@ -274,6 +285,10 @@
             {{ row.orderNo }}
             <span v-if="hasPendingModify(row)" class="modify-badge"><ModifyTripodIcon /></span>
           </el-link>
+          <!-- ⭐ 维修单编号（手工填的那个号）：红色显示，按维修单编号查完能直接核对 -->
+          <div v-if="row.repairNo" class="repair-no-line" :title="`维修单编号：${row.repairNo}`">
+            {{ row.repairNo }}
+          </div>
         </template>
       </el-table-column>
 
@@ -839,6 +854,8 @@ const tableData = ref([]);
 const batchCreating = ref(false);
 const keyword = ref('');
 const filterCustomerId = ref('');
+// ⭐ 维修单编号（手工填的那个号）单独查询条件
+const filterRepairNo = ref('');
 const selectedOrders = ref([]);
 const customerList = ref([]);
 const productionStatuses = ref([]);
@@ -1188,6 +1205,7 @@ const loadData = async () => {
     const params = {
       keyword: keyword.value || undefined,
       customerId: filterCustomerId.value || undefined,
+      repairNo: filterRepairNo.value ? filterRepairNo.value.trim() : undefined,
       page: 1,
       pageSize: 1000,
     };
@@ -1261,6 +1279,7 @@ const handleSearch = () => {
 const resetSearch = () => {
   keyword.value = '';
   filterCustomerId.value = '';
+  filterRepairNo.value = '';
   dateRange.value = getDateRange();
   pagination.current = 1;
   loadData();
@@ -2009,6 +2028,16 @@ watch(() => [route.query.submit, route.query.range], () => {
 .modify-badge {
   margin-left: 4px;
   font-size: 18px;
+}
+/* ⭐ 维修单编号（联查 repair_orders 带出来的，手工填的号，红色标出便于核对） */
+.repair-no-line {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: #f56c6c;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 @keyframes blink {
   0%, 100% { opacity: 1; }

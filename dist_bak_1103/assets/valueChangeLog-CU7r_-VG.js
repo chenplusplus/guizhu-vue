@@ -1,1 +1,0 @@
-import{t as e}from"./api-B3ZF2141.js";var t=(t,n)=>e.get(`/valuechangelog/source`,{params:{sourceType:t,sourceId:n}});export{t};

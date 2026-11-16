@@ -1,1 +1,0 @@
-import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/inout/report/counterparty-summary`,{params:t}),n=t=>e.get(`/inout-report/inventory`,{params:t}),r=t=>e.get(`/inout-report/reconciliation`,{params:t});export{r as n,n as r,t};
