@@ -6,6 +6,13 @@ export const getLrList = (params) => {
   return api.get('/lr/list', { params });
 };
 
+// ===== LR 明细平铺（LR表管理页：明细 + 三块汇总）=====
+// params: { dateType: 'today'|'month'|'all'|'custom', startDate?, endDate?, customerId?, productName?, color? }
+// 返回: { dateType, startDate, endDate, lrCount, saleCost, inout, ledger, rows }
+export const getLrSheet = (params) => {
+  return api.get('/lr/sheet', { params });
+};
+
 // 获取可生成LR表的账单列表
 export const getAvailableBillsForLr = () => {
   return api.get('/lr/available-bills');
@@ -129,4 +136,16 @@ export const getLrTreeOptions = (params) => {
 // ===== 树形LR底部汇总（按客户 + 按成色）=====
 export const getLrTreeSummary = (params) => {
   return api.get('/lr/tree/summary', { params });
+};
+// ===== 进销存汇总（LR 预览底部，按时间/客户切换）=====
+// params: { lrId | billId, timeScope: 'current'|'total', customerScope: 'own'|'all' }
+export const getLrInoutSummary = (params) => {
+  return api.get('/lr/inout-summary', { params });
+};
+
+// ===== LR 底部统计（全公司口径，唯一数据源） =====
+// 传 lrId 优先；只传 billId 时按账单取（账单未生成 LR 则本单利润为 0）
+// 口径见后端 docs/口径规范-LR与账单累计.md
+export const getLrThreePeriod = (params) => {
+  return api.get('/lr/three-period', { params });
 };

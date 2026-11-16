@@ -1,8 +1,16 @@
 ﻿<!-- src/views/order/factory-list.vue -->
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
+    <!-- ⭐ 全屏时常驻右上角的退出按钮（滚动到表格中段也能点，Esc 亦可） -->
+    <FullscreenExit v-if="isFullscreen" @exit="toggleFullscreen" />
     <div class="page-header">
-      <h2>{{ pageTitle }}</h2>
+      <div class="header-left">
+        <h2>{{ pageTitle }}</h2>
+        <!-- ⭐ 待审核：审核完成后的去处说明（历史订单 + 自动生成账单） -->
+        <span v-if="mode === 'audit'" class="audit-hint">
+          订单审核完成之后请到历史订单中查看，同时会自动生成账单，您可去【生成账单】页面编辑或者提交账单审核
+        </span>
+      </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <!-- ⭐ 批量接单：只在"待接单"tab 显示 -->
         <el-button
@@ -12,6 +20,24 @@
         >
           批量接单 ({{ selectedOrders.length }})
         </el-button>
+
+        <!-- ⭐ 审核模式：多选批量操作（提交审核 / 撤回 / 审核） -->
+        <template v-if="mode === 'audit' && selectedOrders.length > 0">
+          <el-button v-if="canSubmitAudit" type="primary" plain @click="handleBatchSubmitAudit">
+            📤 批量提交审核 ({{ selectedOrders.length }})
+          </el-button>
+          <el-button v-if="canSubmitAudit" type="warning" plain @click="handleBatchWithdrawAudit">
+            ↩️ 批量撤回 ({{ selectedOrders.length }})
+          </el-button>
+          <template v-if="canAuditProduction">
+            <el-button type="success" @click="handleBatchAuditProduction(true)">
+              ✅ 批量通过 ({{ selectedOrders.length }})
+            </el-button>
+            <el-button type="danger" plain @click="handleBatchAuditProduction(false)">
+              ⛔ 批量驳回 ({{ selectedOrders.length }})
+            </el-button>
+          </template>
+        </template>
 
         <!-- ⭐ 批量生成账单：只在"已完成"tab 显示 -->
         <el-button
@@ -25,6 +51,16 @@
         <el-button type="primary" @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
+        <!-- ⭐ 审核模式：一键展开/收起「销售行 / 成本行」对比 -->
+        <el-checkbox
+          v-if="mode === 'audit'"
+          v-model="expandAll"
+          style="margin-left: 4px;"
+          @change="onExpandAllChange"
+        >展开销售/成本对比</el-checkbox>
+        <span v-if="mode === 'audit' && warnCount > 0" class="audit-warn-tip">
+          ❗ 有 {{ warnCount }} 单成本高于销售
+        </span>
         <el-button @click="toggleFullscreen">
           {{ isFullscreen ? '退出全屏' : '全屏' }}
         </el-button>
@@ -138,11 +174,29 @@
       <el-button @click="resetSearch">
         <el-icon><RefreshRight /></el-icon> 重置
       </el-button>
+
+      <!-- ⭐ 待审核视图：按提交状态筛选 -->
+      <el-radio-group
+        v-if="mode === 'audit' && canSubmitAudit"
+        v-model="auditSubmitFilter"
+        size="default"
+        style="margin-left: auto;"
+        @change="onAuditFilterChange"
+      >
+        <el-radio-button value="all">全部</el-radio-button>
+        <el-radio-button value="pending">
+          待提交<span v-if="auditPendingCount > 0" class="sub-count">{{ auditPendingCount }}</span>
+        </el-radio-button>
+        <el-radio-button value="submitted">
+          已提交<span v-if="auditSubmittedCount > 0" class="sub-count">{{ auditSubmittedCount }}</span>
+        </el-radio-button>
+      </el-radio-group>
     </div>
 
     <!-- 汇总 -->
     <div v-show="!isFullscreen" class="summary-bar" v-if="pagination.total > 0">
       <span>共 <b>{{ pagination.total }}</b> 个订单</span>
+      <span v-if="!dateRange || dateRange.length !== 2" class="range-hint">不限日期</span>
       <span v-if="selectedOrders.length > 0" style="color:#409EFF;">
         已选 <b>{{ selectedOrders.length }}</b> 个
       </span>
@@ -154,7 +208,7 @@
     <!-- 表格 -->
     <el-table
       ref="tableRef"
-      :class="{ 'table-fullscreen': isFullscreen }"
+      :class="{ 'table-fullscreen': isFullscreen, 'is-audit-mode': mode === 'audit' }"
       :data="tableData"
       :empty-text="emptyText"
       border
@@ -164,10 +218,30 @@
       @row-click="handleRowClick"
       :row-class-name="rowClassName"
       row-key="orderId"
+      :expand-row-keys="expandKeys"
+      @expand-change="onExpandChange"
     >
       <el-table-column type="selection" width="45" align="center" @click.stop />
 
-      <el-table-column label="标记" width="56" fixed align="center">
+      <!-- ⭐ 审核模式：每条订单下方紧跟「销售行 / 黄色间隔 / 成本行」，与编辑订单页原样一致（只读） -->
+      <el-table-column v-if="mode === 'audit'" type="expand" width="40">
+        <template #default="{ row }">
+          <div class="expand-cost-wrap">
+            <CostCompareTable
+              v-if="costMap[row.orderId]"
+              :sale="costMap[row.orderId].sale"
+              :cost="costMap[row.orderId].cost"
+              :has-cost="costMap[row.orderId].hasCost"
+              :warns="costMap[row.orderId].warns"
+              :loading="costMap[row.orderId].loading"
+              :large="isFullscreen"
+            />
+            <div v-else class="expand-loading">成本数据加载中…</div>
+          </div>
+        </template>
+      </el-table-column>
+
+      <el-table-column label="标记" width="62" fixed align="center">
         <template #default="{ row }">
           <el-tooltip
             v-if="row.costWarnFlag"
@@ -203,10 +277,31 @@
         </template>
       </el-table-column>
 
+      <!-- ⭐ 审核提交状态：制作完成后需手动提交，未提交的不进审核队列 -->
+      <el-table-column v-if="mode === 'audit'" label="审核状态" width="110" align="center">
+        <template #default="{ row }">
+          <el-tag v-if="isAuditSubmitted(row)" type="warning" effect="light">已提交待审核</el-tag>
+          <el-tag v-else type="info" effect="plain">待提交</el-tag>
+          <div v-if="isAuditSubmitted(row) && row.productionSubmittedAt" class="audit-submitted-at">
+            {{ formatShortTime(row.productionSubmittedAt) }}
+          </div>
+        </template>
+      </el-table-column>
+
       <!-- 状态列：点击可改状态（订单编辑视图 / 全部视图） -->
       <el-table-column v-if="mode !== 'audit'" prop="flowStatus" label="状态" :width="mode === 'accept' && !isFullscreen ? 100 : 120" align="center" fixed>
         <template #default="{ row }">
+          <span
+            v-if="normalizeStatus(row.flowStatus) === 'paused'"
+            class="paused-status"
+            :title="`暂停中 · 暂停前：${row.pauseOriginStatusText || row.pauseOriginStatus || '—'}（点击恢复）`"
+            @click.stop="onStatusClick(row)"
+          >
+            <span class="paused-bars"><i></i><i></i></span>
+            <span class="paused-text">已暂停</span>
+          </span>
           <el-tag
+            v-else
             :type="getStatusType(row.flowStatus)"
             size="default"
             effect="light"
@@ -259,7 +354,14 @@
       </el-table-column>
       <el-table-column prop="size" label="手寸" :width="mode === 'accept' && !isFullscreen ? 65 : 80" align="center" />
       <el-table-column prop="quantity" label="数量" :width="mode === 'accept' && !isFullscreen ? 55 : 70" align="center" />
-      <el-table-column prop="color" label="成色" :width="mode === 'accept' && !isFullscreen ? 65 : 80" align="center" />
+      <el-table-column label="成色" :width="mode === 'accept' && !isFullscreen ? 65 : 80" align="center">
+        <template #default="{ row }">
+          <PurityCell :label="row.purityLabel" :color="row.color" />
+        </template>
+      </el-table-column>
+      <el-table-column label="颜色" :width="mode === 'accept' && !isFullscreen ? 62 : 80" align="center">
+        <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="goldPrice" label="金价" :width="mode === 'accept' && !isFullscreen ? 75 : 90" align="right">
         <template #default="{ row }">{{ row.goldPrice || '-' }}</template>
       </el-table-column>
@@ -273,7 +375,7 @@
       </el-table-column>
       <el-table-column v-if="mode !== 'accept' || isFullscreen" prop="lossRate" label="损耗" width="84" align="center">
         <template #default="{ row }">
-          <span v-if="isAbnormalLoss(row.lossRate)" class="loss-abnormal" title="非标准损耗（1.08 / 1.10）">
+          <span v-if="isAbnormalLoss(row.lossRate)" class="loss-abnormal" title="非标准损耗（1.08 / 1.09 / 1.10）">
             {{ row.lossRate }}
           </span>
           <span v-else>{{ row.lossRate || '-' }}</span>
@@ -290,8 +392,95 @@
         </template>
       </el-table-column>
 
+      <!-- ⭐ 审核模式：成本状态（已录 / 未录 / 高于销售），明细在下方展开行；固定在右侧常驻可见 -->
+      <el-table-column v-if="mode === 'audit'" label="成本" width="124" align="center" fixed="right">
+        <template #default="{ row }">
+          <template v-if="costMap[row.orderId] && !costMap[row.orderId].loading">
+            <div class="cost-state-cell">
+              <el-tooltip v-if="costMap[row.orderId].warns?.length" :content="warnText(row)" placement="top">
+                <el-tag type="danger" effect="dark" size="small">❗ 高于销售</el-tag>
+              </el-tooltip>
+              <el-tag v-else-if="costMap[row.orderId].hasCost" type="success" size="small">已录</el-tag>
+              <el-tag v-else type="info" size="small">未录</el-tag>
+              <span v-if="!costMap[row.orderId].warns?.length" class="cost-profit-line">
+                利润 {{ costProfit(row) }}
+              </span>
+            </div>
+          </template>
+          <span v-else style="color:#c0c4cc;font-size:12px;">…</span>
+        </template>
+      </el-table-column>
+
+      <!-- ⭐ 审核模式 + 全屏：把工厂录入的成本/石料明细铺开（口径同账单审核） -->
+      <template v-if="mode === 'audit' && isFullscreen">
+        <el-table-column prop="widthThick" label="宽/厚度" width="80" align="center" />
+        <el-table-column prop="weightRequirement" label="克重要求" width="95" align="center" />
+        <el-table-column prop="addLossWeight" label="加耗重" width="85" align="right">
+          <template #default="{ row }">{{ row.addLossWeight ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="95" align="right">
+          <template #default="{ row }">{{ row.goldMaterialWeight ?? '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="goldMaterialFee" label="足金料金额" width="105" align="right">
+          <template #default="{ row }">{{ money(row.goldMaterialFee) }}</template>
+        </el-table-column>
+        <el-table-column label="主石" align="center">
+          <el-table-column prop="mainStoneQty" label="粒数" width="55" align="center">
+            <template #default="{ row }">{{ row.mainStoneQty || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="mainStoneWeight" label="石重(ct)" width="85" align="right">
+            <template #default="{ row }">{{ row.mainStoneWeight || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="mainStonePrice" label="单价" width="85" align="right">
+            <template #default="{ row }">{{ row.mainStonePrice || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="mainStoneAmount" label="金额" width="95" align="right">
+            <template #default="{ row }">{{ money(row.mainStoneAmount) }}</template>
+          </el-table-column>
+          <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="90" align="right">
+            <template #default="{ row }">{{ money(row.mainStoneSettingFee) }}</template>
+          </el-table-column>
+        </el-table-column>
+        <el-table-column label="副石" align="center">
+          <el-table-column prop="subStoneQty" label="粒数" width="55" align="center">
+            <template #default="{ row }">{{ row.subStoneQty || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="subStoneWeight" label="石重(ct)" width="85" align="right">
+            <template #default="{ row }">{{ row.subStoneWeight || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="subStonePrice" label="单价" width="85" align="right">
+            <template #default="{ row }">{{ row.subStonePrice || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="subStoneAmount" label="金额" width="95" align="right">
+            <template #default="{ row }">{{ money(row.subStoneAmount) }}</template>
+          </el-table-column>
+          <el-table-column prop="subStoneSettingFee" label="镶石工费" width="90" align="right">
+            <template #default="{ row }">{{ money(row.subStoneSettingFee) }}</template>
+          </el-table-column>
+        </el-table-column>
+        <el-table-column label="包装/证书/邮费" width="120" align="right">
+          <template #default="{ row }">
+            {{ money(row.packingFee) }} / {{ money(row.certificateFee) }} / {{ money(row.postageFee) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="moldFee" label="版费" width="80" align="right">
+          <template #default="{ row }">{{ money(row.moldFee) }}</template>
+        </el-table-column>
+        <el-table-column prop="costPrice" label="成本" width="95" align="right">
+          <template #default="{ row }">{{ money(row.costPrice) }}</template>
+        </el-table-column>
+        <el-table-column prop="profit" label="利润" width="95" align="right">
+          <template #default="{ row }">
+            <span :style="{ color: (row.profit || 0) < 0 ? '#f56c6c' : '#67c23a' }">{{ money(row.profit) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="factoryRemark" label="工厂备注" width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.factoryRemark || '-' }}</template>
+        </el-table-column>
+      </template>
+
       <!-- 操作列 -->
-      <el-table-column v-if="!isFullscreen && showActionColumn" label="操作" :width="mode === 'edit' ? 160 : (mode === 'audit' ? 88 : 96)" fixed="right" align="center">
+      <el-table-column v-if="showActionColumn && (!isFullscreen || mode === 'audit')" label="操作" :width="mode === 'edit' ? 160 : (mode === 'audit' ? 232 : 96)" fixed="right" align="center">
         <template #default="{ row }">
           <div v-if="mode === 'edit' || mode === 'audit'" class="edit-row-actions">
             <template v-if="mode === 'edit'">
@@ -310,16 +499,38 @@
                 @click.stop="goRepair(row)"
               >维修单</el-button>
             </template>
-            <!-- ⭐ 待审核视图：直接给审核按钮（不用再展开下拉） -->
+            <!-- ⭐ 待审核视图：制作完成后不自动提交，这里手动提交 / 撤回 / 审核 -->
             <template v-else>
               <el-button
-                v-if="normalizeStatus(row.flowStatus) === 'productionCompleted' && (userStore.isFactoryAudit || userStore.isAdmin)"
+                v-if="isAuditSubmitPending(row) && canSubmitAudit"
+                size="small"
+                type="primary"
+                plain
+                @click.stop="handleSubmitAudit(row)"
+              >提交审核</el-button>
+              <el-button
+                v-if="isAuditSubmitted(row) && canSubmitAudit"
+                size="small"
+                type="warning"
+                plain
+                @click.stop="handleWithdrawAudit(row)"
+              >撤回</el-button>
+              <el-button
+                v-if="isAuditSubmitted(row) && canAuditProduction"
                 size="small"
                 type="success"
                 plain
-                @click.stop="handleRowAction('auditProduction', row)"
+                @click.stop="openAuditPreview(row)"
               >审核</el-button>
-              <span v-else class="no-action">—</span>
+              <!-- ⭐ 制作完成（含已提交待审核）：审核通过前工厂操作员仍可改 -->
+              <el-button
+                v-if="allow('edit') && canEditRow(row)"
+                size="small"
+                type="primary"
+                plain
+                @click.stop="goFactoryEdit(row.orderId)"
+              >编辑</el-button>
+              <span v-if="!canSubmitAudit && !(isAuditSubmitted(row) && canAuditProduction)" class="no-action">—</span>
             </template>
           </div>
           <el-dropdown
@@ -352,11 +563,17 @@
                   command="bill"
                 >生成账单</el-dropdown-item>
 
-                <!-- ⭐ 制作完成待审核 → 审核制作完成 -->
+                <!-- ⭐ 制作完成待审核（已提交）→ 审核制作完成 -->
                 <el-dropdown-item
-                  v-if="allow('auditProduction') && normalizeStatus(row.flowStatus) === 'productionCompleted' && (userStore.isFactoryAudit || userStore.isAdmin)"
+                  v-if="allow('auditProduction') && isAuditSubmitted(row) && (userStore.isFactoryAudit || userStore.isAdmin)"
                   command="auditProduction"
                 >审核制作完成</el-dropdown-item>
+
+                <!-- ⭐ 待工厂确认取消 → 确认取消 -->
+                <el-dropdown-item
+                  v-if="allow('pause') && row.pauseStatus === 'pendingFactoryConfirm' && (userStore.isFactoryOrder || userStore.isAdmin)"
+                  command="confirmCancel"
+                >确认取消</el-dropdown-item>
 
                 <el-dropdown-item
                   v-if="allow('edit') && canEditRow(row)"
@@ -387,7 +604,7 @@
     </div>
 
     <!-- 更新制作状态弹窗 -->
-    <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="450px" destroy-on-close>
+    <el-dialog v-model="statusDialogVisible" title="更新制作状态" width="520px" destroy-on-close>
       <div style="margin-bottom: 16px;">
         <p><strong>订单号：</strong>{{ currentOrder?.orderNo }}</p>
         <p><strong>品名：</strong>{{ currentOrder?.productName }}</p>
@@ -396,6 +613,50 @@
             {{ getStatusText(currentOrder?.flowStatus) }}
           </el-tag>
         </p>
+      </div>
+
+      <!-- ⭐ 大号暂停 / 恢复：暂停 = 临时停下，随时可恢复到暂停前的工序 -->
+      <div class="pause-quick">
+        <el-button
+          v-if="normalizeStatus(currentOrder?.flowStatus) !== 'paused'"
+          type="warning"
+          size="large"
+          class="pause-big-btn"
+          :loading="statusLoading"
+          :disabled="currentOrder?.pauseReqStatus === 'pendingAudit'"
+          @click="handleQuickPause"
+        >
+          ⏸ 暂停订单
+        </el-button>
+        <template v-else>
+          <!-- ⭐ 客户申请的暂停：工厂不能自行恢复，必须等客户方申请恢复后由客户审核员批准 -->
+          <el-button
+            v-if="currentOrder?.pauseOwner === 'customer'"
+            type="info"
+            size="large"
+            class="pause-big-btn"
+            disabled
+          >
+            ⏸ 客户申请暂停，等客户方恢复
+          </el-button>
+          <el-button
+            v-else
+            type="success"
+            size="large"
+            class="pause-big-btn"
+            :loading="statusLoading"
+            @click="handleQuickResume"
+          >
+            ▶ 恢复生产（回到 {{ currentOrder?.pauseOriginStatusText || '暂停前工序' }}）
+          </el-button>
+          <div class="pause-quick-hint">
+            暂停前工序：{{ currentOrder?.pauseOriginStatusText || currentOrder?.pauseOriginStatus || '—' }}
+            <span v-if="currentOrder?.pauseReason">　原因：{{ currentOrder.pauseReason }}</span>
+            <span v-if="currentOrder?.pauseOwner === 'customer'">
+              　客户暂停申请：{{ currentOrder?.pauseReqName || '客户' }}<template v-if="currentOrder?.pauseReqReason">（{{ currentOrder.pauseReqReason }}）</template>
+            </span>
+          </div>
+        </template>
       </div>
 
       <el-form label-width="80px">
@@ -455,6 +716,16 @@
       </template>
     </el-dialog>
 
+    <!-- ⭐ 待审核：Excel 式详情（可直接审核，明细里带销售/成本对比） -->
+    <OrderPreviewDialog
+      v-model="previewVisible"
+      :order-id="previewOrderId"
+      audit-mode
+      show-cost-compare
+      :audit-loading="previewAuditLoading"
+      @audit="onPreviewAudit"
+    />
+
     <!-- 流程抽屉 -->
     <FlowDrawer
       v-model="flowDrawerVisible"
@@ -467,19 +738,24 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh, Search, RefreshRight, Tools, ArrowDown } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, acceptOrder, updateProduction, getOrderDetail, auditProduction } from '@/api/order';
-import { autoCreateBill } from '@/api/bill';
+import { getOrderList, acceptOrder, updateProduction, getOrderDetail, auditProduction, getOrderCost, confirmCancel, submitProductionAudit, withdrawProductionAudit, batchProductionAudit } from '@/api/order';
+import { autoCreateBill, generateMissingBills } from '@/api/bill';
 import { generateLr } from '@/api/lr';
 import { getCustomerList } from '@/api/customer';
 import { dictApi } from '@/api/dict';
 import { createBill } from '@/api/bill';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import OrderPreviewDialog from '@/components/OrderPreviewDialog.vue';
 import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
+import PurityCell from '@/components/PurityCell.vue';
+import { resolveGemColor } from '@/utils/color';
+import CostCompareTable from '@/components/CostCompareTable.vue';
+import FullscreenExit from '@/components/FullscreenExit.vue';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -487,7 +763,77 @@ const tableRef = ref();
 
 const loading = ref(false);
 const isFullscreen = ref(false);
-const toggleFullscreen = () => { isFullscreen.value = !isFullscreen.value; };
+
+// ===== ⭐ 审核模式：销售 / 成本 对比（展开行，只读） =====
+const costMap = reactive({});      // orderId -> { sale, cost, hasCost, warns, loading }
+const expandKeys = ref([]);
+const expandAll = ref(true);
+
+const warnCount = computed(() =>
+  (tableData.value || []).filter(r => costMap[r.orderId]?.warns?.length).length
+);
+const warnText = (row) => (costMap[row.orderId]?.warns || []).map(w => w.text).join('；');
+const costProfit = (row) => {
+  const d = costMap[row.orderId];
+  if (!d) return '-';
+  const s = Number(d.sale?.totalAmount) || 0;
+  const c = Number(d.cost?.totalAmount) || 0;
+  return (s - c).toFixed(2);
+};
+
+// 拉取单张订单的销售行 / 成本行（后端一次返回 sale + cost + hasCost + warns）
+const loadCost = async (orderId) => {
+  if (costMap[orderId] && !costMap[orderId].error) return;
+  costMap[orderId] = { ...(costMap[orderId] || {}), loading: true };
+  try {
+    const res = await getOrderCost(orderId);
+    const d = res?.data || {};
+    costMap[orderId] = {
+      sale: d.sale || {},
+      cost: d.cost || {},
+      hasCost: !!d.hasCost,
+      warns: d.warns || [],
+      loading: false,
+    };
+  } catch (e) {
+    console.warn('加载销售/成本对比失败:', orderId, e);
+    costMap[orderId] = { sale: {}, cost: {}, hasCost: false, warns: [], loading: false, error: true };
+  }
+};
+
+// 审核模式下批量加载当前页的成本数据（并发 4 条，避免一次打满）
+const loadCostsForAudit = async () => {
+  if (mode.value !== 'audit') return;
+  const ids = (tableData.value || []).map(r => r.orderId).filter(id => !costMap[id]);
+  for (let i = 0; i < ids.length; i += 4) {
+    await Promise.all(ids.slice(i, i + 4).map(loadCost));
+  }
+  // 默认全部展开，方便连续审核
+  if (expandAll.value) expandKeys.value = (tableData.value || []).map(r => r.orderId);
+};
+
+const onExpandAllChange = (v) => {
+  expandKeys.value = v ? (tableData.value || []).map(r => r.orderId) : [];
+};
+
+// 受控展开：用户点单行箭头时同步 keys
+const onExpandChange = (row, expandedRows) => {
+  if (Array.isArray(expandedRows)) {
+    expandKeys.value = expandedRows.map(r => r.orderId);
+    expandAll.value = expandedRows.length === tableData.value.length && expandedRows.length > 0;
+  }
+  if (!costMap[row.orderId]) loadCost(row.orderId);
+};
+
+const toggleFullscreen = () => {
+  isFullscreen.value = !isFullscreen.value;
+  // 全屏时每条订单下方直接展开两行（销售 + 成本），便于连续审核
+  if (isFullscreen.value && mode.value === 'audit') {
+    expandAll.value = true;
+    loadCostsForAudit();
+    expandKeys.value = (tableData.value || []).map(r => r.orderId);
+  }
+};
 const handleEsc = (e) => { if (e.key === 'Escape' && isFullscreen.value) { isFullscreen.value = false; } };
 const tableData = ref([]);
 const batchCreating = ref(false);
@@ -503,8 +849,8 @@ const dateRange = ref([]);
 // ⭐ 菜单参数化：同一个页面由路由 meta.mode（或 ?mode=）决定只显示哪一段、只允许哪些操作
 const MODE_MAP = {
   accept:    { tab: 'waitingFactory',    title: '🏭 待接单',     allow: ['accept'] },
-  edit:      { tab: 'factoryProcessing', title: '✏️ 订单编辑',   allow: ['edit', 'repair', 'status', 'downloadPackage'] },
-  audit:     { tab: 'productionAudit',   title: '🔍 待审核',     allow: ['auditProduction'] },
+  edit:      { tab: 'factoryProcessing', title: '✏️ 订单编辑',   allow: ['edit', 'repair', 'status', 'downloadPackage', 'pause'] },
+  audit:     { tab: 'productionAudit',   title: '🔍 待审核',     allow: ['auditProduction', 'submitAudit', 'withdrawAudit', 'edit'] },
   completed: { tab: 'completed',         title: '✅ 已完成订单', allow: ['bill', 'downloadPackage'] },
 };
 const route = useRoute();
@@ -514,12 +860,48 @@ const pageTitle = computed(() => modeConf.value?.title || '🏭 工厂订单');
 // 没有 mode 时表示「全部」视图，不限制操作
 const allow = (cmd) => !modeConf.value || modeConf.value.allow.includes(cmd);
 
-// 操作列是否显示：待审核视图下只有审核员/管理员才有操作（其他角色是纯查看列表）
+// 操作列是否显示：待审核视图下工厂业务员可提交/撤回、审核员可审核，都要有操作列
 const showActionColumn = computed(() => {
   if (!modeConf.value) return true;
-  if (mode.value === 'audit') return userStore.isFactoryAudit || userStore.isAdmin;
   return modeConf.value.allow.length > 0;
 });
+
+// ============================================================
+// ⭐ 制作完成 → 提交审核 / 撤回（不自动提交审核）
+// ============================================================
+// 提交/撤回：工厂业务员、管理员；审核：审核员、管理员
+const canSubmitAudit = computed(() => userStore.isFactoryOrder || userStore.isAdmin);
+const canAuditProduction = computed(() => userStore.isFactoryAudit || userStore.isAdmin);
+
+// ⭐ 工作台卡片带参直达：?submit=pending|submitted 直接落到「待提交 / 已提交」
+const readSubmitFilter = () => {
+  const v = String(route.query.submit || '').toLowerCase();
+  return (v === 'pending' || v === 'submitted') ? v : 'all';
+};
+// ⭐ ?range=all：不限日期（积压多天的待提交单不会被默认「最近 30 天」筛掉）
+const isAllRange = () => String(route.query.range || '').toLowerCase() === 'all';
+const auditSubmitFilter = ref(readSubmitFilter());
+const auditPendingCount = ref(0);
+const auditSubmittedCount = ref(0);
+
+const isAuditSubmitted = (row) =>
+  normalizeStatus(row.flowStatus) === 'productionCompleted' && !!row.productionSubmittedAt;
+
+const isAuditSubmitPending = (row) =>
+  normalizeStatus(row.flowStatus) === 'productionCompleted' && !row.productionSubmittedAt;
+
+const formatShortTime = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+const onAuditFilterChange = () => {
+  pagination.current = 1;
+  loadData();
+};
 
 // 空态文案：按视图区分
 const emptyText = computed(() => {
@@ -559,7 +941,7 @@ const TAB_STATUS_MAP = {
     'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay'
   ],
   productionAudit: ['productionCompleted'],
-  completed: ['completed', 'cancelled', 'scrapped'],
+  completed: ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn'],
   all: null,
 };
 
@@ -651,7 +1033,7 @@ const statusMap = {
   microInlay: { text: '微镶', type: 'primary' },
   handInlay: { text: '手镶', type: 'primary' },
   polishing: { text: '抛光', type: 'primary' },
-  paused: { text: '暂停', type: 'warning' },
+  paused: { text: '已暂停', type: 'warning' },
   productionCompleted: { text: '制作完成', type: 'warning' },
   billPending: { text: '账单待审核', type: 'warning' },
   billConfirmed: { text: '待确认', type: 'success' },
@@ -722,7 +1104,7 @@ const isAbnormalLoss = (lossRate) => {
   if (lossRate === null || lossRate === undefined || lossRate === '') return false;
   const n = Number(lossRate);
   if (isNaN(n)) return false;
-  return Math.abs(n - 1.08) > 1e-9 && Math.abs(n - 1.10) > 1e-9;
+  return Math.abs(n - 1.08) > 1e-9 && Math.abs(n - 1.09) > 1e-9 && Math.abs(n - 1.10) > 1e-9;
 };
 
 // ============================================================
@@ -737,6 +1119,7 @@ const handleRowAction = (cmd, row) => {
     case 'edit': goFactoryEdit(row.orderId); break;
     case 'downloadPackage': downloadOrderPackage(row); break;
     case 'auditProduction': openAuditProductionDialog(row); break;
+    case 'confirmCancel': handleConfirmCancel(row); break;
     case 'view': viewDetail(row.orderId); break;
   }
 };
@@ -745,12 +1128,22 @@ const handleRowAction = (cmd, row) => {
 // 状态选项
 // ============================================================
 const statusOptions = computed(() => {
-  const current = currentOrder.value?.flowStatus;
-  const currentIndex = productionStatuses.value.findIndex(s => s.value === current);
-  if (currentIndex >= 0) {
-    return productionStatuses.value.slice(currentIndex + 1);
-  }
-  return productionStatuses.value;
+  const current = normalizeStatus(currentOrder.value?.flowStatus);
+  // ⭐ 制作状态不做顺序控制：任意工序都能改，可前进也可回退（2026-11-08）
+  //    「暂停」不在下拉里——暂停/恢复走上面的独立按钮
+  //    基准取暂停前工序：暂停中点任意工序是恢复，不标「回退」
+  const base = current === 'paused'
+    ? normalizeStatus(currentOrder.value?.pauseOriginStatus)
+    : current;
+  const baseIndex = productionStatuses.value.findIndex(s => s.value === base);
+
+  return productionStatuses.value
+    .filter(s => s.value !== current && s.value !== 'paused')
+    .map(s => {
+      const idx = productionStatuses.value.findIndex(x => x.value === s.value);
+      const backward = baseIndex >= 0 && idx >= 0 && idx < baseIndex;
+      return { ...s, backward, label: backward ? `${s.label}（回退）` : s.label };
+    });
 });
 
 // ============================================================
@@ -768,15 +1161,17 @@ const loadCustomers = async () => {
 // ============================================================
 // 获取日期范围（最近一个月）
 // ============================================================
+// ⚠️ 必须用「本地日期」拼字符串：toISOString() 走的是 UTC，
+//    北京时间 0:00~8:00 之间会算成前一天 → 默认 endDate 少一天，当天新单看不到
+const fmtLocalDate = (d) => {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
 const getDateRange = () => {
   const today = new Date();
-  const endDate = today.toISOString().split('T')[0];
-
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - 30);
-  const startDateStr = startDate.toISOString().split('T')[0];
-
-  return [startDateStr, endDate];
+  return [fmtLocalDate(startDate), fmtLocalDate(today)];
 };
 
 const viewBill = (billId) => {
@@ -826,6 +1221,15 @@ const loadData = async () => {
     // ⭐ 按 tab 过滤
     let filtered = list.filter(x => matchTab(x, activeTab.value));
 
+    // ⭐ 待审核视图：按「待提交 / 已提交待审核」筛选（审核员后端只返回已提交，无需筛选）
+    if (mode.value === 'audit') {
+      const auditRows = list.filter(x => x.flowStatus === 'productionCompleted');
+      auditPendingCount.value = auditRows.filter(x => !x.productionSubmittedAt).length;
+      auditSubmittedCount.value = auditRows.filter(x => !!x.productionSubmittedAt).length;
+      if (auditSubmitFilter.value === 'pending') filtered = filtered.filter(x => !x.productionSubmittedAt);
+      else if (auditSubmitFilter.value === 'submitted') filtered = filtered.filter(x => !!x.productionSubmittedAt);
+    }
+
     // ⭐ 按 subStatus 过滤
     if (activeTab.value === 'factoryProcessing' && subStatus.value) {
       filtered = filtered.filter(x => x.flowStatus === subStatus.value);
@@ -835,6 +1239,9 @@ const loadData = async () => {
     pagination.total = filtered.length;
     const start = (pagination.current - 1) * pagination.pageSize;
     tableData.value = filtered.slice(start, start + pagination.pageSize);
+
+    // ⭐ 审核模式：拉取本页订单的销售行 / 成本行（用于展开行对比）
+    loadCostsForAudit();
 
   } catch (error) {
     console.error('加载数据失败:', error);
@@ -875,6 +1282,7 @@ const handleSelectionChange = (selection) => {
 // ============================================================
 const handleRowClick = (row, column) => {
   if (column.type === 'selection') return;
+  if (column.type === 'expand') return;
   if (column.label === '操作') return;
   currentFlowOrderId.value = row.orderId;
   currentFlowOrderNo.value = row.orderNo;
@@ -888,7 +1296,8 @@ const handleRowClick = (row, column) => {
 const goRepair = (row) => {
   router.push({
     name: 'RepairCreate',
-    query: { orderId: row.orderId }
+    // ⭐ from：维修单保存/取消后回到当前这一页（订单编辑就回订单编辑列表）
+    query: { orderId: row.orderId, from: route.fullPath }
   });
 };
 
@@ -952,11 +1361,15 @@ const confirmStatusUpdate = async () => {
 
   statusLoading.value = true;
   try {
-    const label = statusOptions.value.find(s => s.value === selectedStatus.value)?.label || selectedStatus.value;
+    // 提示文案用不带「（回退）」后缀的原名
+    const label = productionStatuses.value.find(s => s.value === selectedStatus.value)?.label
+      || selectedStatus.value;
+    // ⭐ 工序进度跟目标状态走（回退时不能留旧进度）
+    const targetIdx = productionStatuses.value.findIndex(s => s.value === selectedStatus.value);
 
     await updateProduction(currentOrder.value.orderId, {
       status: selectedStatus.value,
-      step: 0,
+      step: targetIdx >= 0 ? targetIdx + 1 : 0,
       remark: statusRemark.value || `制作状态更新为：${label}`,
     });
 
@@ -971,8 +1384,193 @@ const confirmStatusUpdate = async () => {
 };
 
 // ============================================================
+// ⭐ 一键暂停 / 恢复（暂停 = 临时停下，工序进度不变）
+// ============================================================
+const handleQuickPause = async () => {
+  if (!currentOrder.value) return;
+  statusLoading.value = true;
+  try {
+    await updateProduction(currentOrder.value.orderId, {
+      status: 'paused',
+      step: 0,
+      remark: statusRemark.value || '工厂暂停'
+    });
+    ElMessage.success(`已暂停，暂停前工序：${getStatusText(currentOrder.value.flowStatus)}`);
+    statusDialogVisible.value = false;
+    loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '暂停失败');
+  } finally {
+    statusLoading.value = false;
+  }
+};
+
+const handleQuickResume = async () => {
+  if (!currentOrder.value) return;
+  const origin = currentOrder.value.pauseOriginStatus;
+  if (!origin) {
+    ElMessage.warning('没有记录到暂停前的工序，请在下方「更新为」里手动选择要恢复的工序');
+    return;
+  }
+  statusLoading.value = true;
+  try {
+    await updateProduction(currentOrder.value.orderId, {
+      status: origin,
+      step: 0,
+      remark: statusRemark.value || '恢复生产'
+    });
+    ElMessage.success(`已恢复生产：${getStatusText(origin)}`);
+    statusDialogVisible.value = false;
+    loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '恢复失败');
+  } finally {
+    statusLoading.value = false;
+  }
+};
+
+// ============================================================
+// ⭐ 制作完成 → 提交审核 / 撤回（单条）
+// ============================================================
+const handleSubmitAudit = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认提交订单 ${row.orderNo} 的制作完成审核？提交后审核员即可看到。`,
+      '提交审核',
+      { confirmButtonText: '提交', cancelButtonText: '取消', type: 'info' }
+    );
+  } catch { return; }
+
+  try {
+    await submitProductionAudit(row.orderId);
+    ElMessage.success('已提交审核');
+    loadData();
+  } catch (e) {
+    ElMessage.error(e?.message || '提交失败');
+  }
+};
+
+const handleWithdrawAudit = async (row) => {
+  try {
+    await ElMessageBox.confirm(
+      `确认撤回订单 ${row.orderNo} 的审核提交？撤回后审核员将看不到该单，可修改后重新提交。`,
+      '撤回提交',
+      { confirmButtonText: '撤回', cancelButtonText: '取消', type: 'warning' }
+    );
+  } catch { return; }
+
+  try {
+    await withdrawProductionAudit(row.orderId);
+    ElMessage.success('已撤回');
+    loadData();
+  } catch (e) {
+    ElMessage.error(e?.message || '撤回失败');
+  }
+};
+
+// ⭐ 批量提交 / 撤回
+const handleBatchSubmitAudit = async () => {
+  const list = selectedOrders.value.filter(row => isAuditSubmitPending(row));
+  if (list.length === 0) {
+    ElMessage.warning('选中的订单里没有「待提交」的制作完成单');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认提交 ${list.length} 个订单的制作完成审核？`,
+      '批量提交审核',
+      { confirmButtonText: '提交', cancelButtonText: '取消', type: 'info' }
+    );
+  } catch { return; }
+
+  try {
+    const res = await batchProductionAudit(list.map(r => r.orderId), true);
+    const d = res?.data || {};
+    if (d.failedCount > 0) {
+      ElMessage.warning(`已提交 ${d.successCount || 0} 单，${d.failedCount} 单失败（${(d.errors || []).slice(0, 3).map(e => e.message).join('；')}）`);
+    } else {
+      ElMessage.success(`已提交 ${d.successCount ?? list.length} 单`);
+    }
+    tableRef.value?.clearSelection?.();
+    selectedOrders.value = [];
+    loadData();
+  } catch (e) {
+    ElMessage.error(e?.message || '批量提交失败');
+  }
+};
+
+const handleBatchWithdrawAudit = async () => {
+  const list = selectedOrders.value.filter(row => isAuditSubmitted(row));
+  if (list.length === 0) {
+    ElMessage.warning('选中的订单里没有「已提交待审核」的单');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认撤回 ${list.length} 个订单的审核提交？撤回后审核员将看不到这些单。`,
+      '批量撤回',
+      { confirmButtonText: '撤回', cancelButtonText: '取消', type: 'warning' }
+    );
+  } catch { return; }
+
+  try {
+    const res = await batchProductionAudit(list.map(r => r.orderId), false);
+    const d = res?.data || {};
+    if (d.failedCount > 0) {
+      ElMessage.warning(`已撤回 ${d.successCount || 0} 单，${d.failedCount} 单失败`);
+    } else {
+      ElMessage.success(`已撤回 ${d.successCount ?? list.length} 单`);
+    }
+    tableRef.value?.clearSelection?.();
+    selectedOrders.value = [];
+    loadData();
+  } catch (e) {
+    ElMessage.error(e?.message || '批量撤回失败');
+  }
+};
+
+// ============================================================
 // 接单
 // ============================================================
+// ⭐ 批量审核制作完成（通过 / 驳回）——只审已提交的
+const handleBatchAuditProduction = async (approved) => {
+  const list = selectedOrders.value.filter(row => isAuditSubmitted(row));
+  if (list.length === 0) {
+    ElMessage.warning('选中的订单里没有「已提交待审核」的单；未提交审核的订单不能审核');
+    return;
+  }
+  try {
+    const { value: remark } = await ElMessageBox.prompt(
+      `将${approved ? '通过' : '驳回'} ${list.length} 个订单${approved ? '（完成后可继续生成账单）' : '（退回工厂编辑）'}，可填写备注：`,
+      approved ? '批量通过' : '批量驳回',
+      { inputPlaceholder: '备注（可选）', inputValue: '', confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    );
+    auditProductionLoading.value = true;
+    let ok = 0, fail = 0;
+    const failMsg = [];
+    for (const row of list) {
+      try {
+        const res = await auditProduction(row.orderId, { approved, remark: remark || '' });
+        if (res?.success !== false) ok++; else { fail++; failMsg.push(`${row.orderNo}: ${res?.message || '失败'}`); }
+      } catch (e) {
+        fail++;
+        failMsg.push(`${row.orderNo}: ${e?.message || '失败'}`);
+      }
+    }
+    if (ok) ElMessage.success(`已${approved ? '通过' : '驳回'} ${ok} 个订单`);
+    if (fail) ElMessage.warning(`${fail} 个失败：${failMsg.slice(0, 3).join('；')}`);
+    tableRef.value?.clearSelection?.();
+    selectedOrders.value = [];
+    loadData();
+    // ⭐ 批量通过后统一补齐账单 + LR（一次调用覆盖所有客户，幂等不会重复出账）
+    if (approved && ok > 0) await afterBatchProductionApproved();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e?.message || '批量审核失败');
+  } finally {
+    auditProductionLoading.value = false;
+  }
+};
+
 const handleBatchAccept = async () => {
   const acceptList = selectedOrders.value.filter(row => row.flowStatus === 'customerAudited');
   if (acceptList.length === 0) {
@@ -1019,6 +1617,60 @@ const AUDIT_PRODUCTION_TITLES = {
   reject: '驳回审核，订单将回到【工厂编辑】状态',
 };
 
+// ⭐ 制作完成「审核通过」后统一处理：自动生成账单 + LR 表
+//    所有审核入口（单条 / 批量 / 预览弹窗）都必须调用，否则订单会漏出账
+const afterProductionApproved = async (orderId, silent = false) => {
+  try {
+    const r = await autoCreateBill(orderId);
+    const d = r?.data || r;
+    const billId = d?.billId;
+
+    if (d?.skipped) {
+      if (!silent) ElMessage.info('账单：' + (d.message || '没有待出账订单'));
+    } else if (d?.billNo) {
+      ElMessage.success('已自动生成账单 ' + d.billNo +
+        (d.orderCount ? `（含 ${d.orderCount} 个订单）` : ''));
+    }
+
+    if (billId && !d?.skipped) {
+      try {
+        const lr = await generateLr({ billId });
+        if (lr?.success !== false) ElMessage.success('已自动生成 LR 表');
+        else ElMessage.warning('LR 表生成提示：' + (lr?.message || '请到 LR 表管理查看'));
+      } catch (e2) {
+        console.warn('自动生成 LR 失败:', e2);
+        ElMessage.warning('账单已生成，但 LR 表自动生成失败，可在 LR 表管理手动生成');
+      }
+    }
+    return d;
+  } catch (e) {
+    console.warn('自动生成账单失败:', e);
+    ElMessage.warning('订单已审核，但自动生成账单失败，请到「生成账单」页点「补齐未出账订单」');
+    return null;
+  }
+};
+
+// ⭐ 批量通过后用「补齐」接口一次覆盖所有客户，再逐个账单生成 LR
+const afterBatchProductionApproved = async () => {
+  try {
+    const r = await generateMissingBills();
+    const d = r?.data || r || {};
+    const created = d.created || [];
+    if (!created.length) return;
+    ElMessage.success(`已自动生成 ${created.length} 张账单：${created.map(x => x.billNo).join('、')}`);
+    for (const b of created) {
+      try {
+        await generateLr({ billId: b.billId });
+      } catch (e) {
+        console.warn('LR 生成失败:', b.billNo, e);
+      }
+    }
+  } catch (e) {
+    console.warn('批量补齐账单失败:', e);
+    ElMessage.warning('账单自动生成失败，请到「生成账单」页点「补齐未出账订单」');
+  }
+};
+
 const openAuditProductionDialog = (row) => {
   auditProductionRow.value = row;
   auditProductionApproved.value = true;
@@ -1041,35 +1693,7 @@ const confirmAuditProduction = async (approved) => {
       loadData();
 
       // ⭐ 审核通过后自动生成账单 + LR 表（LR 成本行取自订单编辑里录入的成本）
-      if (approved) {
-        try {
-          const r = await autoCreateBill(orderId);
-          const d = r?.data || r;
-          const billId = d?.billId;
-
-          if (d?.skipped) {
-            ElMessage.info('账单：' + (d.message || '当天已有待审账单，未重复生成'));
-          } else if (d?.billNo) {
-            ElMessage.success('已自动生成账单 ' + d.billNo + (d.orderCount ? `（含 ${d.orderCount} 个订单）` : ''));
-          }
-
-          // 新建成功才生成 LR（跳过时该账单可能早已生成过）
-          if (billId && !d?.skipped) {
-            try {
-              const lr = await generateLr({ billId });
-              const lrOk = lr?.success !== false;
-              if (lrOk) ElMessage.success('已自动生成 LR 表');
-              else ElMessage.warning('LR 表生成提示：' + (lr?.message || '请到 LR 表管理查看'));
-            } catch (e2) {
-              console.warn('自动生成 LR 失败:', e2);
-              ElMessage.warning('账单已生成，但 LR 表自动生成失败，可在 LR 表管理手动生成');
-            }
-          }
-        } catch (e) {
-          console.warn('自动生成账单失败:', e);
-          ElMessage.warning('订单已审核，但自动生成账单失败，请在「账单列表 / 生成账单」页手动处理');
-        }
-      }
+      if (approved) await afterProductionApproved(orderId);
     } else {
       ElMessage.error(res.message || '操作失败');
     }
@@ -1085,6 +1709,28 @@ const confirmAuditProduction = async (approved) => {
 // ============================================================
 const handleGenerateBill = (row) => {
   router.push(`/order/bill/create?orderIds=${row.orderId}`);
+};
+
+// ===== 工厂确认取消 =====
+const handleConfirmCancel = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '确认取消后订单将终止（不可恢复）。若已产生费用，请先在订单中完成结算后再确认。可填写确认备注。',
+      '确认取消',
+      {
+        confirmButtonText: '确认取消',
+        cancelButtonText: '再想想',
+        inputType: 'textarea',
+        inputPlaceholder: '可选：填写确认备注',
+        inputValidator: () => true
+      }
+    );
+    await confirmCancel(row.orderId, (value || '').trim());
+    ElMessage.success('已确认取消，订单已终止');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel' && e?.name !== 'cancel') ElMessage.error(e.message || '操作失败');
+  }
 };
 
 const handleBatchGenerateBill = async () => {
@@ -1127,7 +1773,9 @@ const handleBatchGenerateBill = async () => {
 // 跳转
 // ============================================================
 const goFactoryEdit = (orderId) => {
-  router.push(`/order/factory-edit/${orderId}`);
+  // ⭐ 携带当前视图 mode，编辑页保存后按 mode 回跳（edit→factory-edit-list）
+  const q = mode.value ? `?mode=${encodeURIComponent(mode.value)}` : '';
+  router.push(`/order/factory-edit/${orderId}${q}`);
 };
 
 const viewDetail = (id) => {
@@ -1137,6 +1785,46 @@ const viewDetail = (id) => {
 // ============================================================
 // 时间格式化
 // ============================================================
+// ⭐ 金额展示（空值显示 0.00）
+const money = (v) => (v === null || v === undefined || v === '' ? '0.00' : Number(v).toFixed(2));
+
+// ============================================================
+// ⭐ 待审核：打开 Excel 式详情，看完再在详情里审核
+// ============================================================
+const previewVisible = ref(false);
+const previewOrderId = ref(null);
+const previewRow = ref(null);
+const previewAuditLoading = ref(false);
+
+const openAuditPreview = (row) => {
+  // ⭐ 只审核已提交的制作完成单
+  if (!isAuditSubmitted(row)) {
+    ElMessage.warning('该订单尚未提交审核，不能审核');
+    return;
+  }
+  previewRow.value = row;
+  previewOrderId.value = row.orderId;
+  previewVisible.value = true;
+};
+
+const onPreviewAudit = async ({ approved, remark }) => {
+  if (!previewRow.value) return;
+  const orderId = previewRow.value.orderId;
+  previewAuditLoading.value = true;
+  try {
+    await auditProduction(orderId, { approved, remark });
+    ElMessage.success(approved ? '审核通过，订单已完成' : '已驳回，订单退回工厂编辑');
+    previewVisible.value = false;
+    loadData();
+    // ⭐ 审核通过后自动生成账单 + LR（此前这条路径漏了，导致审核通过后没有账单）
+    if (approved) await afterProductionApproved(orderId);
+  } catch (e) {
+    ElMessage.error(e?.message || '审核失败');
+  } finally {
+    previewAuditLoading.value = false;
+  }
+};
+
 const formatDate = (date) => {
   if (!date) return '-';
   const d = new Date(date);
@@ -1147,7 +1835,8 @@ const formatDate = (date) => {
 // 初始化
 // ============================================================
 onMounted(() => {
-  dateRange.value = getDateRange();
+  // ⭐ ?range=all：不限日期
+  dateRange.value = isAllRange() ? [] : getDateRange();
   loadCustomers();
   dictApi.getItemsByKey('production_status').then((res) => {
     productionStatuses.value = (res?.data || []).map(item => ({
@@ -1161,6 +1850,14 @@ onMounted(() => {
   });
   window.addEventListener('keydown', handleEsc);
 });
+
+// ⭐ 同一页面内带参切换（工作台卡片再次点击 / 菜单互跳）时同步筛选条件
+watch(() => [route.query.submit, route.query.range], () => {
+  auditSubmitFilter.value = readSubmitFilter();
+  dateRange.value = isAllRange() ? [] : getDateRange();
+  pagination.current = 1;
+  loadData();
+});
 </script>
 
 <style scoped>
@@ -1168,6 +1865,38 @@ onMounted(() => {
 /* 状态标签可点击（订单编辑视图） */
 .status-clickable { cursor: pointer; }
 .status-clickable:hover { text-decoration: underline; }
+/* ⭐ 暂停状态：橙色暂停条（工厂临时停，可恢复） */
+.paused-status { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.paused-bars {
+  width: 16px; height: 16px; border-radius: 50%;
+  background-color: #e6a23c;
+  box-shadow: 0 0 0 3px rgba(230, 162, 60, 0.2);
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px;
+  flex-shrink: 0;
+}
+.paused-bars i { display: block; width: 2px; height: 7px; background: #fff; border-radius: 1px; }
+.paused-text { color: #e6a23c; font-weight: 700; font-size: 13px; }
+
+/* ⭐ 弹窗里的大号暂停/恢复按钮 */
+.pause-quick {
+  margin: 0 0 16px;
+  padding: 12px;
+  background: #fffaf1;
+  border: 1px dashed #f0c78a;
+  border-radius: 8px;
+}
+.pause-big-btn {
+  width: 100%;
+  height: 52px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.pause-quick-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #a06a00;
+}
 .edit-row-actions { display: flex; justify-content: center; gap: 4px; }
 .no-action { color: #c0c4cc; }
 .customer-salesman { color: #606266; }
@@ -1181,6 +1910,16 @@ onMounted(() => {
   gap: 8px;
 }
 .page-header h2 { font-size: 18px; font-weight: 600; margin: 0; }
+/* ⭐ 标题 + 小字提示（提示换行到标题下方，不挤右侧按钮） */
+.header-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.audit-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
+  border-left: 3px solid #dcdfe6;
+  padding-left: 6px;
+  max-width: 760px;
+}
 
 /* ===== 一级 Tab ===== */
 .order-tabs-wrapper {
@@ -1252,6 +1991,7 @@ onMounted(() => {
   color: #606266;
 }
 .summary-bar b { color: #303133; }
+.summary-bar .range-hint { color: #909399; font-size: 12px; margin-left: -14px; }
 
 :deep(.el-table .cell) { padding: 6px 8px; }
 :deep(.el-table .el-table__row) { cursor: pointer; }
@@ -1329,6 +2069,41 @@ onMounted(() => {
 }
 
 /* ===== 全屏模式 ===== */
+/* ===== ⭐ 审核模式：每个订单之间加红色分隔线（预示一个订单结束） ===== */
+.is-audit-mode :deep(.el-table__body-wrapper .el-table__row) {
+  border-bottom: 3px solid #f56c6c;
+}
+/* 展开行（成本/销售对比）内部不再被上面的红色线覆盖，本身底部也加一条更明显的红线收尾 */
+.is-audit-mode :deep(.el-table__expanded-cell) {
+  border-bottom: 3px solid #f56c6c;
+}
+.is-audit-mode :deep(.el-table__expanded-cell .expand-cost-wrap) {
+  border-bottom: none;
+}
+
+/* ===== ⭐ 审核模式：销售 / 成本 对比展开行 ===== */
+.expand-cost-wrap {
+  padding: 8px 12px 10px 12px;
+  background: #fbfcfe;
+  border-top: 1px dashed #dcdfe6;
+  border-bottom: 1px dashed #dcdfe6;
+}
+.expand-loading { padding: 14px; color: #909399; font-size: 13px; }
+.cost-state-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.2; }
+.cost-profit-line { font-size: 11px; color: #909399; font-family: Consolas, Monaco, monospace; white-space: nowrap; }
+.table-fullscreen :deep(.cost-profit-line) { font-size: 13px; }
+.audit-warn-tip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 32px;
+  border-radius: 4px;
+  background: #fef0f0;
+  color: #d64545;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .page-container.is-fullscreen {
   position: fixed;
   inset: 0;
@@ -1347,6 +2122,21 @@ onMounted(() => {
 .table-fullscreen :deep(.el-table__cell) {
   font-size: 16px !important;
   padding: 14px 10px !important;
+}
+
+/* 展开的对比表保持原尺寸（否则被全屏 16px 撑爆、数字换行） */
+.table-fullscreen :deep(.expand-cost-wrap .el-table__cell) {
+  font-size: 14px !important;
+  padding: 4px 6px !important;
+}
+.table-fullscreen :deep(.expand-cost-wrap .el-table__header .el-table__cell) {
+  font-size: 14px !important;
+  padding: 8px 6px !important;
+}
+.table-fullscreen :deep(.expand-cost-wrap .el-tag) {
+  font-size: 12px !important;
+  padding: 0 6px !important;
+  height: 20px !important;
 }
 
 .table-fullscreen :deep(.el-table__header .el-table__cell) {

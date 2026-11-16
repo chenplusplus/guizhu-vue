@@ -36,14 +36,15 @@
       <el-button link type="primary" @click="quickMonth(0)">本月</el-button>
       <el-button link type="primary" @click="quickMonth(-1)">上月</el-button>
       <el-divider direction="vertical" />
-      <el-button type="success" icon="Plus" @click="openCreateDialog">+ 快捷收款/收料</el-button>
       <el-button type="warning" icon="List" @click="openOrderCollectDialog">按订单收款</el-button>
       <el-button icon="Refresh" @click="loadSummary">刷新</el-button>
     </div>
 
     <!-- 汇总表：每客户一行（应收 / 已收 / 未收） -->
     <div class="table-wrap">
-      <el-table :data="summaryList" stripe border size="small" v-loading="loading" @row-click="openDrawer" highlight-current-row>
+      <el-table :data="summaryList" stripe border size="small" v-loading="loading" @row-click="openDrawer" highlight-current-row
+        :scrollbar-always-on="true"
+      >
         <el-table-column prop="customerName" label="客户" min-width="130" fixed />
 
         <!-- 本月金额：应收 / 已收 / 未收 -->
@@ -128,7 +129,9 @@
         <span>已收金料：<strong class="recv-pos">{{ fmtWeight(paySumMaterial) }}</strong></span>
         <span>已收金额：<strong class="recv-pos">{{ fmtMoney(paySumMoney) }}</strong></span>
       </div>
-      <el-table :data="payDetailList" border stripe size="small" v-loading="payDetailLoading" max-height="420">
+      <el-table :data="payDetailList" border stripe size="small" v-loading="payDetailLoading" max-height="420"
+        :scrollbar-always-on="true"
+      >
         <el-table-column prop="recordDate" label="日期" width="110">
           <template #default="{row}">{{ fmtDate(row.recordDate) }}</template>
         </el-table-column>
@@ -156,10 +159,7 @@
         </el-table-column>
       </el-table>
       <el-empty v-if="payDetailList.length === 0 && !payDetailLoading" description="该月暂无收款记录" />
-      <template #footer>
-        <el-button @click="payDetailVisible = false">关闭</el-button>
-        <el-button type="primary" @click="openCreateDialog">+ 新增收款</el-button>
-      </template>
+     
     </el-dialog>
 
     <!-- 编辑收款弹窗 -->
@@ -284,6 +284,7 @@
         max-height="420"
         v-loading="collectLoading"
         @selection-change="onSelectionChange"
+        :scrollbar-always-on="true"
       >
         <el-table-column type="selection" width="40" />
         <el-table-column prop="orderNo" label="订单号" width="130" />
@@ -291,7 +292,14 @@
         <el-table-column prop="customerName" label="客户" min-width="100" show-overflow-tooltip />
         <el-table-column prop="salesman" label="销售" width="80" />
         <el-table-column prop="productName" label="品名" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="color" label="成色" width="70" />
+        <el-table-column label="成色" width="70" align="center">
+          <template #default="{ row }">
+            <PurityCell :label="row.purityLabel" :color="row.color" />
+          </template>
+        </el-table-column>
+        <el-table-column label="颜色" width="80" align="center">
+          <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="quantity" label="数量" width="55" align="center" />
         <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="90" align="right">
           <template #default="{row}">{{ fmtWeight(row.goldMaterialWeight) }}</template>
@@ -390,6 +398,8 @@ import {
 } from '@/api/customer-payment';
 import { getCustomerList } from '@/api/customer';
 import { getAvailableBillsForLr } from '@/api/lr';
+import { resolveGemColor } from '@/utils/color';
+import PurityCell from '@/components/PurityCell.vue';
 
 const router = useRouter();
 
@@ -604,21 +614,6 @@ const onBillChange = (billId) => {
   if (!billId) { form.value.billNo = ''; return; }
   const b = billOptions.value.find(x => x.billId === billId);
   form.value.billNo = b?.billNo || '';
-};
-
-const openCreateDialog = () => {
-  form.value = {
-    customerId: null,
-    customerName: '',
-    billId: null,
-    billNo: '',
-    paymentMethod: 'cash',
-    goldMaterial: 0,
-    amount: 0,
-    recordDate: new Date().toISOString().slice(0, 10),
-    remark: ''
-  };
-  dialogVisible.value = true;
 };
 
 const submitForm = async () => {

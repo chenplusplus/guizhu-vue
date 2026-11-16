@@ -131,16 +131,16 @@
       <div class="loss-config-container">
         <div class="loss-toolbar">
           <div class="loss-tip">
-            💡 配置后，金录入选该供应商 + 材质时会自动带出【折算率】【损耗】【补口】
+            💡 配置后，金录入选该供应商 + 成色时会自动带出【折算率】【损耗】【补口】
           </div>
           <el-button type="primary" size="small" @click="addLossRow">
-            <el-icon><Plus /></el-icon> 新增材质
+            <el-icon><Plus /></el-icon> 新增成色
           </el-button>
         </div>
 
         <el-table :data="lossList" border stripe size="small" style="margin-top:12px;">
           <!-- 材质/成色 -->
-          <el-table-column label="材质/成色" width="160">
+          <el-table-column label="成色" width="160">
             <template #default="{ row }">
               <el-select v-model="row.materialType" placeholder="选择" size="small" filterable allow-create style="width:100%;" @change="onMaterialChange(row)">
                 <el-option v-for="m in materialOptions" :key="m" :label="m" :value="m"
@@ -466,7 +466,8 @@ const onMaterialChange = (row) => {
 const calcFoldRate = (row) => {
   const cr = Number(row.convertRate) || 0;
   const lr = Number(row.lossRate) || 0;
-  return (cr * lr).toFixed(4);
+  // 展示按百分比两位（系数仍按 4 位存储/输入）
+  return ((cr * lr) * 100).toFixed(2) + '%';
 };
 
 const isMaterialDisabled = (currentRow, material) => {
@@ -484,13 +485,13 @@ const getFoldTagType = (cat) => {
 const saveLossConfig = async () => {
   for (const item of lossList.value) {
     if (!item.materialType) {
-      ElMessage.warning('请选择材质');
+      ElMessage.warning('请选择成色');
       return;
     }
   }
   const types = lossList.value.map(x => x.materialType);
   if (new Set(types).size !== types.length) {
-    ElMessage.warning('存在重复的材质配置');
+    ElMessage.warning('存在重复的成色配置');
     return;
   }
 

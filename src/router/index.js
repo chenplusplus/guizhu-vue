@@ -200,10 +200,16 @@ const routes = [
         meta: { title: '制作审核', roles: ['factoryAudit', 'admin'] }
       },
       {
+        // ⭐ 客户审批中心：申请修改 / 申请取消 / 申请暂停（?tab=modify|cancel|pause）
+        path: 'order/customer-approval',
+        name: 'CustomerApproval',
+        component: () => import('@/views/order/customer-approval.vue'),
+        meta: { title: '客户审批中心', roles: ['customer', 'customerAudit', 'factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        // 旧「修改过订单」入口兼容：直接跳到审批中心的修改 tab
         path: 'order/modify-list',
-        name: 'OrderModifyList',
-        component: () => import('@/views/order/modify-list.vue'),
-        meta: { title: '修改订单', roles: ['customer', 'customerAudit', 'factoryOrder', 'factoryAudit', 'admin'] }
+        redirect: { name: 'CustomerApproval', query: { tab: 'modify' } }
       },
       {
         path: 'order/import',
@@ -220,19 +226,33 @@ const routes = [
         component: () => import('@/views/order/return-list.vue'),
         meta: { title: '退货记录', icon: '↩️' }
       },
+      {
+        // ⭐ 退货处理（工厂操作员）：与「退货记录」共用同一个页面组件，靠 meta.mode 切到处理模式
+        path: 'order/return-process',
+        name: 'ReturnProcess',
+        component: () => import('@/views/order/return-list.vue'),
+        meta: { title: '退货处理', icon: '🛠️', mode: 'process', roles: ['factoryOrder', 'admin'] }
+      },
+      {
+        // ⭐ 退货审核（工厂审核员）：同样复用 return-list.vue，meta.mode='audit'
+        path: 'order/return-audit',
+        name: 'ReturnAudit',
+        component: () => import('@/views/order/return-list.vue'),
+        meta: { title: '退货审核', icon: '🔍', mode: 'audit', roles: ['factoryAudit', 'admin'] }
+      },
 
       // ===== 账单模块 =====
       {
         path: 'order/bill/list',
         name: 'BillList',
         component: () => import('@/views/order/bill-list.vue'),
-        meta: { title: '账单列表', roles: ['factoryOrder', 'admin'] }
+        meta: { title: '账单状态', roles: ['factoryOrder', 'admin'] }
       },
       {
         path: 'order/bill/create',
         name: 'BillCreate',
         component: () => import('@/views/order/bill-create.vue'),
-        meta: { title: '生成账单' }
+        meta: { title: '生成账单', roles: ['factoryOrder', 'admin'] }
       },
       {
         path: 'order/bill/edit/:id?',
@@ -244,13 +264,42 @@ const routes = [
         path: 'order/bill/audit',
         name: 'BillAudit',
         component: () => import('@/views/order/bill-audit.vue'),
-        meta: { title: '账单审核' }
+        meta: { title: '账单审核', roles: ['factoryAudit', 'admin'] }
       },
       {
         path: 'order/bill/my-list',
         name: 'BillMyList',
         component: () => import('@/views/order/bill-my-list.vue'),
-        meta: { title: '我的账单' }
+        meta: { title: '我的账单', roles: ['customer', 'customerAudit', 'factoryOrder', 'admin'] }
+      },
+      {
+        // ⭐ 待确认账单：只列当前角色「待我处理」的账单（客户审核员 billConfirmed / 业务员 customerApproved）
+        //    与「我的账单」共用同一页面组件，通过 stage=confirm 区分，默认不限日期
+        path: 'order/bill/confirm',
+        name: 'BillConfirm',
+        component: () => import('@/views/order/bill-my-list.vue'),
+        meta: { title: '待确认账单', roles: ['customer', 'customerAudit', 'admin'] }
+      },
+      {
+        // ⭐ 生成账单：制作完成审核通过后自动生成的账单（待提交/待审核），可编辑、提交审核
+        //    与「我的账单」共用同一个页面组件，通过 stage=generate 区分
+        path: 'order/bill/generate',
+        name: 'BillGenerate',
+        component: () => import('@/views/order/bill-my-list.vue'),
+        meta: { title: '生成账单', roles: ['factoryOrder', 'admin'] }
+      },
+      {
+        // ⭐ 账单付款：客户侧只读，列「已确认但还没付清」的账单，付清后自动移出
+        //    与工厂「账单收款」同一套账单预览，按天分组，不能做任何操作
+        path: 'order/bill/payment',
+        name: 'BillPayment',
+        component: () => import('@/views/order/bill-my-list.vue'),
+        meta: { title: '账单付款', roles: ['customer', 'customerAudit', 'admin'] }
+      },
+      {
+        // ⭐ 旧「收款记录」页（已到账流水）已并入「账单付款」，保留旧链接重定向
+        path: 'order/bill/receipt-record',
+        redirect: '/order/bill/payment'
       },
       {
         // ⭐ 账单收款（填写实际收款 → 提交审核）
@@ -307,10 +356,15 @@ const routes = [
 
       // LR表
       {
+        path: 'order/lr/detail/:lrId',
+        name: 'LrDetail',
+        component: () => import('@/views/order/lr-detail.vue'),
+        meta: { title: 'LR表详情', icon: '📊', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
+      },
+      // 旧编辑入口已停用：LR 由订单审核自动生成、只读，统一跳详情（后端按 billId 也能查）
+      {
         path: 'order/lr/edit/:billId',
-        name: 'LrEditor',
-        component: () => import('@/views/order/lr-editor.vue'),
-        meta: { title: 'LR表编辑', icon: '📊', roles: ['factoryOrder', '工厂业务员', 'factoryAudit', '工厂审核员', 'admin'] }
+        redirect: (to) => ({ name: 'LrDetail', params: { lrId: to.params.billId } })
       },
       {
         path: 'order/lr/list',
@@ -386,7 +440,15 @@ const routes = [
         path: 'system/gold-price',
         name: 'GoldPrice',
         component: () => import('@/views/system/gold-price.vue'),
-        meta: { title: '金价管理', roles: ['admin'] }
+        // ⭐ 金价库：工厂填、客户审核员审、工厂审核员审；客户只读（工作台横幅查看，不给菜单）
+        meta: { title: '金价库', roles: ['factoryOrder', 'customerAudit', 'factoryAudit', 'admin'] }
+      },
+      {
+        path: 'system/gold-price-history',
+        name: 'GoldPriceHistory',
+        component: () => import('@/views/system/gold-price-history.vue'),
+        // ⭐ 历史金价库：只读，四个角色（客户下单员 / 客户审核员 / 工厂操作员 / 工厂审核员）都能看
+        meta: { title: '历史金价库', roles: ['customer', 'customerAudit', 'factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
         path: 'system/diamond-price',
@@ -409,28 +471,42 @@ const routes = [
 
       // ===== 总进出模块 =====
       {
+        // 全量合并流水（金料/钻石/金额 只读总表），录入走「进模块 / 出模块」
         path: 'inout/list',
         name: 'InoutList',
         component: () => import('@/views/inout/list.vue'),
         meta: { title: '总进出管理' }
       },
       {
+        // 旧「总进出录入」已废弃：原来写的是 inout_records（无对应后端接口），
+        // 现在录入统一走 进模块 / 出模块 的 金料·钻石·金额 录入页
         path: 'inout/create',
-        name: 'InoutCreate',
-        component: () => import('@/views/inout/create.vue'),
-        meta: { title: '总进出录入' }
+        redirect: { path: '/inout/in-hub' }
       },
       {
+        // 旧「总进出详情」同理，兜底回总表
         path: 'inout/detail/:id',
-        name: 'InoutDetail',
-        component: () => import('@/views/inout/detail.vue'),
-        meta: { title: '总进出详情' }
+        redirect: { path: '/inout/list' }
       },
       {
         path: 'inout/report/counterparty',
         name: 'CounterpartySummary',
         component: () => import('@/views/inout/counterparty-summary.vue'),
         meta: { title: '往来单位汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        // 供应商对账单：汇总 / 按成色汇总 / 明细（欠料 + 欠款）
+        path: 'inout/report/statement',
+        name: 'StatementReport',
+        component: () => import('@/views/inout/statement.vue'),
+        meta: { title: '供应商对账单', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+      },
+      {
+        // 收入结构：工费 / 镶石 / 钻石卖出（月度统计，老板视角）
+        path: 'report/revenue',
+        name: 'RevenueStructure',
+        component: () => import('@/views/report/revenue-structure.vue'),
+        meta: { title: '收入结构', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
 
       // ===== 总进出新模块（26分类×5维度矩阵） =====
@@ -607,6 +683,13 @@ const routes = [
         name: 'InoutExpenseList',
         component: () => import('@/views/inout/expense-list.vue'),
         meta: { title: '费用录入列表', requiresAuth: true }
+      },
+      // ⭐ 单据审核详情页（金 / 钻石 / 费用 共用，type = gold|diamond|expense）
+      {
+        path: 'inout/audit-detail/:type/:id',
+        name: 'InoutAuditDetail',
+        component: () => import('@/views/inout/audit-detail.vue'),
+        meta: { title: '单据审核', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
         path: 'inout/material-loss-config',

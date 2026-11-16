@@ -41,6 +41,8 @@ const props = defineProps({
   sourceId: { type: [String, Number], required: true },
   // 字段标签映射（可选），默认空则用原始字段名
   fieldLabels: { type: Object, default: () => ({}) },
+  // 需要排除的 action：账单明细留痕（edit）由 BillModifyTrail 单独红色展示，避免同页重复
+  excludeActions: { type: Array, default: () => [] },
 })
 
 const changeLogs = ref([])
@@ -63,7 +65,9 @@ const loadLogs = async () => {
   if (!props.sourceId) return
   try {
     const res = await getValueChangeLogs(props.sourceType, String(props.sourceId))
-    const items = res?.data || []
+    const items = (res?.data || []).filter(
+      log => !props.excludeActions.includes(log.action)
+    )
     changeLogs.value = items.map(log => {
       const changes = log.changes || {}
       const changeList = Object.keys(changes).map(k => ({

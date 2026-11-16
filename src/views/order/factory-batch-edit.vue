@@ -138,7 +138,17 @@
         </el-table-column>
 
         <el-table-column label="成色" width="70" align="center">
-          <template #default="{ row }">{{ row.color || '-' }}</template>
+          <template #default="{ row }">
+            <span>{{ row.color || '-' }}</span>
+            <!-- ⭐ 一件货多成色：批量编辑改不了分色，需要进单件编辑 -->
+            <el-tooltip v-if="row._multiGold" :content="`多成色（${row.purityLabel}）：净重/损耗/金价请在单件编辑页按成色录入`" placement="top">
+              <el-tag size="small" type="warning" effect="plain" class="multi-tag">多色</el-tag>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="颜色" width="70" align="center">
+          <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
         </el-table-column>
 
         <el-table-column label="手寸" width="70" align="center">
@@ -177,12 +187,12 @@
                   v-model="row.netWeight"
                   :precision="3" :min="0" :controls="false"
                   size="small"
-                  :disabled="!row._editable || row._saved"
+                  :disabled="!row._editable || row._saved || row._multiGold"
                   style="width: 100%"
                   @change="() => recalcRow(row)"
                 />
                 <FillHandle
-                  v-if="row._editable && !row._saved"
+                  v-if="row._editable && !row._saved && !row._multiGold"
                   @fill-start="(e) => startFill(e, row, 'netWeight')"
                 />
               </div>
@@ -196,7 +206,7 @@
                   v-model="row.lossRate"
                   size="small"
                   :class="{ 'loss-warning': !isStandardLoss(row.lossRate) }"
-                  :disabled="!row._editable || row._saved"
+                  :disabled="!row._editable || row._saved || row._multiGold"
                   style="width: 100%"
                   @change="() => recalcRow(row)"
                 >
@@ -208,7 +218,7 @@
                   />
                 </el-select>
                 <FillHandle
-                  v-if="row._editable && !row._saved"
+                  v-if="row._editable && !row._saved && !row._multiGold"
                   @fill-start="(e) => startFill(e, row, 'lossRate')"
                 />
               </div>
@@ -224,7 +234,7 @@
           <el-table-column label="折算率" width="70" align="center">
             <template #default="{ row }">
               <span style="color: #909399; font-size: 12px;">
-                {{ getPurityRate(row.purityId) }}
+                {{ row._multiGold ? '多色' : getPurityRate(row.purityId) }}
               </span>
             </template>
           </el-table-column>
@@ -236,12 +246,12 @@
                   v-model="row.goldPrice"
                   :precision="2" :min="0" :controls="false"
                   size="small"
-                  :disabled="!row._editable || row._saved"
+                  :disabled="!row._editable || row._saved || row._multiGold"
                   style="width: 100%"
                   @change="() => recalcRow(row)"
                 />
                 <FillHandle
-                  v-if="row._editable && !row._saved"
+                  v-if="row._editable && !row._saved && !row._multiGold"
                   @fill-start="(e) => startFill(e, row, 'goldPrice')"
                 />
               </div>
@@ -574,6 +584,7 @@ import { getCustomerList } from '@/api/customer'
 import { dictApi } from '@/api/dict'
 import { useUserStore } from '@/stores/user'
 import FillHandle from '@/components/FillHandle.vue'
+import { resolveGemColor } from '@/utils/color'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -711,17 +722,22 @@ const isStandardLoss = (lr) => {
 
 // ==================== 行计算 ====================
 const recalcRow = (row) => {
-  const netWeight = Number(row.netWeight) || 0
-  const loss = Number(row.lossRate) || 1.10
-  const gold = Number(row.goldPrice) || 0
+  // ⭐ 多成色：净重/金料由各成色明细汇总得来，批量页算不了，直接保持后端值
+  // ⭐ 多成色：净重/损耗/金价由各成色明细汇总，批量页算不了，沿用后端值；
+  //    钻石、工费这些单值字段照常重算，总金额也照常跟着变
+  if (!row._multiGold) {
+    const netWeight = Number(row.netWeight) || 0
+    const loss = Number(row.lossRate) || 1.10
+    const gold = Number(row.goldPrice) || 0
 
-  // 加耗重
-  const addLossWeight = netWeight * loss
-  row.addLossWeight = parseFloat(addLossWeight.toFixed(3))
+    // 加耗重
+    const addLossWeight = netWeight * loss
+    row.addLossWeight = parseFloat(addLossWeight.toFixed(3))
 
-  // ⭐ 统一按克计料：足金料克重 = 加耗重（不乘折算率，与后端账单重算一致）
-  row.goldMaterialWeight = parseFloat(addLossWeight.toFixed(3))
-  row.goldMaterialFee = parseFloat((row.goldMaterialWeight * gold).toFixed(2))
+    // ⭐ 统一按克计料：足金料克重 = 加耗重（不乘折算率，与后端账单重算一致）
+    row.goldMaterialWeight = parseFloat(addLossWeight.toFixed(3))
+    row.goldMaterialFee = parseFloat((row.goldMaterialWeight * gold).toFixed(2))
+  }
 
   // 统一不计折现金
   row.goldConvertCash = false
@@ -774,6 +790,9 @@ const normalizeRow = (detail, editable) => ({
   _saved: false,
   _error: null,
   _dirty: false,
+  // ⭐ 一件货多成色：≥2 种成色时批量编辑不能改金料（净重/损耗/金价以分色明细为准）
+  _multiGold: (detail.goldItems || []).filter(x => Number(x.netWeight) > 0).length > 1,
+  purityLabel: detail.purityLabel || '',
   // 只读
   orderId: detail.orderId,
   orderNo: detail.orderNo,
@@ -1247,5 +1266,12 @@ onBeforeUnmount(() => {
 .loss-warning :deep(.el-input__inner) {
   color: #f56c6c !important;
   font-weight: 600;
+}
+
+/* ⭐ 一件货多成色：成色列的多色标记 */
+.multi-tag {
+  margin-left: 4px;
+  transform: scale(0.85);
+  transform-origin: left center;
 }
 </style>

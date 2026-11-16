@@ -245,7 +245,7 @@ const statusType = (s) => ({ draft: 'info', confirming: 'warning', confirmed: 's
 const statusText = (s) => ({ draft: '草稿', confirming: '待确认', confirmed: '已确认' }[s] || s);
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('zh-CN', { hour12: false }) : '—';
 const fmtMoney = (v) => v == null ? '—' : Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtWeight = (v) => v == null ? '—' : Number(v).toFixed(3) + 'g';
+const fmtWeight = (v) => v == null ? '—' : Number(v).toFixed(2) + 'g';
 
 onMounted(loadData);
 </script>

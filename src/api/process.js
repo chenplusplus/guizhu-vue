@@ -20,3 +20,11 @@ export const auditProcessReceipt = (data) => api.post('/process/audit', data);
 // ===== 统计 =====
 export const getProcessStats = (params) => api.get('/process/stats', { params });
 export const getGlobalStats = (params) => api.get('/process/stats/global', { params });
+
+// ===== 师傅收发统计（全局统计页）=====
+export const getMasterStats = (params) => api.get('/process/stats/masters', { params });
+export const getMasterRecords = (params) => api.get('/process/stats/records', { params });
+export const getMasterStatsOptions = () => api.get('/process/stats/filter-options');
+
+// ===== 师傅累计（录入页上单/本单/累计联动）=====
+export const getMasterLastTotal = (params) => api.get('/process/master/last-total', { params });

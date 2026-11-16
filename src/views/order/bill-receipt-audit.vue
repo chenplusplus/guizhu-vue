@@ -27,7 +27,9 @@
         </div>
       </template>
 
-      <el-table :data="rows" border size="small" v-loading="loading" empty-text="暂无收款单">
+      <el-table :data="rows" border size="small" v-loading="loading" empty-text="暂无收款单"
+        :scrollbar-always-on="true"
+      >
         <el-table-column prop="billNo" label="账单号" min-width="150" show-overflow-tooltip>
           <template #default="{ row }">
             <span class="mono">{{ row.billNo }}</span>
@@ -38,19 +40,30 @@
         <el-table-column label="账单日期" width="110" align="center">
           <template #default="{ row }">{{ fmtDate(row.billDate) }}</template>
         </el-table-column>
-        <el-table-column label="应收" width="120" align="right">
-          <template #default="{ row }">¥{{ num(row.receiptReceivable).toFixed(2) }}</template>
+        <el-table-column label="应收" width="115" align="right">
+          <template #default="{ row }">¥{{ yuan(row.receiptReceivable) }}</template>
         </el-table-column>
-        <el-table-column label="实收" width="120" align="right">
+        <el-table-column label="实收" width="110" align="right">
           <template #default="{ row }">
             <b class="actual">¥{{ num(row.receiptActual).toFixed(2) }}</b>
           </template>
         </el-table-column>
-        <el-table-column label="差额" width="110" align="right">
+        <el-table-column label="抵扣" width="105" align="right">
           <template #default="{ row }">
-            <span :class="{ warn: Math.abs(num(row.receiptReceivable) - num(row.receiptActual)) > 0.001 }">
-              ¥{{ (num(row.receiptReceivable) - num(row.receiptActual)).toFixed(2) }}
+            <b class="offset">¥{{ num(row.receiptOffset).toFixed(2) }}</b>
+          </template>
+        </el-table-column>
+        <el-table-column label="差额" width="105" align="right">
+          <template #default="{ row }">
+            <span :class="{ warn: Math.abs(num(row.receiptReceivable) - num(row.receiptActual) - num(row.receiptOffset)) > 0.001 }">
+              ¥{{ (num(row.receiptReceivable) - num(row.receiptActual) - num(row.receiptOffset)).toFixed(2) }}
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="收款方式" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.receiptMethod" size="small" effect="plain">{{ row.receiptMethod }}</el-tag>
+            <span style="color:#c0c4cc">—</span>
           </template>
         </el-table-column>
         <el-table-column label="已收行" width="90" align="center">
@@ -98,8 +111,10 @@
         <div v-if="current" class="drawer-summary">
           <span>账单号 <b>{{ current.billNo }}</b></span>
           <span>客户 <b>{{ current.customerName }}</b></span>
-          <span>应收 <b>¥{{ num(current.receiptReceivable).toFixed(2) }}</b></span>
+          <span>应收 <b>¥{{ yuan(current.receiptReceivable) }}</b></span>
           <span>实收 <b class="actual">¥{{ num(current.receiptActual).toFixed(2) }}</b></span>
+          <span>抵扣 <b class="offset">¥{{ num(current.receiptOffset).toFixed(2) }}</b></span>
+          <span v-if="current.receiptMethod">收款方式 <b>{{ current.receiptMethod }}</b></span>
           <span>状态 <el-tag size="small" :type="statusTag(current.receiptStatus)">{{ statusText(current.receiptStatus) }}</el-tag></span>
         </div>
         <BillPreviewSheet
@@ -131,11 +146,13 @@
           账单 <b>{{ auditRow?.billNo }}</b>　客户 <b>{{ auditRow?.customerName }}</b>
         </div>
         <div class="audit-line">
-          应收 <b>¥{{ num(auditRow?.receiptReceivable).toFixed(2) }}</b>　
-          实收 <b class="actual">¥{{ num(auditRow?.receiptActual).toFixed(2) }}</b>
+          应收 <b>¥{{ yuan(auditRow?.receiptReceivable) }}</b>　
+          实收 <b class="actual">¥{{ num(auditRow?.receiptActual).toFixed(2) }}</b>　
+          抵扣 <b class="offset">¥{{ num(auditRow?.receiptOffset).toFixed(2) }}</b>
+          <template v-if="auditRow?.receiptMethod">　收款方式 <b>{{ auditRow.receiptMethod }}</b></template>
         </div>
         <div v-if="auditApproved" class="audit-tip">
-          通过后将把「来款金额」更新为 ¥{{ num(auditRow?.receiptActual).toFixed(2) }}，并重算累计欠款。
+          通过后将把「来款金额」更新为 ¥{{ num(auditRow?.receiptActual).toFixed(2) }}（抵扣 ¥{{ num(auditRow?.receiptOffset).toFixed(2) }} 不重复计入收入），并重算累计欠款。
         </div>
         <el-input
           v-model="auditRemark"
@@ -184,6 +201,8 @@ const auditing = ref(false);
 const auditRow = ref(null);
 
 const num = (v) => Number(v || 0);
+// 应收金额取整（四舍五入到元）
+const yuan = (v) => String(Math.round(Number(v) || 0));
 const fmtDate = (v) => (v ? String(v).slice(0, 10) : '-');
 const fmtTime = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '-');
 
@@ -305,6 +324,7 @@ onMounted(() => {
 }
 .drawer-summary b { color: #303133; }
 .drawer-summary b.actual { color: #1f9254; }
+.drawer-summary b.offset { color: #1d63c9; }
 .drawer-remark { margin-top: 12px; font-size: 13px; color: #d64545; }
 .drawer-footer { display: flex; justify-content: flex-end; gap: 10px; }
 
@@ -312,8 +332,11 @@ onMounted(() => {
 .audit-line { font-size: 13px; color: #606266; }
 .audit-line b { color: #303133; }
 .audit-line b.actual { color: #1f9254; }
+.audit-line b.offset { color: #1d63c9; }
 .audit-tip {
   font-size: 12px; color: #909399; background: #f7f9fc;
   border: 1px solid #ebeef5; border-radius: 6px; padding: 8px 10px;
 }
+/* ⭐ 抵扣：已在进销存收回的货款 */
+b.offset { color: #1d63c9; }
 </style>

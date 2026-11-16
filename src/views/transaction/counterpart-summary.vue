@@ -40,8 +40,8 @@
           <el-radio-group v-model="direction" size="small" @change="loadMaterial">
             <el-radio-button label="both">收支双列</el-radio-button>
             <el-radio-button label="net">净额</el-radio-button>
-            <el-radio-button label="in">收入侧</el-radio-button>
-            <el-radio-button label="out">支出侧</el-radio-button>
+            <el-radio-button label="in">货款侧</el-radio-button>
+            <el-radio-button label="out">付款侧</el-radio-button>
           </el-radio-group>
 
           <el-checkbox v-model="hideEmpty" size="small">仅显示有数据的列</el-checkbox>
@@ -79,7 +79,7 @@
               <div>
                 <span class="amount-in">{{ formatMoney(row.monthTotalTransaction) }}</span>
                 <div v-if="row.orderTransaction > 0" class="order-sub">
-                  其中订单 <span class="order-amt">¥{{ row.orderTransaction.toFixed(2) }}</span>
+                  其中账单 <span class="order-amt">¥{{ row.orderTransaction.toFixed(2) }}</span>
                 </div>
               </div>
             </template>
@@ -93,7 +93,7 @@
             <template #default="{ row }">
               <div>
                 <span>{{ row.monthTotalWeight > 0 ? row.monthTotalWeight.toFixed(4) : '-' }}</span>
-                <div v-if="row.orderWeight > 0" class="order-sub">其中订单 {{ row.orderWeight.toFixed(4) }}</div>
+                <div v-if="row.orderWeight > 0" class="order-sub">其中账单 {{ row.orderWeight.toFixed(4) }}</div>
               </div>
             </template>
           </el-table-column>
@@ -162,7 +162,7 @@
                   </tr>
                 </template>
 
-                <!-- ========== 单列模式（净额 / 收入侧 / 支出侧）：2 行表头 ========== -->
+                <!-- ========== 单列模式（净额 / 货款侧 / 付款侧）：2 行表头 ========== -->
                 <template v-else>
                   <tr>
                     <th class="idx-col" :rowspan="transposed ? 1 : 2">{{ transposed ? '材质' : '往来单位' }}</th>
@@ -299,7 +299,7 @@ const summaryGrand = ref(null)
 // 视图：summary 汇总 / material 材质明细
 const view = ref('summary')
 const caliber = ref('weight')
-// both 收支双列（默认，一屏同时看收和支）| net 净额 | in 收入侧 | out 支出侧
+// both 收支双列（默认，一屏同时看收和支）| net 净额 | in 货款侧 | out 付款侧
 const direction = ref('both')
 const hideEmpty = ref(true)
 const transposed = ref(false)
@@ -319,7 +319,7 @@ const grandTotal = computed(() => grandTotalMaterial.value)
 
 const isBoth = computed(() => direction.value === 'both')
 
-const directionLabel = computed(() => ({ both: '收支双列', net: '净额', in: '收入侧', out: '支出侧' }[direction.value] || '净额'))
+const directionLabel = computed(() => ({ both: '收支双列', net: '净额', in: '货款侧', out: '付款侧' }[direction.value] || '净额'))
 
 // 收支双列：取某行某材质的收入侧 / 支出侧数值
 function cellOf(row, key, side) {

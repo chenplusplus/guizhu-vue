@@ -1,6 +1,9 @@
 // src/api/index.js
+// ⚠️ 这是**第二个** axios 实例（预警列表等页面在用），提示逻辑要与 utils/request.js 一致，
+//    否则同一个 400 在主实例是中文、在这里还是英文 "Request failed with status code 400"
 import axios from 'axios';
 import { ElMessage } from 'element-plus';
+import { normalizeError } from '@/utils/errorMessage';
 
 const api = axios.create({
   baseURL: '/api',
@@ -42,12 +45,11 @@ api.interceptors.response.use(
       setTimeout(() => {
         window.location.href = '/login';
       }, 1500);
-    } else if (error.response?.status === 500) {
-      ElMessage.error('服务器错误，请稍后重试');
-    } else if (error.code === 'ECONNABORTED') {
-      ElMessage.error('请求超时，请检查网络');
-    } else if (error.message) {
-      ElMessage.error(error.message);
+    } else {
+      // ⭐ 与主实例统一：中文归一化后再弹，并把英文 message 改写掉
+      const friendly = normalizeError(error) || '请求失败';
+      ElMessage.error(friendly);
+      try { error.__msgShown = true } catch { /* ignore */ }
     }
     return Promise.reject(error);
   }

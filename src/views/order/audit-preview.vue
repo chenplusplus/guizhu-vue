@@ -40,6 +40,7 @@
             <th class="col-width">宽/厚度</th>
             <th class="col-qty">数量</th>
             <th class="col-color">成色</th>
+            <th class="col-gemcolor">颜色</th>
             <th class="col-price">金价</th>
             <th class="col-logo">LOGO</th>
             <th class="col-diamond">钻石级别</th>
@@ -110,9 +111,15 @@
             <td class="col-qty">{{ row.quantity || '-' }}</td>
 
             <td class="col-color">
-              <span class="color-dot" :style="{ background: getPurityColor(row) }"></span>
-              {{ row.color || '-' }}
+              <!-- ⭐ 一件货多成色：显示 18K+9K 短标签，悬停看完整成色名 -->
+              <PurityCell v-if="row.purityLabel" :label="row.purityLabel" :color="row.color" />
+              <template v-else>
+                <span class="color-dot" :style="{ background: getPurityColor(row) }"></span>
+                {{ row.color || '-' }}
+              </template>
             </td>
+
+            <td class="col-gemcolor">{{ resolveGemColor(row) || '-' }}</td>
 
             <td class="col-price">{{ row.goldPrice || '-' }}</td>
             <td class="col-logo">{{ row.logoText || '-' }}</td>
@@ -222,7 +229,9 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getOrderList, auditOrder } from '@/api/order'
+import PurityCell from '@/components/PurityCell.vue'
 import { dictApi } from '@/api/dict'
+import { resolveGemColor } from '@/utils/color'
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -261,8 +270,15 @@ const handleCheckAll = (val) => {
 }
 
 // ===== 图片 =====
+// ⭐ 列表接口可能只带主图字段（imageUrl / dataImageUrl / letterImageUrl），
+//    优先用 images 明细（可多图），没有明细时用主图兜底，保证全屏审核能看到图片
+const IMAGE_FALLBACK_FIELD = { product: 'imageUrl', data: 'dataImageUrl', letter: 'letterImageUrl' }
 const getImages = (row, type) => {
-  return (row.images || []).filter(x => x.imageType === type)
+  const list = (row?.images || []).filter(x => x.imageType === type && x.imageUrl)
+  if (list.length) return list
+  const field = IMAGE_FALLBACK_FIELD[type]
+  const url = field ? row?.[field] : ''
+  return url ? [{ imageUrl: url, imageType: type }] : []
 }
 
 // ===== 成色颜色 =====
@@ -562,6 +578,7 @@ onMounted(async () => {
 .col-width { width: 90px; min-width: 90px; }
 .col-qty { width: 60px; min-width: 60px; }
 .col-color { width: 100px; min-width: 100px; }
+.col-gemcolor { width: 90px; min-width: 90px; }
 .col-price { width: 80px; min-width: 80px; }
 .col-logo { width: 100px; min-width: 100px; }
 .col-diamond { width: 90px; min-width: 90px; }

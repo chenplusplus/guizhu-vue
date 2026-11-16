@@ -38,6 +38,10 @@
           <el-descriptions-item label="标准损耗">{{ detail.standardLossG?.toFixed(3) }} g</el-descriptions-item>
           <el-descriptions-item label="应回金"><span class="recycle">{{ detail.shouldRecycleG?.toFixed(3) }} g</span></el-descriptions-item>
           <el-descriptions-item label="损耗率">{{ lossRate }}%</el-descriptions-item>
+          <el-descriptions-item label="标准损耗率" v-if="detail.extraFields?.lossRatePct != null">
+            {{ Number(detail.extraFields.lossRatePct).toFixed(2) }}%
+            <span class="rate-base">（按{{ detail.mainProcess === 'ZM' ? '回收' : '发出' }}重量计）</span>
+          </el-descriptions-item>
         </el-descriptions>
       </div>
 
@@ -174,5 +178,6 @@ onMounted(loadDetail);
 .section-title { font-size: 14px; font-weight: 600; color: #409EFF; margin-bottom: 16px; padding-left: 8px; border-left: 3px solid #409EFF; }
 .loss { color: #E6A23C; font-weight: bold; }
 .recycle { color: #67C23A; font-weight: bold; }
+.rate-base { font-size: 11px; color: #a8abb2; }
 .scrap { color: #F56C6C; }
 </style>

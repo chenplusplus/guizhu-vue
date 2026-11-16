@@ -16,6 +16,7 @@
             placeholder="请输入用户名"
             size="large"
             prefix-icon="User"
+            @blur="form.username = trimName(form.username)"
           />
         </el-form-item>
 
@@ -75,8 +76,13 @@ const rules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 };
 
+// ⭐ 用户名去掉前后空白（含全角空格 / 不换行空格），中间空格保留
+const trimName = (v) => (v || '').replace(/^[\s\u3000\u00A0\uFEFF]+|[\s\u3000\u00A0\uFEFF]+$/g, '');
+
 const handleLogin = async () => {
   if (!formRef.value) return;
+  // 提交前再兜一次：即使没触发 blur（比如直接回车）也保证不带前后空格
+  form.username = trimName(form.username);
   await formRef.value.validate(async (valid) => {
     if (!valid) return;
 

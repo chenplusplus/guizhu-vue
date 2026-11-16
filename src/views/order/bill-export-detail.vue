@@ -42,7 +42,9 @@
       <el-table :data="data.Rows || []" border stripe size="small" class="export-table"
         :row-class-name="getRowClassName"
         :header-cell-style="headerCellStyle"
-        :cell-style="cellStyle">
+        :cell-style="cellStyle"
+        :scrollbar-always-on="true"
+      >
 
         <el-table-column prop="OrderNo" label="流水单号" width="120" fixed="left"
           :cell-style="{fontWeight:'bold'}"/>
@@ -145,7 +147,7 @@
               <span v-if="!row.IsCustomerSummary">{{ row.SubStoneQty || 0 }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="石重" width="70" align="right">
+          <el-table-column label="石重(ct)" width="84" align="right">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.SubStoneWeight) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.SubStoneWeight) }}</span>
@@ -239,6 +241,10 @@
                 <span v-if="userStore && (userStore.isFactoryOrder || userStore.isAdmin)" class="fval" style="color:#909399;">{{ fmt(data.InternalMaterialWeight) }}g</span>
                 <span class="flabel">来足料重：</span>
                 <span class="fval">{{ fmt(data.ReceivedMaterial) }}</span>
+                <span v-if="Number(data.SettledMaterialWeight || 0) > 0" class="fval cash-paid"
+                      title="本单已收款或已抵扣明细行的折足料，这部分金料已用现金付清">
+                  （现金付款 {{ fmt(data.SettledMaterialWeight) }}）
+                </span>
                 <span class="flabel" style="color:#F56C6C;font-weight:bold;">累欠足金料：</span>
                 <span class="fval" style="color:#F56C6C;font-weight:bold;">{{ fmt(data.TotalDebtMaterial) }}</span>
               </div>
@@ -314,7 +320,7 @@ const data = ref({});
 
 // 空状态提示文字
 const emptyText = computed(() => {
-  return route.query.billId ? '暂无出货明细数据' : '请从账单列表选择要查看的账单';
+  return route.query.billId ? '暂无出货明细数据' : '请从「账单状态」选择要查看的账单';
 });
 
 // ============================================================
@@ -553,6 +559,12 @@ onMounted(() => {
   min-width: 60px;
   color: #1a1a1a;
   font-weight: bold;
+}
+/* ⭐ 现金付款：收款/抵扣结算掉的料，跟在「来足料重」后面 */
+.fval.cash-paid {
+  min-width: 0;
+  color: #1f9254;
+  font-weight: 600;
 }
 
 .sign-area {

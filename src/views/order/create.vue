@@ -18,26 +18,6 @@
         <el-button @click="openHistoryDialog" :disabled="isEdit">
           <el-icon><Clock /></el-icon> 从历史订单带入
         </el-button>
-
-        <el-button @click="handleSave" :loading="saving">
-          <el-icon><Document /></el-icon> 保存
-        </el-button>
-       <el-button
-          v-if="userStore.userType === 'customer' && showSubmitButton"
-          type="primary"
-          @click="handleSubmit"
-          :loading="submitting"
-        >
-          <el-icon><Check /></el-icon> '提交审核'
-        </el-button>
-        <el-button
-          v-if="userStore.userType === 'customerAudit' && showSubmitToFactory"
-          type="success"
-          @click="handleSubmitToFactory"
-          :loading="submitting"
-        >
-          <el-icon><Check /></el-icon> 提交到工厂
-        </el-button>
       </div>
     </div>
 
@@ -47,7 +27,8 @@
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12">
             <el-form-item label="订单日期" prop="orderDate">
-              <el-date-picker v-model="form.orderDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%;" />
+              <!-- ⭐ 编辑历史订单不改下单日期：下单日决定金价取值，改了会重取金价、影响对账归期 -->
+              <el-date-picker v-model="form.orderDate" type="date" value-format="YYYY-MM-DD" placeholder="选择日期" style="width:100%;" :disabled="isEdit" />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12">
@@ -104,7 +85,12 @@
           </el-col>
           <el-col :xs="24" :sm="6">
             <el-form-item label="金价(元/克)">
-              <el-input-number v-model="form.goldPrice" :precision="2" :min="0" placeholder="金价" style="width:100%;" :disabled="isAuditRestricted" />
+              <!-- ⭐ 金价由金价库按「下单日 + 成色材质」自动带入，下单员不可改 -->
+              <div class="gold-price-readonly">
+                <span class="gp-val">{{ form.goldPrice ? Number(form.goldPrice).toFixed(2) : '—' }}</span>
+                <span class="gp-tag" v-if="!isEdit">{{ todayPrice?.dayApproved ? '自动带入' : '生效后补价' }}</span>
+              </div>
+              <div class="gp-hint">{{ todayPriceText }}</div>
             </el-form-item>
           </el-col>
         </el-row>
@@ -131,7 +117,17 @@
           </el-col>
           <el-col :xs="24" :sm="6">
             <el-form-item label="颜色">
-              <el-input v-model="form.gemColor" placeholder="如 红色 / 蓝色" :disabled="isAuditRestricted" />
+              <el-select
+                v-model="form.gemColor"
+                :placeholder="colorLocked ? '随成色自动确定' : '请选择颜色'"
+                style="width:100%;"
+                :disabled="isAuditRestricted || colorLocked"
+              >
+                <el-option v-for="c in colorSelectOptions" :key="c" :label="c" :value="c" />
+              </el-select>
+              <div v-if="colorLocked && form.gemColor" class="color-auto-tip">
+                成色为银/PT，颜色自动为「{{ form.gemColor }}」
+              </div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="6">
@@ -227,6 +223,31 @@
           <MultiFileUpload v-model="dataPackages" :max-count="10" :max-size-m-b="200" />
         </div>
       </el-form>
+
+      <!-- ⭐ 底部操作区：保存 / 提交审核 -->
+      <div class="form-actions">
+        <el-button class="act-btn" :loading="saving" @click="handleSave">
+          <el-icon><Document /></el-icon> 保存
+        </el-button>
+        <el-button
+          v-if="userStore.userType === 'customer' && showSubmitButton"
+          class="act-btn act-submit"
+          type="primary"
+          :loading="submitting"
+          @click="handleSubmit"
+        >
+          <el-icon><Check /></el-icon> 提交审核
+        </el-button>
+        <el-button
+          v-if="userStore.userType === 'customerAudit' && showSubmitToFactory"
+          class="act-btn act-submit"
+          type="success"
+          :loading="submitting"
+          @click="handleSubmitToFactory"
+        >
+          <el-icon><Check /></el-icon> 提交到工厂
+        </el-button>
+      </div>
     </div>
 
     <!-- ⭐ 历史订单弹窗 -->
@@ -272,23 +293,26 @@
         highlight-current-row
         @row-dblclick="selectHistoryOrder"
       >
-        <el-table-column prop="orderNo" label="订单号" width="150" />
-        <el-table-column prop="orderDate" label="订单日期" width="110">
+        <el-table-column prop="orderNo" label="订单号" width="140" />
+        <el-table-column prop="orderDate" label="订单日期" width="105">
           <template #default="{ row }">{{ formatDate(row.orderDate) }}</template>
         </el-table-column>
-        <el-table-column prop="productName" label="品名" min-width="140" />
-        <el-table-column prop="size" label="手寸" width="90" />
-        <el-table-column prop="widthThick" label="宽/厚度" width="100" />
-        <el-table-column prop="color" label="成色" width="90" />
-        <el-table-column prop="quantity" label="数量" width="70" align="center" />
-        <el-table-column prop="flowStatus" label="状态" width="110" align="center">
+        <el-table-column prop="productName" label="品名" min-width="110" show-overflow-tooltip />
+        <el-table-column prop="size" label="手寸" width="70" />
+        <el-table-column prop="widthThick" label="宽/厚度" width="80" />
+        <el-table-column prop="color" label="成色" width="80" />
+        <el-table-column label="颜色" width="80" align="center">
+          <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+        </el-table-column>
+        <el-table-column prop="quantity" label="数量" width="60" align="center" />
+        <el-table-column prop="flowStatus" label="状态" width="120" align="center">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.flowStatus)" size="small">
               {{ getStatusText(row.flowStatus) }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" align="center">
+        <el-table-column label="操作" width="72" align="center" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" size="small" link @click="selectHistoryOrder(row)">
               选择
@@ -321,17 +345,20 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue';
+import { ref, reactive, onMounted, computed, watch } from 'vue';
+import { todayStr } from '@/utils/date';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Document, Check, Clock } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
+import { getEffectivePrice } from '@/api/priceSheet';
 import { createOrder, updateOrder, getOrderDetail, submitOrder, auditOrder, acceptOrder, getOrderList, getProductSuggest } from '@/api/order';
 import { createManualAlert } from '@/api/alert';
 import { dictApi } from '@/api/dict';
 import { getUserList } from '@/api/user';
 import MultiImageUpload from '@/components/MultiImageUpload.vue';
 import MultiFileUpload from '@/components/MultiFileUpload.vue';
+import { isKGoldPurity, autoColorByPurity, resolveGemColor } from '@/utils/color';
 
 const route = useRoute();
 const router = useRouter();
@@ -389,13 +416,17 @@ const loadHistorySalesman = async () => {
 };
 
 // ===== 表单 =====
+// 颜色：默认取字典 color（K黄 / K红 / K白），字典没配时用下面兜底
+const GEM_COLORS = ['K黄', 'K红', 'K白'];
+const gemColorOptions = ref([...GEM_COLORS]);
+
 const form = reactive({
-  orderDate: new Date().toISOString().split('T')[0],
+  orderDate: todayStr(),
   customerId: userStore.customerId || null,
   salesman: userStore.realName || userStore.username || '',
   productName: '',
   quantity: 1,
-  deliveryDays: 7,
+  deliveryDays: 10,
   color: '',
   purityId: null,
   goldPrice: 0,
@@ -408,9 +439,12 @@ const form = reactive({
   remark: '',
   warnFlag: false,
   alertReason: '',
-  gemColor: '',
+  gemColor: 'K黄',
   urgentFlag: false,
 });
+
+// 复制来源订单 id（提交时回传，不在下单页展示）
+const sourceOrderId = ref(null);
 
 const rules = {
   orderDate: [{ required: true, message: '请选择订单日期' }],
@@ -426,7 +460,22 @@ const statusMap = {
   pending: { text: '待客户审核', type: 'warning' },
   customeraudited: { text: '待工厂接单', type: 'success' },
   factory_edit: { text: '工厂编辑中', type: 'primary' },
-  polishing: { text: '制作完成', type: 'primary' },
+  // 制作流程（与字典 production_status 一致）
+  waxing: { text: '出蜡', type: 'primary' },
+  molded: { text: '倒模', type: 'primary' },
+  partsMissing: { text: '配件缺失', type: 'danger' },
+  setting: { text: '执模', type: 'primary' },
+  cnc: { text: 'CNC', type: 'primary' },
+  sweeping: { text: '扫镶口', type: 'primary' },
+  stoneCutting: { text: '车石', type: 'primary' },
+  microInlay: { text: '微镶', type: 'primary' },
+  handInlay: { text: '手镶', type: 'primary' },
+  assembly: { text: '组装', type: 'primary' },
+  polishing: { text: '抛光', type: 'primary' },
+  productionCompleted: { text: '制作完成', type: 'warning' },
+  scrapped: { text: '报废', type: 'danger' },
+  paused: { text: '已暂停', type: 'warning' },
+  // 出账与结案
   billPending: { text: '账单待审核', type: 'warning' },
   billConfirmed: { text: '待确认', type: 'success' },
   completed: { text: '已完成', type: 'success' },
@@ -459,10 +508,95 @@ const lockCore = computed(() => isEdit.value && userStore.userType !== 'customer
 // ============================================================
 // 成色
 // ============================================================
+// ============================================================
+// 成色 / 颜色 联动
+//   银类成色 → 颜色固定「银950」；PT → 颜色固定「PT」
+//   只有 K 金类成色（足金/18K/14K/9K）才允许选 K黄 / K红 / K白
+// ============================================================
+const DEFAULT_GEM_COLOR = 'K黄';
+
+// ============================================================
+// ⭐ 今日金价：由金价库按「下单日 + 成色材质」自动带入，下单员只读
+// ============================================================
+const todayPrice = ref({});
+const fmtP = (v) => Number(v || 0).toFixed(2);
+
+const todayPriceText = computed(() => {
+  const p = todayPrice.value || {};
+  // ⭐ 下单日金价没生效 → 下单不带价（留空），生效后由金价库反写，不再用历史价顶替
+  if (!p.dayApproved) {
+    if (!p.hasAnyPrice) return '金价库未录入，请联系工厂填写（生效后自动补价）';
+    return '下单日金价未生效，先不带价，审核通过后自动补价';
+  }
+  const d = String(p.sourceDate || '').slice(5);
+  return `订单日 金 ${fmtP(p.goldPrice)} · 银 ${fmtP(p.silverPrice)} · PT ${fmtP(p.ptPrice)}（${d} 生效）`;
+});
+
+// 与后端 PriceSheetService.GetPriceByPurityAsync 保持同一判断口径
+const priceOfPurity = (item) => {
+  const key = String(item?.key || '').toLowerCase();
+  const label = String(item?.label || '');
+  const p = todayPrice.value || {};
+  if (key === 'pt' || /^pt|铂/i.test(label)) return Number(p.ptPrice || 0);
+  if (key === '950' || /银|s925/i.test(label)) return Number(p.silverPrice || 0);
+  return Number(p.goldPrice || 0);
+};
+
+// 编辑历史订单保留原金价；新建 / 复制单按成色带入「当天已生效」的金价
+// ⭐ 当天金价没生效时不带价（留空），生效后由金价库反写订单
+const applyPriceForPurity = (item) => {
+  if (isEdit.value || !item) return;
+  if (!todayPrice.value?.dayApproved) {
+    form.goldPrice = 0;
+    return;
+  }
+  const v = priceOfPurity(item);
+  form.goldPrice = v > 0 ? v : 0;
+};
+
+const loadTodayPrice = async (date) => {
+  try {
+    const res = await getEffectivePrice(date || form.orderDate || undefined);
+    todayPrice.value = res?.data || {};
+  } catch {
+    todayPrice.value = {};
+  }
+};
+
+// ⭐ 下单日期变了要重新取该日金价（金价库按「下单日」生效；补录历史单不追溯）
+watch(() => form.orderDate, async (d) => {
+  if (isEdit.value || !d) return;
+  await loadTodayPrice(d);
+  if (form.purityId) applyPriceForPurity(purityOptions.value.find(x => x.id === form.purityId));
+});
+
+// 当前成色是否为「非K金」（银 / PT），是则颜色不可选
+const colorLocked = computed(() => {
+  const item = purityOptions.value.find(x => x.id === form.purityId);
+  return Boolean(item) && !isKGoldPurity(item.label);
+});
+
+// 锁定时下拉只保留当前自动值，避免出现 K黄/K红/K白
+const colorSelectOptions = computed(() => {
+  if (!colorLocked.value) return gemColorOptions.value;
+  return form.gemColor ? [form.gemColor] : [];
+});
+
 const onPurityChange = (purityId) => {
   const item = purityOptions.value.find(x => x.id === purityId);
-  if (item) {
-    form.color = item.label;
+  if (!item) return;
+  // ⭐ 选完成色自动带对应材质的今日价
+  applyPriceForPurity(item);
+  form.color = item.label;
+
+  const fixed = autoColorByPurity(item.label);   // 银 → 银950，PT → PT，K金 → ''
+  if (fixed) {
+    form.gemColor = fixed;
+  } else if (!form.gemColor || !gemColorOptions.value.includes(form.gemColor)) {
+    // 从银/PT 切回 K 金：颜色回到 K黄（或字典里的第一项）
+    form.gemColor = gemColorOptions.value.includes(DEFAULT_GEM_COLOR)
+      ? DEFAULT_GEM_COLOR
+      : (gemColorOptions.value[0] || DEFAULT_GEM_COLOR);
   }
 };
 
@@ -619,13 +753,18 @@ const loadOrderData = async () => {
 const fillFromOrderData = (data, isCopyMode) => {
   if (!data) return;
 
-  form.orderDate = isCopyMode ? new Date().toISOString().split('T')[0] : (data.orderDate?.split('T')[0] || '');
+  // ⭐ 复制单：记住来源订单 id，提交时回传
+  if (isCopyMode) {
+    sourceOrderId.value = data.orderId || null;
+  }
+
+  form.orderDate = isCopyMode ? todayStr() : (data.orderDate?.split('T')[0] || '');
   form.productName = data.productName || '';
   form.salesman = userStore.realName || userStore.username || '';
   form.warnFlag = !isCopyMode && Boolean(data.warnFlag);
   form.alertReason = isCopyMode ? '' : (data.alertReason || '');
   form.quantity = data.quantity || 1;
-  form.deliveryDays = data.deliveryDays || 7;
+  form.deliveryDays = data.deliveryDays || 10;
   form.color = data.color || '';
   form.purityId = data.purityId || null;
   // ⭐ 历史订单可能只存了 color 文本、purityId 为空，用 color 反查成色下拉框的 id 回显
@@ -641,7 +780,11 @@ const fillFromOrderData = (data, isCopyMode) => {
   form.logoText = data.logoText || '';
   form.url = data.url || '';
   form.remark = data.remark || '';
-  form.gemColor = data.gemColor || '';
+  // 颜色：老订单 gemColor 可能为空，银/PT 成色按成色兜底回显
+  form.gemColor = data.gemColor || resolveGemColor({ color: data.color });
+  // 银 / PT 成色下颜色必须与成色一致（历史数据可能是 K黄 等旧值）
+  const fixedColor = autoColorByPurity(data.color);
+  if (fixedColor) form.gemColor = fixedColor;
   form.urgentFlag = !isCopyMode && Boolean(data.urgentFlag);
 
   orderStatus.value = data.flowStatus || '';
@@ -704,7 +847,7 @@ const buildPayload = (status) => {
     gemColor: form.gemColor,
     urgentFlag: form.urgentFlag,
     flowStatus: status,
-    sourceOrderId: route.query.copy || null,
+    sourceOrderId: sourceOrderId.value || (route.query.copy ? Number(route.query.copy) : null),
     warnFlag: form.warnFlag,
     // 图片列表
     productImages: productImages.value,
@@ -846,8 +989,10 @@ onMounted(() => {
   Promise.all([
     dictApi.getItemsByKey('purity'),
     dictApi.getItemsByKey('diamondlevel'),
+    dictApi.getItemsByKey('color'),
     loadOrderData(),
-  ]).then(([purityRes, diamondLevelRes]) => {
+    loadTodayPrice(),
+  ]).then(([purityRes, diamondLevelRes, colorRes]) => {
     purityOptions.value = (purityRes?.data || []).map(item => {
       let color = '#DCDFE6';
       let convertRate = 1;
@@ -869,6 +1014,16 @@ onMounted(() => {
       label: item.itemLabel || item.itemValue,
       value: item.itemValue,
     }));
+    // 颜色字典（K黄 / K红 / K白），取不到就用兜底三项
+    const colorList = (colorRes?.data || [])
+      .map(item => item.itemLabel || item.itemValue)
+      .filter(Boolean);
+    if (colorList.length) gemColorOptions.value = colorList;
+
+    // ⭐ 新建 / 复制单：已有成色时按材质带入今日价
+    if (!isEdit.value && form.purityId) {
+      applyPriceForPurity(purityOptions.value.find(x => x.id === form.purityId));
+    }
   }).catch(() => {
     ElMessage.error('加载字典失败');
   });
@@ -893,6 +1048,17 @@ onMounted(() => {
 
 .product-suggestion { display: flex; flex-direction: column; padding: 4px 0; }
 .suggestion-name { font-size: 14px; font-weight: 500; color: #1d2129; }
+
+/* ⭐ 金价只读展示 */
+.gold-price-readonly {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; height: 32px; padding: 0 11px;
+  background: #f5f7fa; border: 1px solid #e4e7ed; border-radius: 4px;
+}
+.gp-val { font-size: 15px; font-weight: 600; color: #303133; }
+.gp-tag { font-size: 11px; color: #909399; background: #fff; border: 1px solid #e4e7ed;
+  border-radius: 3px; padding: 0 5px; line-height: 16px; }
+.gp-hint { font-size: 11px; color: #909399; line-height: 1.4; margin-top: 3px; }
 .suggestion-info { font-size: 12px; color: #86909c; margin-top: 2px; }
 .suggestion-date { margin-left: 12px; color: #4e5969; }
 
@@ -915,6 +1081,7 @@ onMounted(() => {
 /* 成色下拉样式 */
 .purity-option { display: flex; align-items: center; gap: 8px; }
 .purity-rate { margin-left: auto; font-size: 12px; color: #909399; }
+.color-auto-tip { font-size: 12px; color: #909399; line-height: 18px; margin-top: 2px; }
 .color-dot {
   display: inline-block; width: 12px; height: 12px;
   border-radius: 50%; border: 1px solid #dcdfe6; flex-shrink: 0;
@@ -934,6 +1101,23 @@ onMounted(() => {
 .letter-compact { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .letter-thumb { width:56px; height:56px; border-radius:4px; border:1px solid #ebeef5; cursor:zoom-in; }
 .letter-empty { color:#c0c4cc; font-size:12px; }
+
+/* ⭐ 底部操作区（保存 / 提交审核） */
+.form-actions {
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  margin-top: 8px; padding: 20px 0 6px;
+  border-top: 1px dashed #e8ecf1;
+}
+.form-actions .act-btn {
+  min-width: 150px; height: 46px; font-size: 16px;
+  border-radius: 8px; font-weight: 500;
+}
+.form-actions .act-btn :deep(.el-icon) { font-size: 18px; margin-right: 6px; }
+.form-actions .act-submit { min-width: 200px; box-shadow: 0 4px 12px rgba(64, 158, 255, .28); }
+@media (max-width: 768px) {
+  .form-actions { gap: 12px; }
+  .form-actions .act-btn { min-width: auto; flex: 1; height: 44px; font-size: 15px; }
+}
 </style>
 
 <style>

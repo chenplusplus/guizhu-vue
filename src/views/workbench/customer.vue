@@ -6,6 +6,8 @@
 -->
 <template>
   <div class="customer-workbench">
+    <!-- ⭐ 今日金价（客户只读 / 客户审核员可审） -->
+    <TodayGoldPriceBar />
     <!-- ===== 顶部欢迎区域（保留问候语）===== -->
     <div class="welcome-section">
       <div class="welcome-left">
@@ -36,7 +38,7 @@
 
       <div class="card-grid" v-loading="loading">
         <div v-for="c in cards" :key="c.type" class="wb-card"
-             :class="{ 'is-empty': !c.count, 'is-readonly': c.isReadonly }">
+             :class="{ 'is-empty': !c.count && !c.alwaysOn, 'is-readonly': c.isReadonly }">
           <div class="card-top">
             <span class="card-icon">{{ c.icon }}</span>
             <span class="card-name">{{ c.label }}</span>
@@ -51,7 +53,7 @@
               size="small"
               :type="c.isReadonly ? 'info' : 'primary'"
               :plain="c.isReadonly"
-              :disabled="!c.count"
+              :disabled="!c.count && !c.alwaysOn"
               @click="go(a)"
             >{{ a.label }}</el-button>
           </div>
@@ -115,6 +117,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useUserStore } from '@/stores/user';
+import TodayGoldPriceBar from '@/components/TodayGoldPriceBar.vue';
 import { getCustomerSummary } from '@/api/workbench';
 
 const router = useRouter();
@@ -127,7 +130,8 @@ const isAudit = computed(() =>
 );
 
 const loading = ref(false);
-const data = ref({ items: [], todos: [], total: 0, billToConfirmAmount: 0 });
+const data = ref({ items: [], todos: [], total: 0, billToConfirmAmount: 0,
+                  receiptUnread: 0, receiptMonthActual: 0, receiptMonthOffset: 0 });
 const filterType = ref('');
 
 // ===== 日期 / 问候语（保留上午好 / 下午好）=====
@@ -155,36 +159,46 @@ const roleHint = computed(() =>
 // ===== 卡片定义（按角色区分）=====
 const CUSTOMER_CARDS = [
   { type: 'draft',         icon: '📝', label: '草稿订单',   unit: '待提交',
-    actions: [{ label: '去处理', path: '/order/my-list' }] },
+    actions: [{ label: '去处理', path: '/order/my-list', query: { tab: 'pending', status: 'draft' } }] },
   { type: 'pendingAudit',  icon: '⏳', label: '待客户审核', unit: '已提交待审核',
-    actions: [{ label: '去查看', path: '/order/my-list' }] },
+    actions: [{ label: '去查看', path: '/order/my-list', query: { tab: 'pending', status: 'pending' } }] },
   { type: 'rejected',      icon: '⛔', label: '审核未通过', unit: '需修改后重新提交',
-    actions: [{ label: '去修改', path: '/order/my-list' }] },
+    actions: [{ label: '去修改', path: '/order/my-list', query: { tab: 'pending', status: 'rejected' } }] },
   { type: 'producing',     icon: '🏭', label: '制作中',     unit: '工厂进行中',
-    actions: [{ label: '去查看', path: '/order/my-list' }] },
+    actions: [{ label: '去查看', path: '/order/my-list', query: { tab: 'factoryProcessing' } }] },
   { type: 'billToConfirm', icon: '🧾', label: '待确认账单', unit: '账单待我确认',
-    actions: [{ label: '去确认', path: '/order/bill/my-list' }] },
+    actions: [{ label: '去确认', path: '/order/bill/confirm' }] },
+  // ⭐ 账单付款：已确认但还没付清的账单（只读对账，付款由工厂录入）
+  { type: 'billToPay', icon: '💳', label: '账单付款', unit: '已确认待付款', alwaysOn: true,
+    actions: [{ label: '去查看', path: '/order/bill/payment' }] },
   { type: 'returnPending', icon: '↩️', label: '退货待处理', unit: '处理中',
     actions: [{ label: '去查看', path: '/order/return' }] },
   { type: 'completed',     icon: '📦', label: '已完成订单', unit: '历史记录', isReadonly: true,
-    actions: [{ label: '去查看', path: '/order/my-list' }] },
+    actions: [{ label: '去查看', path: '/order/my-list', query: { tab: 'completed', status: 'completed' } }] },
 ];
 
 const AUDIT_CARDS = [
   { type: 'pendingAudit',  icon: '✅', label: '待审核订单', unit: '待我审核',
     actions: [{ label: '去审核', path: '/order/audit' }] },
-  { type: 'modifyAudit',   icon: '✏️', label: '修改待审核', unit: '待我审核',
-    actions: [{ label: '去审核', path: '/order/modify-list' }] },
+  { type: 'cancelAudit',   icon: '⛔', label: '取消待审批', unit: '待我审批',
+    actions: [{ label: '去审批', path: '/order/customer-approval', query: { tab: 'cancel' } }] },
+  { type: 'pauseAudit',    icon: '⏸',  label: '暂停待审批', unit: '待我审批',
+    actions: [{ label: '去审批', path: '/order/customer-approval', query: { tab: 'pause' } }] },
+  { type: 'modifyAudit',   icon: '✏️', label: '申请修改审批', unit: '待我审批',
+    actions: [{ label: '去审批', path: '/order/customer-approval', query: { tab: 'modify' } }] },
   { type: 'billToConfirm', icon: '🧾', label: '待确认账单', unit: '账单待我确认',
-    actions: [{ label: '去确认', path: '/order/bill/my-list' }] },
+    actions: [{ label: '去确认', path: '/order/bill/confirm' }] },
+  // ⭐ 账单付款：已确认但还没付清的账单（只读对账，付款由工厂录入）
+  { type: 'billToPay', icon: '💳', label: '账单付款', unit: '已确认待付款', alwaysOn: true,
+    actions: [{ label: '去查看', path: '/order/bill/payment' }] },
   { type: 'rejected',      icon: '⛔', label: '审核未通过', unit: '客户侧待修改',
-    actions: [{ label: '去查看', path: '/order/my-list' }] },
+    actions: [{ label: '去查看', path: '/order/my-list', query: { tab: 'pending', status: 'rejected' } }] },
   { type: 'returnPending', icon: '↩️', label: '退货待处理', unit: '处理中',
     actions: [{ label: '去查看', path: '/order/return' }] },
   { type: 'producing',     icon: '🏭', label: '制作中订单', unit: '仅查看', isReadonly: true,
-    actions: [{ label: '去查看', path: '/order/my-list' }] },
+    actions: [{ label: '去查看', path: '/order/my-list', query: { tab: 'factoryProcessing' } }] },
   { type: 'completed',     icon: '📦', label: '已完成订单', unit: '历史记录', isReadonly: true,
-    actions: [{ label: '去查看', path: '/order/my-list' }] },
+    actions: [{ label: '去查看', path: '/order/my-list', query: { tab: 'completed', status: 'completed' } }] },
 ];
 
 const CARD_META = computed(() => (isAudit.value ? AUDIT_CARDS : CUSTOMER_CARDS));
@@ -196,7 +210,14 @@ const counts = computed(() => {
 });
 
 const cards = computed(() =>
-  CARD_META.value.map(c => ({ ...c, count: counts.value[c.type] ?? 0 }))
+  CARD_META.value.map(c => {
+    // ⭐ 账单付款：数字 = 还没付清的账单张数，付清后自动归零（点进去仍可查看）
+    if (c.type === 'billToPay') {
+      const n = counts.value.billToPay ?? 0;
+      return { ...c, count: n, unit: n ? '已确认待付款' : '已全部付清' };
+    }
+    return { ...c, count: counts.value[c.type] ?? 0 };
+  })
 );
 
 const total = computed(() => data.value.total || 0);
@@ -221,26 +242,31 @@ const filteredTodos = computed(() => {
 
 const typeLabel = (t) => (CARD_META.value.find(x => x.type === t)?.label || {
   draft: '草稿订单', pendingAudit: '待审核订单', rejected: '审核未通过',
-  producing: '制作中', billToConfirm: '待确认账单', modifyAudit: '修改待审核',
+  producing: '制作中', billToConfirm: '待确认账单', modifyAudit: '申请修改审批',
+  cancelAudit: '取消待审批', pauseAudit: '暂停待审批',
   returnPending: '退货待处理', completed: '已完成订单', billConfirmed: '账单已确认',
 }[t] || t);
 
 const tagType = (t) => ({
   draft: 'info', pendingAudit: 'warning', rejected: 'danger',
   producing: 'primary', billToConfirm: 'success', modifyAudit: 'warning',
+  cancelAudit: 'danger', pauseAudit: 'warning',
   returnPending: 'danger', completed: 'info',
 }[t] || 'info');
 
 const actionText = (row) => ({
   draft: '继续编辑', pendingAudit: isAudit.value ? '去审核' : '查看',
-  modifyAudit: '去审核', billToConfirm: '去确认', returnPending: '去查看',
+  modifyAudit: '去审批', cancelAudit: '去审批', pauseAudit: '去审批',
+  billToConfirm: '去确认', returnPending: '去查看',
 }[row.bizType] || '去处理');
 
 const handleTodo = (row) => {
   if (row.bizType === 'draft') return router.push(`/order/create/${row.bizId}`);
   if (row.bizType === 'billToConfirm') return router.push(`/order/bill/detail/${row.bizId}`);
   if (row.bizType === 'pendingAudit' && isAudit.value) return router.push('/order/audit');
-  if (row.bizType === 'modifyAudit') return router.push('/order/modify-list');
+  if (row.bizType === 'modifyAudit') return router.push({ path: '/order/customer-approval', query: { tab: 'modify' } });
+  if (row.bizType === 'cancelAudit') return router.push({ path: '/order/customer-approval', query: { tab: 'cancel' } });
+  if (row.bizType === 'pauseAudit') return router.push({ path: '/order/customer-approval', query: { tab: 'pause' } });
   if (row.bizType === 'returnPending') return router.push('/order/return');
   return router.push(`/order/detail/${row.bizId}`);
 };
@@ -248,15 +274,19 @@ const handleTodo = (row) => {
 // ===== 快捷入口（按角色区分）=====
 const quickActions = computed(() => (isAudit.value ? [
   { icon: '✅', label: '订单审核',     path: '/order/audit',         bgColor: '#FFF7E6' },
+  { icon: '🗂', label: '审批中心',     path: '/order/customer-approval', bgColor: '#F9F0FF' },
+  { icon: '✅', label: '待确认账单',   path: '/order/bill/confirm',  bgColor: '#FFFBE6' },
   { icon: '🧾', label: '我的账单',     path: '/order/bill/my-list',  bgColor: '#E6F7FF' },
-  { icon: '✏️', label: '修改审核', path: '/order/modify-list',   bgColor: '#F6FFED' },
+  { icon: '💳', label: '账单付款',     path: '/order/bill/payment',  bgColor: '#F0FFF4' },
   { icon: '📋', label: '我的订单',     path: '/order/my-list',       bgColor: '#F0F5FF' },
   { icon: '↩️', label: '退货记录',     path: '/order/return',        bgColor: '#FFF1F0' },
 ] : [
   { icon: '➕', label: '新建订单',     path: '/order/create',        bgColor: '#E6F7FF' },
   { icon: '📋', label: '我的订单',     path: '/order/my-list',       bgColor: '#F6FFED' },
+  { icon: '✅', label: '待确认账单',   path: '/order/bill/confirm',  bgColor: '#FFFBE6' },
   { icon: '🧾', label: '我的账单',     path: '/order/bill/my-list',  bgColor: '#F0F5FF' },
-  { icon: '✏️', label: '修改订单',     path: '/order/modify-list',   bgColor: '#FFF7E6' },
+  { icon: '💳', label: '账单付款',     path: '/order/bill/payment',  bgColor: '#F0FFF4' },
+  { icon: '✏️', label: '审批中心',     path: '/order/customer-approval', bgColor: '#FFF7E6' },
   { icon: '↩️', label: '退货记录',     path: '/order/return',        bgColor: '#FFF1F0' },
   { icon: '🏭', label: '历史订单',     path: '/order/factory-history', bgColor: '#F9F0FF' },
 ]));
@@ -269,7 +299,8 @@ const loadData = async () => {
   loading.value = true;
   try {
     const res = await getCustomerSummary();
-    data.value = res?.data || { items: [], todos: [], total: 0, billToConfirmAmount: 0 };
+    data.value = res?.data || { items: [], todos: [], total: 0, billToConfirmAmount: 0,
+      receiptUnread: 0, receiptMonthActual: 0, receiptMonthOffset: 0 };
   } catch (e) {
     console.error('加载客户工作台失败:', e);
   } finally {

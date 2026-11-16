@@ -14,21 +14,21 @@
       <el-table :data="summaryData" border stripe v-loading="loading">
         <el-table-column prop="foldLabel" label="折算类别" width="100" />
         <el-table-column prop="openingFold" label="期初折算重" width="120" align="right">
-          <template #default="{ row }">{{ fmt(row.openingFold, 4) }}</template>
+          <template #default="{ row }">{{ fmt(row.openingFold, 2) }}</template>
         </el-table-column>
         <el-table-column prop="inFold" label="本期入" width="120" align="right">
           <template #default="{ row }">
-            <span style="color:#67C23A;">+{{ fmt(row.inFold, 4) }}</span>
+            <span style="color:#67C23A;">+{{ fmt(row.inFold, 2) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="outFold" label="本期出" width="120" align="right">
           <template #default="{ row }">
-            <span style="color:#F56C6C;">-{{ fmt(row.outFold, 4) }}</span>
+            <span style="color:#F56C6C;">-{{ fmt(row.outFold, 2) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="closingFold" label="期末折算重" width="120" align="right">
           <template #default="{ row }">
-            <span style="font-weight:600;color:#409EFF;">{{ fmt(row.closingFold, 4) }}</span>
+            <span style="font-weight:600;color:#409EFF;">{{ fmt(row.closingFold, 2) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="openingAmount" label="期初金额" width="130" align="right">

@@ -1,0 +1,1 @@
+import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/materialloss/list`,{params:{counterpartyId:t}}),n=t=>e.post(`/materialloss/save`,t),r=t=>e.delete(`/materialloss/${t}`);export{t as n,n as r,r as t};

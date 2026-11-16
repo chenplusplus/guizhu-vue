@@ -1,5 +1,5 @@
 <!-- src/views/order/bill-list.vue
-     ⭐ 账单列表（替代原「生成账单」入口）
+     ⭐ 账单状态（原「账单列表」，替代更早的「生成账单」入口）
      - 账单由「制作完成审核通过」自动生成，不再手动选择订单建单
      - 列表支持：状态筛选 / 日期 / 关键词 / 分页
      - 操作：查看、编辑（待提交/已退回）、提交审核（待提交）
@@ -8,7 +8,7 @@
   <div class="page-container" v-loading="loading">
     <div class="page-header">
       <div class="header-left">
-        <h2>📄 账单列表</h2>
+        <h2>📄 账单状态</h2>
         <span class="sub-tip">制作完成审核通过后自动生成</span>
       </div>
       <div class="header-right">
@@ -16,8 +16,12 @@
           <el-radio-button value="">全部</el-radio-button>
           <el-radio-button value="pending">待提交</el-radio-button>
           <el-radio-button value="billPending">待审核</el-radio-button>
-          <el-radio-button value="billConfirmed">已确认</el-radio-button>
+          <el-radio-button value="billRejected">审核驳回</el-radio-button>
+          <el-radio-button value="billConfirmed">待客户审核</el-radio-button>
+          <el-radio-button value="customerApproved">待业务确认</el-radio-button>
           <el-radio-button value="returned">已退回</el-radio-button>
+          <el-radio-button value="returnRequested">客户退回待处理</el-radio-button>
+          <el-radio-button value="returnPending">退回待审核</el-radio-button>
         </el-radio-group>
         <el-date-picker
           v-model="dateRange"
@@ -48,11 +52,14 @@
       <span>本页应收 <b class="money">¥{{ pageAmount.toFixed(2) }}</b></span>
       <span>待提交 <b class="warn">{{ countByStatus('pending') }}</b></span>
       <span>待审核 <b class="warn">{{ countByStatus('billPending') }}</b></span>
-      <span>已确认 <b class="ok">{{ countByStatus('billConfirmed') }}</b></span>
+      <span>待客户审核 <b class="warn">{{ countByStatus('billConfirmed') }}</b></span>
+      <span>待业务确认 <b class="ok">{{ countByStatus('customerApproved') }}</b></span>
       <span class="tip">（状态按当前页统计）</span>
     </div>
 
-    <el-table :data="rows" border stripe size="default" empty-text="暂无账单">
+    <el-table :data="rows" border stripe size="default" empty-text="暂无账单"
+      :scrollbar-always-on="true"
+    >
       <el-table-column prop="billNo" label="账单号" width="160" fixed>
         <template #default="{ row }">
           <span class="mono link" @click="goDetail(row)">{{ row.billNo }}</span>
@@ -80,7 +87,11 @@
       </el-table-column>
       <el-table-column label="账单状态" width="100" align="center">
         <template #default="{ row }">
-          <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
+          <el-tooltip v-if="row.status === 'billRejected' && row.auditRemark"
+            :content="'驳回原因：' + row.auditRemark" placement="top">
+            <el-tag size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
+          </el-tooltip>
+          <el-tag v-else size="small" :type="statusTag(row.status)">{{ statusText(row.status) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="200" align="center" fixed="right">
@@ -94,13 +105,20 @@
             @click="goEdit(row)"
           >编辑</el-button>
           <el-button
-            v-if="row.status === 'pending'"
+            v-if="row.status === 'pending' || row.status === 'billRejected'"
             type="success"
             link
             size="small"
             :loading="submittingId === row.billId"
             @click="submitAudit(row)"
-          >提交审核</el-button>
+          >{{ row.status === 'billRejected' ? '重新提交' : '提交审核' }}</el-button>
+          <el-button
+            v-if="row.status === 'returnRequested'"
+            type="danger"
+            link
+            size="small"
+            @click="goDetail(row)"
+          >处理退回</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -131,7 +149,16 @@ const router = useRouter();
 const rows = ref([]);
 const loading = ref(false);
 const statusFilter = ref('');
-const dateRange = ref([]);
+
+// 默认今天（账单列表默认只看当天账单）
+const getTodayRange = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const today = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return [today, today];
+};
+
+const dateRange = ref(getTodayRange());
 const keyword = ref('');
 const page = ref(1);
 const pageSize = ref(20);
@@ -144,20 +171,28 @@ const fmtDate = (v) => (v ? String(v).slice(0, 10) : '-');
 const STATUS_TEXT = {
   pending: '待提交',
   billPending: '待审核',
-  billConfirmed: '已确认',
+  billRejected: '审核驳回',
+  billConfirmed: '待客户审核',
+  customerApproved: '待业务确认',
   confirmed: '已确认',
   completed: '已完成',
   returned: '已退回',
+  returnRequested: '客户退回待处理',
+  returnPending: '退回待审核',
   rejected: '已驳回',
 };
 const statusText = (s) => STATUS_TEXT[s] || s || '-';
 const statusTag = (s) => ({
   pending: 'info',
   billPending: 'warning',
-  billConfirmed: 'success',
+  billRejected: 'danger',
+  billConfirmed: 'warning',
+  customerApproved: 'primary',
   confirmed: 'success',
   completed: 'success',
   returned: 'danger',
+  returnRequested: 'danger',
+  returnPending: 'warning',
   rejected: 'danger',
 }[s] || 'info');
 
@@ -168,8 +203,8 @@ const receiptTag = (s) => ({
   none: 'info', pending: 'warning', approved: 'success', rejected: 'danger',
 }[s] || 'info');
 
-// 待提交 / 已退回 才可编辑
-const canEdit = (row) => ['pending', 'returned'].includes(row.status);
+// 待提交 / 审核驳回 / 已退回 才可编辑
+const canEdit = (row) => ['pending', 'billRejected', 'returned'].includes(row.status);
 
 const pageAmount = computed(() => rows.value.reduce((s, r) => s + num(r.totalAmount), 0));
 const countByStatus = (s) => rows.value.filter(r => r.status === s).length;

@@ -1,0 +1,1 @@
+import{t as e}from"./api-B3ZF2141.js";var t=()=>e.get(`/process/options`),n=t=>e.post(`/process/create`,t),r=t=>e.get(`/process/detail/${t}`),i=t=>e.get(`/process/list`,{params:t}),a=t=>e.post(`/process/audit`,t),o=t=>e.get(`/process/stats/global`,{params:t});export{i as a,r as i,n,t as o,o as r,a as t};

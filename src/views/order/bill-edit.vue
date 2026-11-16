@@ -19,11 +19,43 @@
         <el-button type="primary" @click="handleSave" :loading="saving">
           <el-icon><Check /></el-icon> 保存
         </el-button>
-        <el-button type="warning" @click="handleSubmitAudit" v-if="!isNew && billStatus === 'pending'">
-          <el-icon><Select /></el-icon> 提交审核
+        <el-button
+          type="warning"
+          @click="handleSubmitAudit"
+          v-if="!isNew && (billStatus === 'pending' || billStatus === 'billRejected' || (billStatus === 'returned' && modifyStatus === 'applied'))"
+        >
+          <el-icon><Select /></el-icon> {{ (modifyStatus === 'applied') ? '重新提交审核' : (billStatus === 'billRejected' ? '重新提交审核' : '提交审核') }}
         </el-button>
       </div>
     </div>
+
+    <!-- ⭐ 审核驳回提示（工厂编辑员视角） -->
+    <el-alert
+      v-if="billStatus === 'billRejected'"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom:12px;"
+    >
+      <template #title>
+        审核驳回：{{ auditRemark || '未填写原因' }}
+        <span style="color:#909399;">改完后可直接点「重新提交审核」</span>
+      </template>
+    </el-alert>
+
+    <!-- ⭐ 客户申请修改提示（工厂编辑员视角） -->
+    <el-alert
+      v-if="modifyStatus === 'applied' && modifyReason"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-bottom:12px;"
+    >
+      <template #title>
+        客户申请修改：{{ modifyReason }}
+        <span v-if="modifyApplyName" style="color:#909399;">（{{ modifyApplyName }} {{ modifyApplyAt ? formatDate(modifyApplyAt) : '' }}）</span>
+      </template>
+    </el-alert>
 
     <!-- ===== 整体内容区域 ===== -->
     <div class="content-body">
@@ -64,10 +96,27 @@
             style="width:100%;"
             max-height="600"
             :row-class-name="getDetailRowClass"
+            :scrollbar-always-on="true"
           >
             <!-- 序号 -->
             <el-table-column label="序号" width="55" align="center" fixed>
               <template #default="{ $index }">{{ $index + 1 }}</template>
+            </el-table-column>
+
+            <!-- 多成色金料明细：展开可看可分色编辑 -->
+            <el-table-column type="expand" width="32">
+              <template #default="{ row }">
+                <div class="gi-expand">
+                  <GoldItemsEditor
+                    v-model="row.goldItems"
+                    :purity-options="purityOptionList"
+                    :loss-rate-options="lossRateOptions"
+                    :default-gold-price="row.goldPrice || 0"
+                    :editable="!row.isReturned"
+                    @change="(s) => onRowGoldChange(row, s)"
+                  />
+                </div>
+              </template>
             </el-table-column>
 
             <!-- 订单号 -->
@@ -110,9 +159,9 @@
               <template #default="{ row }">{{ formatDate(row.orderDate) }}</template>
             </el-table-column>
 
-            <!-- 颜色 - 只读显示 -->
+            <!-- 颜色 - 只读显示（gemColor = K黄/K白/K红；color 是成色名） -->
             <el-table-column label="颜色" width="70" align="center">
-              <template #default="{ row }">{{ row.color || '-' }}</template>
+              <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
             </el-table-column>
 
             <!-- 件数 - 只读显示 -->
@@ -134,13 +183,13 @@
 
             <el-table-column label="净重"  width="110">
               <template #default="{ row }">
-                <el-input-number v-model="row.netWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
+                <el-input-number v-model="row.netWeight" :precision="3" :step="0.01" size="small" :disabled="hasGoldItems(row)" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
 
             <el-table-column label="损耗" width="110">
               <template #default="{ row }">
-                <el-select v-model="row.lossRate" size="small" style="width:100%;" @change="calcRow(row)">
+                <el-select v-model="row.lossRate" size="small" :disabled="hasGoldItems(row)" style="width:100%;" @change="calcRow(row)">
                   <el-option v-for="item in lossRateOptions" :key="item.value" :value="item.value" :label="item.label" />
                 </el-select>
               </template>
@@ -154,7 +203,9 @@
 
             <el-table-column label="金价"  width="110">
               <template #default="{ row }">
-                <el-input-number v-model="row.goldPrice" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
+                <!-- ⭐ 金价已由金价库定死，只有开发者（admin）处理导入单时才放开 -->
+                <el-input-number v-if="canEditGoldPrice && !hasGoldItems(row)" v-model="row.goldPrice" :precision="2" :step="1" size="small" style="width:100%;" @change="calcRow(row)" />
+                <span v-else class="calc-text">{{ Number(row.goldPrice || 0).toFixed(2) }}</span>
               </template>
             </el-table-column>
 
@@ -175,7 +226,7 @@
                 <el-input-number v-model="row.mainStoneQty" :min="0" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="主石石重"  width="110">
+            <el-table-column label="主石石重(ct)"  width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.mainStoneWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
@@ -202,7 +253,7 @@
                 <el-input-number v-model="row.subStoneQty" :min="0" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
             </el-table-column>
-            <el-table-column label="副石石重"  width="110">
+            <el-table-column label="副石石重(ct)"  width="120">
               <template #default="{ row }">
                 <el-input-number v-model="row.subStoneWeight" :precision="3" :step="0.01" size="small" style="width:100%;" @change="calcRow(row)" />
               </template>
@@ -290,9 +341,9 @@
             <b style="color:#67C23A;">{{ totalMaterialWeight.toFixed(3) }}g</b>
           </span>
 
-          <!-- 钻石卡重 = 主石石重 + 副石石重 -->
+          <!-- 钻石石重 = 主石石重 + 副石石重 -->
           <span>
-            钻石卡重：
+            钻石石重：
             <b style="color:#409EFF;">{{ totalStoneWeight.toFixed(3) }}ct</b>
           </span>
 
@@ -404,13 +455,48 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Select, View } from '@element-plus/icons-vue';
-import { getBillDetail, updateBillDetails, submitBillAudit, returnBillItem } from '@/api/bill';
+import { getBillDetail, updateBillDetails, submitBillAudit, returnBillItem, resubmitBillModify } from '@/api/bill';
 import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
 import BillPreviewDialog from '@/components/BillPreviewDialog.vue';
+import GoldItemsEditor from '@/components/GoldItemsEditor.vue';
+import { resolveGemColor } from '@/utils/color';
 const userStore = useUserStore();
+// 金价由金价库统一定价，账单编辑不再允许改（仅开发者 admin 处理导入单时可改）
+const canEditGoldPrice = computed(() => userStore.userType === 'admin');
 const purityDict = ref([]);
 const lossRateOptions = ref([]);
+
+// ===== 多成色金料明细 =====
+const purityOptionList = computed(() =>
+  purityDict.value.map(x => {
+    let color = '';
+    try {
+      const extra = x.extraData ? JSON.parse(x.extraData) : {};
+      color = extra.color || '';
+    } catch {}
+    return {
+      id: x.id,
+      label: x.itemLabel,
+      rate: Number(x.itemValue) || 1,
+      color: color || '#909399'
+    };
+  })
+);
+
+const hasGoldItems = (row) => (row?.goldItems || []).some(x => Number(x.netWeight) > 0);
+
+// 明细变化 → 回写该行汇总（后端保存时会再按明细重算）
+const onRowGoldChange = (row, s) => {
+  if (!s) return;
+  row.netWeight = s.netWeight;
+  row.addLossWeight = s.addLossWeight;
+  row.goldMaterialWeight = s.foldWeight;
+  row.goldMaterialFee = s.amount;
+  row.lossRate = s.lossRate;
+  row.goldPrice = s.goldPrice;
+  calcRow(row);
+};
 const route = useRoute();
 const router = useRouter();
 const billId = computed(() => Number(route.params.id));
@@ -422,6 +508,11 @@ const isNew = ref(false);
 const billNo = ref('');
 const customerName = ref('');
 const billStatus = ref('');
+const modifyStatus = ref('');
+const modifyReason = ref('');
+const auditRemark = ref('');
+const modifyApplyName = ref('');
+const modifyApplyAt = ref('');
 const details = ref([]);
 const lrData = ref(null);
 const billHeader = ref({});        // 账单头部原始数据（供预览底部汇总用）
@@ -441,6 +532,11 @@ const statusMap = {
   approved: { text: '已通过', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   confirmed: { text: '已确认', type: 'success' },
+  returned: { text: '退回待修改', type: 'danger' },
+  billRejected: { text: '审核驳回', type: 'danger' },
+  billPending: { text: '审核中', type: 'warning' },
+  billConfirmed: { text: '待客户审核', type: 'warning' },
+  customerApproved: { text: '待业务确认', type: 'primary' },
 };
 
 const statusText = computed(() => statusMap[billStatus.value]?.text || billStatus.value || '-');
@@ -486,7 +582,7 @@ const totalLaborFee = computed(() => {
   }, 0);
 });
 
-// 钻石卡重 = 主石石重 + 副石石重
+// 钻石石重 = 主石石重 + 副石石重
 const totalStoneWeight = computed(() => {
   return activeDetails.value.reduce((sum, row) => sum + (row.mainStoneWeight || 0) + (row.subStoneWeight || 0), 0);
 });
@@ -502,6 +598,7 @@ const previewBillData = computed(() => {
   const curMoney = totalAmountRaw.value;         // 本单应收款（当前编辑，保留两位，与主页一致）
   const lastMat = Number(h.lastDebtMaterial || 0);
   const recvMat = Number(h.receivedMaterial || 0);
+  const settledMat = Number(h.settledMaterialWeight || 0);   // ⭐ 已收款/抵扣结算的折足料
   const lastMoney = Number(h.lastDebtMoney || 0);
   const recvMoney = Number(h.receivedMoney || 0);
   return {
@@ -513,7 +610,8 @@ const previewBillData = computed(() => {
     lastDebtMaterial: lastMat,
     currentMaterialWeight: curMat,
     receivedMaterial: recvMat,
-    totalDebtMaterial: lastMat + curMat - recvMat,
+    settledMaterialWeight: settledMat,
+    totalDebtMaterial: lastMat + curMat - recvMat - settledMat,
     lastDebtMoney: lastMoney,
     currentMoney: curMoney,
     receivedMoney: recvMoney,
@@ -538,6 +636,21 @@ const getPurityRate = (row) => {
 };
 
 const calcRow = (row) => {
+  const gi = (row.goldItems || []).filter(x => Number(x.netWeight) > 0);
+  if (gi.length) {
+    // ⭐ 多成色：金料按明细汇总（净重/加耗/折足/金额 求和；损耗用反算，不能相加）
+    const net = gi.reduce((s, x) => s + Number(x.netWeight || 0), 0);
+    const add = gi.reduce((s, x) => s + Number(x.addLossWeight || 0), 0);
+    const fold = gi.reduce((s, x) => s + Number(x.foldWeight || 0), 0);
+    const amount = gi.reduce((s, x) => s + Number(x.amount || 0), 0);
+    row.netWeight = parseFloat(net.toFixed(3));
+    row.addLossWeight = parseFloat(add.toFixed(3));
+    row.goldMaterialWeight = parseFloat(fold.toFixed(3));
+    row.goldMaterialFee = parseFloat(amount.toFixed(2));
+    row.lossRate = net > 0 ? parseFloat((add / net).toFixed(4)) : row.lossRate;
+    row.goldPrice = fold > 0 ? parseFloat((amount / fold).toFixed(2)) : row.goldPrice;
+    row.goldConvertCash = false;
+  } else {
   const netWeight = row.netWeight || 0;
   const goldPrice = row.goldPrice || 0;
   const lossRate = row.lossRate || 1.0;
@@ -551,6 +664,7 @@ const calcRow = (row) => {
 
   // 统一不计折现金
   row.goldConvertCash = false;
+  }
 
   // ⭐ 主石金额 = 石重 × 单价 + 粒数 × 镶石工费
   row.mainStoneAmount = parseFloat((
@@ -638,6 +752,7 @@ const loadData = async () => {
           moldFee: o.moldFee || 0,
           laborFee: o.laborFee || 0,
           totalAmount: o.totalAmount || 0,
+          goldItems: o.goldItems || [],
           isReturned: false,
         }));
         customerName.value = ordersData[0]?.customerName || '';
@@ -663,10 +778,16 @@ const loadData = async () => {
     billNo.value = data.billNo || '';
     customerName.value = data.customerName || '';
     billStatus.value = data.status || '';
+    modifyStatus.value = data.modifyStatus || '';
+    modifyReason.value = data.modifyReason || '';
+    modifyApplyName.value = data.modifyApplyName || '';
+    modifyApplyAt.value = data.modifyApplyAt || '';
+    auditRemark.value = data.auditRemark || '';
 
     if (data.details) {
       details.value = data.details.map(row => ({
         ...row,
+        goldItems: row.goldItems || [],
         isReturned: isReturnedDetail(row)
       }));
       details.value.forEach(row => calcRow(row));
@@ -704,11 +825,22 @@ const handleSave = async () => {
 
 // ===== 提交审核 =====
 const handleSubmitAudit = async () => {
+  const isResubmit = modifyStatus.value === 'applied';
   try {
-    await ElMessageBox.confirm('确认提交审核吗？提交后工厂审核员将进行审核。', '提交审核', { type: 'info' });
-    await submitBillAudit(billId.value);
-    ElMessage.success('提交审核成功');
-    router.push('/order/bill/my-list');
+    await ElMessageBox.confirm(
+      isResubmit ? '确认重新提交修改后的账单吗？提交后工厂审核员将审核。' : '确认提交审核吗？提交后工厂审核员将进行审核。',
+      isResubmit ? '重新提交审核' : '提交审核',
+      { type: 'info' }
+    );
+    if (isResubmit) {
+      await resubmitBillModify(billId.value);
+      ElMessage.success('已重新提交，等待工厂审核员审核');
+    } else {
+      await submitBillAudit(billId.value);
+      ElMessage.success('提交审核成功');
+    }
+    // ⭐ 从「生成账单」进来的，提交完回生成账单列表
+    router.push(route.query.from === 'generate' ? '/order/bill/generate' : '/order/bill/my-list');
   } catch {}
 };
 
@@ -967,5 +1099,10 @@ onMounted(async () => {
 }
 .lr-table .cost {
   background: #f5f7fa;
+}
+/* 多成色明细展开区 */
+.gi-expand {
+  padding: 4px 14px 8px 46px;
+  background: #fafbfc;
 }
 </style>

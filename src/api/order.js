@@ -52,6 +52,11 @@ export const deleteOrderCost = (orderId) => {
   return api.delete(`/order/cost/${orderId}`);
 };
 
+// ===== ⭐ 复制单：是否从复刻（源）订单带出维修单/成本数据（工厂决定） =====
+export const setCopyBringRepair = (orderId, enabled) => {
+  return api.post(`/order/${orderId}/copy-bring-repair`, { enabled: !!enabled });
+};
+
 // ===== 审核订单 =====
 export const auditOrder = (id, data) => {
   return api.post(`/order/${id}/audit`, data);
@@ -95,6 +100,54 @@ export const rejectBill = (id, data) => {
 // ===== 取消订单 =====
 export const cancelOrder = (id, remark) => {
   return api.post(`/order/${id}/cancel`, { remark });
+};
+
+// ===== 取消订单（审批流，终态 cancelled） =====
+// 客户下单员：申请取消（客户审核前直接取消）
+export const applyCancel = (id, reason) => {
+  return api.post(`/order/${id}/cancel/apply`, { reason });
+};
+// 客户审核员：同意/驳回取消
+export const auditCancel = (id, data) => {
+  return api.post(`/order/${id}/cancel/audit`, data);
+};
+// 工厂操作员：确认取消
+export const confirmCancel = (id, remark) => {
+  return api.post(`/order/${id}/cancel/confirm`, { remark });
+};
+// 客户：撤回取消申请（审批前）
+export const withdrawCancel = (id) => {
+  return api.post(`/order/${id}/cancel/withdraw`);
+};
+
+// ===== 客户审批中心（取消 / 暂停 列表） =====
+export const getCancelApprovalList = (params) => {
+  return api.get('/order/approval/cancel', { params });
+};
+export const getPauseApprovalList = (params) => {
+  return api.get('/order/approval/pause', { params });
+};
+
+// ===== 客户「申请暂停」审批流（2026-11-06） =====
+// 客户：申请暂停
+export const applyPause = (id, reason) => {
+  return api.post(`/order/${id}/pause/apply`, { reason });
+};
+// 客户审核员：审批暂停申请
+export const auditPause = (id, data) => {
+  return api.post(`/order/${id}/pause/audit`, data);
+};
+// 客户：申请恢复生产
+export const requestRestore = (id, reason) => {
+  return api.post(`/order/${id}/pause/restore-request`, { reason });
+};
+// 客户审核员：审批恢复申请
+export const auditRestore = (id, data) => {
+  return api.post(`/order/${id}/pause/restore-audit`, data);
+};
+// 客户：撤回暂停/恢复申请
+export const withdrawPause = (id) => {
+  return api.post(`/order/${id}/pause/withdraw`);
 };
 
 // ===== 标记紧急 =====
@@ -146,6 +199,21 @@ export const auditProduction = (id, data) => {
   return api.post(`/order/${id}/audit-production`, data);
 };
 
+// ⭐ 制作完成 → 提交审核（不自动提交，需在「待审核」手动提交）
+export const submitProductionAudit = (id) => {
+  return api.post(`/order/${id}/submit-production-audit`);
+};
+
+// ⭐ 制作完成 → 撤回提交（未审核前可撤回）
+export const withdrawProductionAudit = (id) => {
+  return api.post(`/order/${id}/withdraw-production-audit`);
+};
+
+// ⭐ 批量提交 / 撤回制作完成审核（submit=false 为撤回）
+export const batchProductionAudit = (orderIds, submit = true) => {
+  return api.post('/order/production-audit/batch', { orderIds, submit });
+};
+
 
 // 撤回修改申请
 export const withdrawOrderModify = (requestId) => {
@@ -170,4 +238,10 @@ export const getBillPendingOrders = (params) => {
 // ===== 品名历史联想（从历史订单带出，不再依赖产品库）=====
 export const getProductSuggest = (params) => {
   return api.get('/order/product-suggest', { params });
+};
+
+// ===== ⭐ 带入历史钻石数据（同客户 + 同钻石级别，只带钻石部分）=====
+// params: { customerId, diamondLevel, excludeOrderId? }
+export const getDiamondBring = (params) => {
+  return api.get('/order/diamond-bring', { params });
 };

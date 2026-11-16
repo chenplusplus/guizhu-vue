@@ -240,11 +240,11 @@
 
     <!-- 钻石汇总（主石 / 副石） -->
     <div class="section">
-      <div class="section-title">💎 钻石汇总（卡重 / 单价 / 利润）</div>
+      <div class="section-title">💎 钻石汇总（石重(ct) / 单价 / 利润）</div>
       <el-table :data="summary.byStone || []" border stripe show-summary :summary-method="stoneSummaryMethod" style="width:100%;">
         <el-table-column prop="label" label="分类" min-width="90" fixed />
         <el-table-column prop="saleQty" label="给客户·数量" width="110" align="right" />
-        <el-table-column prop="saleCarat" label="给客户·卡重" width="120" align="right">
+        <el-table-column prop="saleCarat" label="给客户·石重(ct)" width="130" align="right">
           <template #default="{ row }">{{ fmt(row.saleCarat, 3) }}ct</template>
         </el-table-column>
         <el-table-column prop="salePrice" label="给客户·单价" width="130" align="right">
@@ -253,7 +253,7 @@
         <el-table-column prop="saleAmount" label="给客户·金额" width="140" align="right">
           <template #default="{ row }">¥{{ fmt(row.saleAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="costCarat" label="自己出·卡重" width="120" align="right">
+        <el-table-column prop="costCarat" label="自己出·石重(ct)" width="130" align="right">
           <template #default="{ row }">{{ fmt(row.costCarat, 3) }}ct</template>
         </el-table-column>
         <el-table-column prop="costPrice" label="自己出·单价" width="130" align="right">

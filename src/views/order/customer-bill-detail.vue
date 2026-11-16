@@ -49,7 +49,9 @@
 
     <!-- 明细列表：账单+收款合并，按时间排序 -->
     <div class="table-wrap" v-loading="loading">
-      <el-table :data="allRecords" stripe border size="small" class="detail-table">
+      <el-table :data="allRecords" stripe border size="small" class="detail-table"
+        :scrollbar-always-on="true"
+      >
         <el-table-column prop="recordDate" label="日期" width="110">
           <template #default="{row}">{{ fmtDate(row.recordDate) }}</template>
         </el-table-column>

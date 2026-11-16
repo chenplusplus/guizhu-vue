@@ -46,9 +46,14 @@ export const getInoutOptions = () => {
 
 
 // ===================== 进销存录入（金/钻石/费用） =====================
+// ⭐ 录入页下拉选项（往来单位 / 产品名称 / 内容的历史值）
+export const getInoutFormOptions = (type) => {
+  return api.get('/inout/form-options', { params: { type } });
+};
+
 // 黄金
-export const getGoldLastTotal = (recordDate, counterpartyId) => {
-  return api.get('/inout/gold/last-total', { params: { recordDate, counterpartyId } });
+export const getGoldLastTotal = (recordDate, counterpartyId, counterpartyName) => {
+  return api.get('/inout/gold/last-total', { params: { recordDate, counterpartyId, counterpartyName } });
 };
 export const createGold = (data) => {
   return api.post('/inout/gold', data);
@@ -60,9 +65,13 @@ export const getGoldList = (params) => {
 export const getGoldSummaryByMaterial = (params) => {
   return api.get('/inout/gold/summary-by-material', { params });
 };
+// ⭐ 结算单式汇总：上单 / 本单 / 累计（type = gold | diamond | expense）
+export const getInoutSettlement = (params) => {
+  return api.get('/inout/settlement', { params });
+};
 // 钻石
-export const getDiamondLastTotal = (recordDate, counterpartyId) => {
-  return api.get('/inout/diamond/last-total', { params: { recordDate, counterpartyId } });
+export const getDiamondLastTotal = (recordDate, counterpartyId, counterpartyName, excludeId) => {
+  return api.get('/inout/diamond/last-total', { params: { recordDate, counterpartyId, counterpartyName, excludeId } });
 };
 export const createDiamond = (data) => {
   return api.post('/inout/diamond', data);
@@ -71,8 +80,8 @@ export const getDiamondList = (params) => {
   return api.get('/inout/diamond/list', { params });
 };
 // 费用
-export const getExpenseLastTotal = (recordDate, counterpartyId) => {
-  return api.get('/inout/expense/last-total', { params: { recordDate, counterpartyId } });
+export const getExpenseLastTotal = (recordDate, counterpartyId, counterpartyName, excludeId) => {
+  return api.get('/inout/expense/last-total', { params: { recordDate, counterpartyId, counterpartyName, excludeId } });
 };
 export const createExpense = (data) => {
   return api.post('/inout/expense', data);

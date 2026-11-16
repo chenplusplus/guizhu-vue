@@ -5,8 +5,6 @@
         <div class="card-header">
           <span class="title">🥇 金录入列表</span>
           <div v-if="!auditOnly">
-            <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD"
-              style="width:240px;margin-right:8px;" @change="loadList" />
             <el-select v-model="filterStatus" placeholder="状态" clearable style="width:120px;margin-right:8px;" @change="loadList">
               <el-option label="草稿" value="draft" />
               <el-option label="待审核" value="pending" />
@@ -14,7 +12,7 @@
               <el-option label="已驳回" value="rejected" />
             </el-select>
             <el-button type="primary" @click="loadList">刷新</el-button>
-            <el-button type="success" @click="$router.push('/inout/gold-input')">+ 新增录入</el-button>
+            <el-button type="success" @click="goCreate">+ 新增录入</el-button>
           </div>
           <div v-else class="audit-badge">
             <el-tag type="danger" effect="dark" size="small">待审核</el-tag>
@@ -24,6 +22,39 @@
         </div>
       </template>
 
+      <!-- ⭐ 日期快捷 + 方向 + 关键字筛选 -->
+      <div class="search-bar">
+        <div class="sb-filter-row">
+          <el-radio-group v-model="dateShortcut" size="small" @change="onShortcutChange">
+            <el-radio-button value="today">今天</el-radio-button>
+            <el-radio-button value="month">本月</el-radio-button>
+            <el-radio-button value="all">全部</el-radio-button>
+          </el-radio-group>
+          <el-date-picker v-model="dateRange" type="daterange" value-format="YYYY-MM-DD"
+            size="small" range-separator="~" start-placeholder="开始" end-placeholder="结束"
+            style="width:240px" @change="onDateChange" />
+          <el-select v-model="filterDirection" placeholder="全部方向" clearable size="small"
+            class="sb-direction" @change="handleSearch">
+            <el-option label="入库（收）" :value="1" />
+            <el-option label="出库（支）" :value="0" />
+          </el-select>
+        </div>
+        <el-input v-model="keyword" placeholder="单号 / 供应商 / 产品名称 / 内容 / 成色" clearable
+          class="sb-keyword" @keyup.enter="handleSearch" @clear="handleSearch">
+          <template #prefix><el-icon><Search /></el-icon></template>
+        </el-input>
+        <el-select v-model="filterProductName" placeholder="产品名称" filterable clearable
+          class="sb-select" @change="handleSearch">
+          <el-option v-for="n in productNameOptions" :key="n" :label="n" :value="n" />
+        </el-select>
+        <el-select v-model="filterContent" placeholder="内容" filterable clearable
+          class="sb-select" @change="handleSearch">
+          <el-option v-for="c in contentOptions" :key="c" :label="c" :value="c" />
+        </el-select>
+        <el-button type="primary" @click="handleSearch">搜索</el-button>
+        <el-button @click="resetSearch">重置</el-button>
+      </div>
+
       <!-- ⭐ 批量操作栏 -->
       <div class="batch-bar" v-if="selectedRows.length > 0 && !auditOnly">
         <span>已选 {{ selectedRows.length }} 条</span>
@@ -31,68 +62,16 @@
         <el-button type="danger" size="small" v-if="isAdmin && !auditOnly" @click="handleBatchDelete">批量删除</el-button>
       </div>
 
-      <!-- ⭐ 材料分类汇总（行=材料/成色，列=重量与金额） -->
-      <div class="summary-block" v-if="!auditOnly">
-        <div class="summary-title">🧮 材料分类汇总</div>
-        <el-table :data="materialSummaryRows" border size="small" class="summary-table" show-summary
-          :summary-method="materialSummary" :row-class-name="materialRowClass">
-          <el-table-column prop="materialType" label="材料（成色）" min-width="120" fixed>
-            <template #default="{ row }">
-              <span class="color-mark" :class="materialRowClass({ row })"></span>{{ row.materialType || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="inWeight" label="收入重(g)" align="right" width="110">
-            <template #default="{ row }"><span class="in-val">{{ fmt(row.inWeight, 3) }}</span></template>
-          </el-table-column>
-          <el-table-column prop="outWeight" label="支出重(g)" align="right" width="110">
-            <template #default="{ row }"><span class="out-val">{{ fmt(row.outWeight, 3) }}</span></template>
-          </el-table-column>
-          <el-table-column prop="netWeight" label="净重(g)" align="right" width="110">
-            <template #default="{ row }"><b>{{ fmt(row.netWeight, 3) }}</b></template>
-          </el-table-column>
-          <el-table-column prop="inAddLoss" label="收入加耗(g)" align="right" width="115">
-            <template #default="{ row }">{{ fmt(row.inAddLoss, 3) }}</template>
-          </el-table-column>
-          <el-table-column prop="outAddLoss" label="支出加耗(g)" align="right" width="115">
-            <template #default="{ row }">{{ fmt(row.outAddLoss, 3) }}</template>
-          </el-table-column>
-          <el-table-column prop="netAddLoss" label="净加耗(g)" align="right" width="115">
-            <template #default="{ row }"><b>{{ fmt(row.netAddLoss, 3) }}</b></template>
-          </el-table-column>
-          <el-table-column prop="lossRate" label="损耗" align="right" width="90">
-            <template #default="{ row }">{{ fmt(row.lossRate, 4) }}</template>
-          </el-table-column>
-          <el-table-column prop="inFold" label="收入折算(g)" align="right" width="115">
-            <template #default="{ row }">{{ fmt(row.inFold, 3) }}</template>
-          </el-table-column>
-          <el-table-column prop="outFold" label="支出折算(g)" align="right" width="115">
-            <template #default="{ row }">{{ fmt(row.outFold, 3) }}</template>
-          </el-table-column>
-          <el-table-column prop="netFold" label="净折算(g)" align="right" width="115">
-            <template #default="{ row }">
-              <b style="color:#409EFF;">{{ fmt(row.netFold, 3) }}</b>
-            </template>
-          </el-table-column>
-          <el-table-column prop="inAmount" label="收入金额(元)" align="right" width="130">
-            <template #default="{ row }"><span class="in-val">¥{{ fmt(row.inAmount, 2) }}</span></template>
-          </el-table-column>
-          <el-table-column prop="outAmount" label="支出金额(元)" align="right" width="130">
-            <template #default="{ row }"><span class="out-val">¥{{ fmt(row.outAmount, 2) }}</span></template>
-          </el-table-column>
-          <el-table-column prop="netAmount" label="净额(元)" align="right" width="130">
-            <template #default="{ row }">
-              <b :class="row.netAmount >= 0 ? 'net-in' : 'net-out'">¥{{ fmt(row.netAmount, 2) }}</b>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-
-      <el-table :data="tableData" border stripe v-loading="loading" size="small"
+      <el-table :data="tableData" :empty-text="emptyHint" border stripe v-loading="loading" size="small"
         @selection-change="handleSelectionChange" ref="tableRef">
         <!-- ⭐ 多选列 -->
         <el-table-column type="selection" width="45" align="center" :selectable="canSelect" />
 
-        <el-table-column prop="recordNo" label="单号" width="140" fixed />
+        <el-table-column prop="recordNo" label="单号" width="140" fixed>
+          <template #default="{ row }">
+            <el-button link type="primary" class="no-link" @click="goDetail(row)">{{ row.recordNo }}</el-button>
+          </template>
+        </el-table-column>
         <el-table-column prop="recordDate" label="日期" width="110">
           <template #default="{ row }">{{ fmtDate(row.recordDate) }}</template>
         </el-table-column>
@@ -103,26 +82,53 @@
           </template>
         </el-table-column>
         <el-table-column prop="counterpartyName" label="供应商" width="130" show-overflow-tooltip />
-        <el-table-column prop="materialType" label="材质" width="120" />
-        <el-table-column prop="goldWeight" label="重量" width="90" align="right">
-          <template #default="{ row }">{{ fmt(row.goldWeight, 4) }}</template>
-        </el-table-column>
-        <el-table-column prop="lossRate" label="损耗" width="80" align="right">
-          <template #default="{ row }">{{ fmt(row.lossRate, 4) }}</template>
-        </el-table-column>
-        <el-table-column prop="totalWeight" label="总量" width="90" align="right">
-          <template #default="{ row }">{{ fmt(row.totalWeight, 4) }}</template>
-        </el-table-column>
-        <el-table-column prop="foldWeight" label="折算重" width="90" align="right">
+        <el-table-column prop="productName" label="产品名称" width="110" show-overflow-tooltip />
+        <el-table-column prop="content" label="内容" width="120" show-overflow-tooltip />
+        <el-table-column prop="materialType" label="成色" width="110">
           <template #default="{ row }">
-            <span :style="{ color: getFoldColor(row.foldCategory) }">{{ fmt(row.foldWeight, 4) }}</span>
+            <span v-if="row.materialType">{{ row.materialType }}</span>
+            <span v-else class="muted-cell">未填成色</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="goldWeight" label="金重 (g)" width="90" align="right">
+          <template #default="{ row }">{{ fmt(row.goldWeight, 2) }}</template>
+        </el-table-column>
+        <el-table-column prop="lossRate" label="损耗率" width="78" align="right">
+          <template #default="{ row }">{{ pct(row.lossRate) }}</template>
+        </el-table-column>
+        <el-table-column prop="totalWeight" label="加耗总重 (g)" width="105" align="right">
+          <template #default="{ row }">{{ fmt(row.totalWeight, 2) }}</template>
+        </el-table-column>
+        <el-table-column prop="foldRate" label="折算率" width="78" align="right">
+          <template #default="{ row }">{{ row.foldRate == null ? '—' : pct(row.foldRate) }}</template>
+        </el-table-column>
+        <!-- ⭐ 成色按折算率折成足金：折足金 = 加耗总重 × 折算率 -->
+        <el-table-column prop="foldWeight" label="折足金 (g)" width="100" align="right">
+          <template #default="{ row }">
+            <el-tooltip content="折足金 = 加耗总重 × 折算率" placement="top" :show-after="300">
+              <span class="fold-cell" :style="{ color: getFoldColor(row.foldCategory) }">{{ fmt(row.foldWeight, 2) }}</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <!-- 付足料：买配件时付给供应商的足金，冲减本单欠料 -->
+        <el-table-column prop="paidFoldWeight" label="付足料 (g)" width="100" align="right">
+          <template #default="{ row }">
+            <span v-if="Number(row.paidFoldWeight) > 0" class="paid-fold-cell">{{ fmt(row.paidFoldWeight, 2) }}</span>
+            <span v-else class="zero-cell">—</span>
           </template>
         </el-table-column>
         <el-table-column prop="patchWeight" label="补钯重" width="90" align="right">
-          <template #default="{ row }">{{ fmt(row.patchWeight, 4) }}</template>
+          <template #default="{ row }">{{ fmt(row.patchWeight, 2) }}</template>
         </el-table-column>
         <el-table-column prop="mouthWeight" label="补口重" width="90" align="right">
-          <template #default="{ row }">{{ fmt(row.mouthWeight, 4) }}</template>
+          <template #default="{ row }">{{ fmt(row.mouthWeight, 2) }}</template>
+        </el-table-column>
+        <!-- 补口价（单价）× 补口重 = 补口金额 -->
+        <el-table-column prop="mouthPrice" label="补口价" width="90" align="right">
+          <template #default="{ row }">
+            <span v-if="Number(row.mouthPrice) > 0">¥{{ fmt(row.mouthPrice, 2) }}</span>
+            <span v-else class="zero-cell">—</span>
+          </template>
         </el-table-column>
         <el-table-column prop="mouthAmount" label="补口金额" width="90" align="right">
           <template #default="{ row }">¥{{ fmt(row.mouthAmount, 2) }}</template>
@@ -138,11 +144,6 @@
             <span style="font-weight:600;color:#E6A23C;">¥{{ fmt(row.totalAmount, 2) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="currentTotalFold" label="本单累计" width="120" align="right">
-          <template #default="{ row }">
-            <span style="font-weight:600;color:#409EFF;">{{ fmt(row.currentTotalFold, 4) }}</span>
-          </template>
-        </el-table-column>
         <el-table-column prop="status" label="状态" width="80" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.status === 'draft'" type="info" size="small">草稿</el-tag>
@@ -153,8 +154,6 @@
         </el-table-column>
         <el-table-column prop="createdByName" label="经办人" width="80" />
         <el-table-column prop="auditedByName" label="审核人" width="80" />
-        <el-table-column prop="productName" label="产品名称" width="100" show-overflow-tooltip />
-        <el-table-column prop="content" label="内容" width="100" show-overflow-tooltip />
         <el-table-column prop="remark" label="备注" min-width="100" show-overflow-tooltip />
         <el-table-column label="操作" width="200" fixed="right" align="center">
           <template #default="{ row }">
@@ -168,33 +167,15 @@
               v-if="(row.status === 'draft' || row.status === 'rejected') && row.createdByName === currentUserName"
               type="success" link size="small" @click="handleSubmit(row)">提交</el-button>
 
-            <!-- 审核：审核员/管理员，待审核 -->
-            <template v-if="(isAudit || isAdmin) && row.status === 'pending'">
-              <el-button type="success" link size="small" @click="handleAudit(row, true)">通过</el-button>
-              <el-button type="danger" link size="small" @click="handleAudit(row, false)">驳回</el-button>
-            </template>
+            <!-- ⭐ 审核：跳详情页核对整单后再通过/驳回（列表信息不全，不再直接审） -->
+            <el-button v-if="(isAudit || isAdmin) && row.status === 'pending'"
+              type="success" link size="small" @click="goAudit(row)">审核</el-button>
 
             <!-- 删除：管理员 -->
             <el-button v-if="isAdmin && !auditOnly" type="danger" link size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
-
-      <!-- 审核弹窗（录入审核人/备注） -->
-      <el-dialog v-model="auditDialogVisible" title="审核" width="420px" append-to-body>
-        <el-form label-width="80px">
-          <el-form-item label="审核人">
-            <el-input v-model="auditForm.auditedByName" placeholder="默认当前登录人" />
-          </el-form-item>
-          <el-form-item label="备注">
-            <el-input v-model="auditForm.remark" type="textarea" :rows="2" />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="auditDialogVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmAudit">确定</el-button>
-        </template>
-      </el-dialog>
 
       <el-pagination
         style="margin-top:12px;"
@@ -212,7 +193,9 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getGoldList, getGoldSummaryByMaterial, submitGold, auditGold, deleteGold } from '@/api/inout'
+import { getGoldList, submitGold, deleteGold, getInoutFormOptions } from '@/api/inout'
+import { GOLD_CONTENT_OPTIONS, mergeOptions } from '@/constants/inoutOptions'
+import { shortcutRange, sameRange } from '@/utils/date'
 
 const route = useRoute()
 const router = useRouter()
@@ -223,15 +206,74 @@ const tableData = ref([])
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
-const dateRange = ref([])
+// ⭐ 日期默认本月（不再默认全部），提供 今天 / 本月 / 全部 快捷
+//    审核入口（workbench 带 mode=audit）默认「全部」，否则往期待审核会被本月区间藏掉
+const defaultShortcut = route.query.mode === 'audit' ? 'all' : 'month'
+const dateShortcut = ref(defaultShortcut)
+const dateRange = ref(shortcutRange(defaultShortcut))
 const filterStatus = ref(route.query.status || '')
+// ⭐ 方向查询：入口带了 direction 就按入口预选，页面里可改/可清空
+const filterDirection = ref(
+  (route.query.direction === undefined || route.query.direction === '' || route.query.direction === null)
+    ? '' : Number(route.query.direction)
+)
+// ⭐ 列表搜索：关键字（单号/供应商/产品/内容/成色）+ 产品名称 + 内容
+const keyword = ref('')
+const filterProductName = ref('')
+const filterContent = ref('')
+const productNameOptions = ref([])
+const contentOptions = ref([])
+
+// 下拉选项取自历史录入值，便于按产品/内容直接筛选
+const loadSearchOptions = async () => {
+  try {
+    const res = await getInoutFormOptions('gold')
+    const d = res?.data || {}
+    productNameOptions.value = d.productNames || []
+    contentOptions.value = mergeOptions(GOLD_CONTENT_OPTIONS, d.contents || [])
+  } catch {}
+}
+
+const handleSearch = () => {
+  page.value = 1
+  loadList()
+}
+
+// ⭐ 快捷区间：今天 / 本月 / 全部
+const onShortcutChange = (key) => {
+  dateRange.value = shortcutRange(key)
+  page.value = 1
+  loadList()
+}
+// 手动改日期后，若不再等于快捷区间就取消快捷高亮
+const onDateChange = () => {
+  if (!sameRange(dateRange.value, shortcutRange(dateShortcut.value))) dateShortcut.value = ''
+  page.value = 1
+  loadList()
+}
+
+// ⭐ 新增录入：按当前方向进对应录入口（之前写死 /inout/gold-input 不存在 → 被兜底到工作台）
+const goCreate = () => {
+  router.push(filterDirection.value === 0 ? '/inout/gold/out' : '/inout/gold/in')
+}
+
+const resetSearch = () => {
+  keyword.value = ''
+  filterProductName.value = ''
+  filterContent.value = ''
+  filterDirection.value = ''
+  dateShortcut.value = defaultShortcut
+  dateRange.value = shortcutRange(defaultShortcut)
+  page.value = 1
+  loadList()
+}
 // ⭐ 方向由入口带死（1=进/收，0=出/支）：审核工作台按「进 / 出」拆卡跳转
 const qDirection = computed(() => {
   const d = route.query.direction
   return (d === undefined || d === '' || d === null) ? undefined : Number(d)
 })
 const directionLabel = computed(() =>
-  qDirection.value === 1 ? '金料 · 进（收入）' : qDirection.value === 0 ? '金料 · 出（支出）' : '全部方向')
+  qDirection.value === 1 ? '金料 · 入库（付钱）' : qDirection.value === 0 ? '金料 · 出库（收钱）' : '全部方向')
 const currentUserName = ref('')
 const isAudit = ref(false)
 const isAdmin = ref(false)
@@ -242,6 +284,8 @@ const fmt = (v, d) => {
   const n = Number(v)
   return Number.isFinite(n) ? n.toFixed(d) : (0).toFixed(d)
 }
+// 率（折算率/损耗率）统一按百分比两位显示，避免 1.0000 这种长小数
+const pct = (v) => (Number(v || 0) * 100).toFixed(2) + '%'
 
 const getFoldColor = (cat) => {
   return { gold: '#E6A23C', silver: '#909399', copper: '#67C23A' }[cat] || '#E6A23C'
@@ -259,18 +303,25 @@ const handleSelectionChange = (rows) => {
   selectedRows.value = rows
 }
 
-const auditDialogVisible = ref(false)
-const auditForm = reactive({ id: 0, approved: true, auditedByName: '', remark: '' })
+
+// 本月为空时提示去「全部」看历史（默认本月后最容易踩的误会）
+const emptyHint = computed(() =>
+  dateShortcut.value === 'month' ? '本月暂无记录，点右上「全部」查看历史' : '暂无数据')
 
 const loadList = async () => {
   loading.value = true
   try {
     const params = { page: page.value, pageSize: pageSize.value, status: filterStatus.value || undefined }
-    if (qDirection.value !== undefined) params.direction = qDirection.value
+    if (filterDirection.value !== '' && filterDirection.value !== null && filterDirection.value !== undefined) {
+      params.direction = filterDirection.value
+    }
     if (dateRange.value && dateRange.value.length === 2) {
       params.startDate = dateRange.value[0]
       params.endDate = dateRange.value[1]
     }
+    if (keyword.value) params.keyword = keyword.value
+    if (filterProductName.value) params.productName = filterProductName.value
+    if (filterContent.value) params.content = filterContent.value
     const res = await getGoldList(params)
     if (res.success) {
       tableData.value = res.data || []
@@ -278,106 +329,12 @@ const loadList = async () => {
     }
   } catch {}
   finally { loading.value = false }
-  loadSummary()
 }
 
-// ===== 材料分类汇总（随筛选联动） =====
-const summaryData = ref([])   // [{materialType, inWeight, outWeight, inTotalWeight, outTotalWeight, inFoldWeight, outFoldWeight, inAmount, outAmount}]
-const dictLabels = ref([])    // 成色字典顺序
-
-// 行=材料；按成色字典排序，字典外的排最后
-const materialSummaryRows = computed(() => {
-  return summaryData.value.map(x => {
-    const inW = Number(x.inWeight) || 0
-    const outW = Number(x.outWeight) || 0
-    const inA = Number(x.inTotalWeight) || 0
-    const outA = Number(x.outTotalWeight) || 0
-    const inF = Number(x.inFoldWeight) || 0
-    const outF = Number(x.outFoldWeight) || 0
-    const netW = inW - outW
-    const netA = inA - outA
-    return {
-      materialType: x.materialType,
-      inWeight: inW,
-      outWeight: outW,
-      netWeight: netW,
-      inAddLoss: inA,
-      outAddLoss: outA,
-      netAddLoss: netA,
-      lossRate: netW !== 0 ? netA / netW : 0,
-      inFold: inF,
-      outFold: outF,
-      netFold: inF - outF,
-      inAmount: Number(x.inAmount) || 0,
-      outAmount: Number(x.outAmount) || 0,
-      netAmount: (Number(x.inAmount) || 0) - (Number(x.outAmount) || 0),
-      _order: dictLabels.value.indexOf(x.materialType)
-    }
-  }).sort((a, b) => {
-    const oa = a._order === -1 ? 999 : a._order
-    const ob = b._order === -1 ? 999 : b._order
-    return oa - ob
-  })
-})
-
-// 成色配色（金系由浓到淡，PT/银/铜各有色）
-const tone = (c) => {
-  const s = String(c || '')
-  if (/足金|999|990|黄金|^黄/.test(s)) return 'mat-gold-999'
-  if (/玫瑰金|18\s*K/i.test(s)) return 'mat-gold-18k'
-  if (/白色|14\s*K/i.test(s)) return 'mat-gold-14k'
-  if (/9\s*K|22\s*K/i.test(s)) return 'mat-gold-9k'
-  if (/PT|铂/i.test(s)) return 'mat-pt'
-  if (/银/i.test(s)) return 'mat-silver'
-  if (/铜/i.test(s)) return 'mat-copper'
-  return 'mat-gold-other'
-}
-const materialRowClass = ({ row }) => tone(row?.materialType)
-
-// 合计行
-const materialSummary = ({ columns, data }) => {
-  const sums = []
-  columns.forEach((col, i) => {
-    if (i === 0) { sums[i] = '合计'; return; }
-    if (col.property === 'lossRate') { sums[i] = ''; return; }
-    if (['inWeight', 'outWeight', 'netWeight', 'inAddLoss', 'outAddLoss', 'netAddLoss', 'inFold', 'outFold', 'netFold'].includes(col.property)) {
-      sums[i] = Math.round(data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0) * 1000) / 1000
-      return
-    }
-    if (['inAmount', 'outAmount', 'netAmount'].includes(col.property)) {
-      sums[i] = Math.round(data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0) * 100) / 100
-      return
-    }
-    sums[i] = ''
-  })
-  return sums
-}
-
-// 加载成色字典（决定行的排序）
-const loadDict = async () => {
-  try {
-    const { dictApi } = await import('@/api/dict')
-    const res = await dictApi.getItemsByKey('purity')
-    dictLabels.value = (res?.data || []).map(x => x.itemLabel || x.itemValue)
-  } catch {}
-}
-
-const loadSummary = async () => {
-  if (auditOnly.value) return  // 审核模式隐藏汇总，不请求
-  try {
-    const params = { status: filterStatus.value || undefined }
-    if (dateRange.value && dateRange.value.length === 2) {
-      params.startDate = dateRange.value[0]
-      params.endDate = dateRange.value[1]
-    }
-    const res = await getGoldSummaryByMaterial(params)
-    if (res.success) summaryData.value = res.data || []
-  } catch {}
-}
-
-// 编辑
+// 编辑：按记录方向进入对应入口（方向由入口决定，不可在页面里切换）
 const handleEdit = (row) => {
-  router.push(`/inout/gold-input?id=${row.id}`)
+  const path = row.direction === 1 ? '/inout/gold/in' : '/inout/gold/out'
+  router.push(`${path}?id=${row.id}`)
 }
 
 // 单条提交
@@ -404,23 +361,9 @@ const handleBatchSubmit = async () => {
   loadList()
 }
 
-// 审核
-const handleAudit = (row, approved) => {
-  auditForm.id = row.id
-  auditForm.approved = approved
-  auditForm.auditedByName = currentUserName.value
-  auditForm.remark = ''
-  auditDialogVisible.value = true
-}
-
-const confirmAudit = async () => {
-  const res = await auditGold(auditForm.id, auditForm.approved, auditForm.remark, auditForm.auditedByName)
-  if (res.success) {
-    ElMessage.success(auditForm.approved ? '已通过' : '已驳回')
-    auditDialogVisible.value = false
-    loadList()
-  }
-}
+// ⭐ 审核 / 查看：统一跳详情页（审核动作在详情页完成）
+const goDetail = (row) => router.push({ path: `/inout/audit-detail/gold/${row.id}`, query: { back: route.fullPath } })
+const goAudit = (row) => router.push({ path: `/inout/audit-detail/gold/${row.id}`, query: { back: route.fullPath, mode: 'audit' } })
 
 // 删除
 const handleDelete = async (row) => {
@@ -452,7 +395,7 @@ onMounted(() => {
   const userType = (userInfo.userType || '').toLowerCase()
   isAudit.value = userType === 'factoryaudit'
   isAdmin.value = userType === 'admin'
-  loadDict()
+  loadSearchOptions()
   loadList()
 })
 </script>
@@ -461,6 +404,30 @@ onMounted(() => {
 .inout-list-page { padding: 16px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; font-size: 16px; }
+/* 搜索栏 */
+.search-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: #fafafa;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+}
+.search-bar .sb-keyword { width: 260px; }
+/* 日期快捷 + 方向：单独占一整行，避免和关键字挤在一起 */
+.search-bar .sb-filter-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+.search-bar .sb-direction { width: 140px; }
+.search-bar .sb-select { width: 160px; }
+.search-bar .el-button + .el-button { margin-left: 0; }
 .batch-bar {
   display: flex;
   align-items: center;
@@ -472,32 +439,6 @@ onMounted(() => {
   font-size: 14px;
   color: #409EFF;
 }
-.summary-block { margin-bottom: 14px; }
-.summary-title { font-weight: 600; font-size: 14px; margin-bottom: 8px; color: #8c5a18; }
-.summary-table { width: 100%; }
-.in-val { color: #67c23a; font-weight: 600; }
-.out-val { color: #f56c6c; font-weight: 600; }
-.net-in { color: #409eff; }
-.net-out { color: #e6a23c; }
-.color-mark { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: middle; border: 1px solid rgba(0,0,0,.15); }
-
-/* 成色配色 */
-:deep(.el-table__row.mat-gold-999) > td.el-table__cell { background: #FFE9A3 !important; }
-:deep(.el-table__row.mat-gold-18k) > td.el-table__cell { background: #FDF0BE !important; }
-:deep(.el-table__row.mat-gold-14k) > td.el-table__cell { background: #FDF6D9 !important; }
-:deep(.el-table__row.mat-gold-9k) > td.el-table__cell { background: #FEFAEC !important; }
-:deep(.el-table__row.mat-gold-other) > td.el-table__cell { background: #FBF3E4 !important; }
-:deep(.el-table__row.mat-pt) > td.el-table__cell { background: #F0EBF9 !important; }
-:deep(.el-table__row.mat-silver) > td.el-table__cell { background: #EDF1F4 !important; }
-:deep(.el-table__row.mat-copper) > td.el-table__cell { background: #F7EAE0 !important; }
-.color-mark.mat-gold-999 { background: #FFE9A3; }
-.color-mark.mat-gold-18k { background: #FDF0BE; }
-.color-mark.mat-gold-14k { background: #FDF6D9; }
-.color-mark.mat-gold-9k { background: #FEFAEC; }
-.color-mark.mat-gold-other { background: #FBF3E4; }
-.color-mark.mat-pt { background: #F0EBF9; }
-.color-mark.mat-silver { background: #EDF1F4; }
-.color-mark.mat-copper { background: #F7EAE0; }
 /* 审核模式：入口带死的筛选条件展示 */
 .audit-badge {
   display: flex;
@@ -506,4 +447,9 @@ onMounted(() => {
   font-size: 13px;
   color: #909399;
 }
+/* 折足金是这个页面的主指标：加粗带下划虚线，提示可以悬浮看口径 */
+.fold-cell { font-weight: 600; border-bottom: 1px dashed currentColor; cursor: help; }
+.paid-fold-cell { font-weight: 600; color: #F56C6C; }
+.zero-cell { color: #c0c4cc; }
+.muted-cell { color: #c0c4cc; }
 </style>

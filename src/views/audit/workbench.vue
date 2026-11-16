@@ -1,5 +1,7 @@
 <template>
   <div class="audit-workbench">
+    <!-- ⭐ 今日金价（工厂审核员：第二道审核） -->
+    <TodayGoldPriceBar />
     <!-- 顶部：待办总览 -->
     <el-card shadow="never" class="summary-card">
       <template #header>
@@ -33,6 +35,21 @@
             >{{ a.label }}</el-button>
           </div>
         </div>
+      </div>
+    </el-card>
+
+    <el-card shadow="never" class="report-card">
+      <template #header>
+        <span class="title">快捷报表</span>
+      </template>
+      <div class="report-actions">
+        <el-button
+          v-for="report in reportShortcuts"
+          :key="report.label"
+          link
+          type="primary"
+          @click="go({ path: report.path })"
+        >{{ report.label }}</el-button>
       </div>
     </el-card>
 
@@ -82,6 +99,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAuditPendingSummary, getAuditPendingList } from '@/api/audit';
+import TodayGoldPriceBar from '@/components/TodayGoldPriceBar.vue';
 
 const router = useRouter();
 
@@ -89,19 +107,30 @@ const loading = ref(false);
 const filterType = ref('');
 const rows = ref([]);
 const counts = ref({});
+const reportShortcuts = [
+  { label: '耗材分析', path: '/transaction/factory-summary' },
+  { label: '经营看板', path: '/transaction/operating-dashboard' },
+  { label: '客户月度账单', path: '/order/customer-monthly-bill' },
+  { label: '往来单位汇总', path: '/transaction/counterpart-summary' },
+];
 
 // 卡片元数据：type → 名称 / 图标 / 跳转目标
 // 进销存按「进 / 出」拆卡，direction: 1=进（收），0=出（支）
 const CARD_META = [
+  { type: 'orderAudit', icon: '🏭', label: '制作完成待审',
+    actions: [{ label: '去审核', path: '/order/factory-audit-list', query: { mode: 'audit' } }] },
+  // ⭐ 退货审核：工厂操作员已定退回方式，等审核员审核（通过才改账单金额）
+  { type: 'returnAudit', icon: '↩️', label: '退货审核',
+    actions: [{ label: '去审核', path: '/order/return-audit' }] },
+  { type: 'bill',      icon: '🧾', label: '账单审核',        actions: [{ label: '去审核', path: '/order/bill/audit',   query: {} }] },
+  { type: 'lr',        icon: '📊', label: 'LR 表',           actions: [{ label: '去审核', path: '/order/lr/list',      query: { status: 'submitted', mode: 'audit' } }] },
+  { type: 'receipt',   icon: '💰', label: '账单收款',        actions: [{ label: '去审核', path: '/order/bill/receipt-audit', query: {} }] },
   { type: 'goldIn',    icon: '🥇', label: '金料·进', actions: [{ label: '去审核', path: '/inout/gold-list',    query: { status: 'pending', direction: '1', mode: 'audit' } }] },
   { type: 'goldOut',   icon: '🥇', label: '金料·出', actions: [{ label: '去审核', path: '/inout/gold-list',    query: { status: 'pending', direction: '0', mode: 'audit' } }] },
   { type: 'diamondIn', icon: '💎', label: '钻石·进', actions: [{ label: '去审核', path: '/inout/diamond-list', query: { status: 'pending', direction: '1', mode: 'audit' } }] },
   { type: 'diamondOut',icon: '💎', label: '钻石·出', actions: [{ label: '去审核', path: '/inout/diamond-list', query: { status: 'pending', direction: '0', mode: 'audit' } }] },
   { type: 'expenseIn', icon: '💰', label: '金额·进', actions: [{ label: '去审核', path: '/inout/expense-list', query: { status: 'pending', direction: '1', mode: 'audit' } }] },
   { type: 'expenseOut',icon: '💰', label: '金额·出', actions: [{ label: '去审核', path: '/inout/expense-list', query: { status: 'pending', direction: '0', mode: 'audit' } }] },
-  { type: 'bill',      icon: '🧾', label: '账单审核',        actions: [{ label: '去审核', path: '/order/bill/audit',   query: {} }] },
-  { type: 'receipt',   icon: '💰', label: '账单收款',        actions: [{ label: '去审核', path: '/order/bill/receipt-audit', query: {} }] },
-  { type: 'lr',        icon: '📊', label: 'LR 表',           actions: [{ label: '去审核', path: '/order/lr/list',      query: { status: 'submitted', mode: 'audit' } }] },
   { type: 'batch',     icon: '📦', label: '盘点',            actions: [{ label: '去审核', path: '/inventory',          query: { status: 'preparing', mode: 'audit' } }] },
   {
     type: 'process', icon: '🔧', label: '师傅进出',
@@ -111,10 +140,6 @@ const CARD_META = [
       { label: '抛光', path: '/process/pg-list', query: { mode: 'audit' } },
     ]
   },
-  { type: 'orderAudit', icon: '🏭', label: '制作完成待审',
-    actions: [{ label: '去审核', path: '/order/factory-audit-list', query: { mode: 'audit' } }] },
-  { type: 'completed', icon: '✅', label: '已完成订单', isReadonly: true,
-    actions: [{ label: '去查看', path: '/order/list', query: { status: 'completed', mode: 'audit' } }] },
 ];
 const cards = computed(() => CARD_META.map(m => {
   const hit = (counts.value.items || []).find(x => x.type === m.type) || {};
@@ -128,9 +153,8 @@ const tagType = (t) => ({
   goldIn: 'warning', goldOut: 'warning', diamondIn: 'primary', diamondOut: 'primary',
   expenseIn: 'success', expenseOut: 'success',
   bill: 'danger', receipt: 'success', lr: 'primary', batch: 'info', process: 'warning',
-  orderAudit: 'success'
+  orderAudit: 'success', returnAudit: 'danger'
 }[t] || 'info');
-
 const fmtDate = (v) => (v ? String(v).slice(0, 10) : '-');
 const fmtTime = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '-');
 
@@ -187,5 +211,7 @@ onMounted(loadAll);
 .card-count.zero { color: #c0c4cc; }
 .card-meta { font-size: 12px; color: #909399; margin-bottom: 10px; }
 .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.report-card { margin-top: 12px; }
+.report-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .detail-card { margin-top: 12px; }
 </style>

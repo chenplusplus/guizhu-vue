@@ -58,6 +58,7 @@
           :header-cell-style="headerCellStyle"
           style="width:100%;"
           :span-method="spanMethod"
+          :scrollbar-always-on="true"
         >
           <!-- 1 流水单号 -->
           <el-table-column prop="serialNo" label="流水单号" width="80" align="center" />
@@ -106,7 +107,7 @@
           <!-- 21-25 副石 -->
           <el-table-column label="副石" align="center">
             <el-table-column prop="subStoneQty" label="粒数" width="55" align="center" />
-            <el-table-column prop="subStoneWeight" label="石重" width="70" align="right" />
+            <el-table-column prop="subStoneWeight" label="石重(ct)" width="84" align="right" />
             <el-table-column prop="subStonePrice" label="单价(元)" width="80" align="right" />
             <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="right" />
             <el-table-column prop="subStoneSettingFee" label="镶石工费" width="85" align="right" />

@@ -16,6 +16,11 @@ export const autoCreateBill = (orderId, remark) => {
   return api.post('/bill/auto-create', null, { params: { orderId, remark } });
 };
 
+// ===== 补齐未出账订单（兜底：已完成但没挂账单的订单，按客户各出一张）=====
+export const generateMissingBills = (params) => {
+  return api.post('/bill/generate-missing', null, { params });
+};
+
 // ===== 获取账单列表 =====
 export const getBillList = (params) => {
   return api.get('/bill/list', { params });
@@ -36,6 +41,16 @@ export const updatePayment = (id, data) => {
   return api.put(`/bill/${id}/payment`, data);
 };
 
+// ===== 账单明细修改记录（工厂侧可见：审核员看「改了什么」）=====
+export const getBillModifyTrail = (id) => {
+  return api.get(`/bill/${id}/modify-trail`);
+};
+
+// ===== 批量取账单修改次数（审核列表行内红字提示）=====
+export const getBillModifyCounts = (ids) => {
+  return api.get('/bill/modify-trail/counts', { params: { ids: (ids || []).join(',') } });
+};
+
 // ===== 审核账单 =====
 export const auditBill = (id, data) => {
   return api.post(`/bill/${id}/audit`, data);
@@ -44,7 +59,12 @@ export const auditBill = (id, data) => {
 export const getCustomerList = (params) => {
   return api.get('/customer/list', { params });
 };
-// ===== 确认账单 =====
+// ===== 客户审核员审核账单（billConfirmed → customerApproved，待业务员确认）=====
+export const customerAuditBill = (id) => {
+  return api.post(`/bill/${id}/customer-audit`);
+};
+
+// ===== 确认账单（业务员最终确认 customerApproved → confirmed）=====
 export const confirmBill = (id) => {
   return api.post(`/bill/${id}/confirm`);
 };
@@ -55,9 +75,29 @@ export const saveBillData = (data) => {
 export const submitBillAudit = (id) => {
   return api.post(`/bill/${id}/submit-audit`);
 };
-// ===== 退回账单 =====
+// ===== 退回账单（旧流程，已停用，改用下面的客户申请 → 工厂处理 → 审核） =====
 export const returnBill = (id, data) => {
   return api.post(`/bill/${id}/return`, data);
+};
+
+// ⭐ 客户申请退回（只勾明细 + 逐行说明，不动金额）
+export const requestBillReturn = (id, data) => {
+  return api.post(`/bill/${id}/return-request`, data);
+};
+
+// ⭐ 工厂操作员处理退回（定退回方式 + 保留损耗，提交审核）
+export const handleBillReturn = (id, data) => {
+  return api.post(`/bill/${id}/return-handle`, data);
+};
+
+// ===== 客户申请修改账单（下单员/客户审核员） =====
+export const applyBillModify = (id, reason) => {
+  return api.post(`/bill/${id}/apply-modify`, { reason });
+};
+
+// ===== 工厂编辑员重新提交修改后的账单 =====
+export const resubmitBillModify = (id) => {
+  return api.post(`/bill/${id}/resubmit-modify`);
 };
 
 // ===== 获取退货记录 =====
@@ -123,4 +163,16 @@ export const auditBillReceipt = (id, data) => {
 // 收款列表（status: none|pending|approved|rejected|all）
 export const getBillReceiptList = (params) => {
   return api.get('/bill/receipt/list', { params });
+};
+// ===== ⭐ 收款记录（客户侧：工厂收款审核通过后的到账流水）=====
+export const getReceiptRecords = (params) => {
+  return api.get('/bill/receipt-record/list', { params });
+};
+// 未读条数 + 本月汇总（工作台卡片 / 顶栏铃铛）
+export const getReceiptUnread = () => {
+  return api.get('/bill/receipt-record/unread');
+};
+// 标记已读（进页面自动调用）
+export const markReceiptRead = () => {
+  return api.post('/bill/receipt-record/read');
 };

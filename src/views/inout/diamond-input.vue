@@ -3,7 +3,7 @@
     <el-card shadow="never">
       <template #header>
         <div class="card-header">
-          <span class="title">💎 钻石录入</span>
+          <span class="title">💎 {{ pageTitle }}</span>
           <el-button type="primary" size="small" @click="$router.push('/inout/diamond-list')">查看列表 →</el-button>
         </div>
       </template>
@@ -17,44 +17,72 @@
           </el-col>
           <el-col :span="6">
             <el-form-item label="方向">
-              <el-select v-model="form.direction" style="width:100%" :disabled="directionLocked">
-                <el-option label="收入" :value="1" />
-                <el-option label="支出" :value="0" />
-              </el-select>
+              <el-tag :type="form.direction === 1 ? 'success' : 'warning'" effect="dark" size="large" class="dir-tag">
+                {{ form.direction === 1 ? '入库（采购）' : '出库' }}
+              </el-tag>
+              <span class="dir-hint">由入口决定，不可改</span>
             </el-form-item>
           </el-col>
           <el-col :span="6">
             <el-form-item label="供应商">
-              <el-select v-model="form.counterpartyId" placeholder="请选择" filterable clearable style="width:100%" @change="onCounterpartyChange">
-                <el-option v-for="cp in counterparties" :key="cp.id" :label="cp.name" :value="cp.id" />
+              <el-select v-model="form.counterpartyName" placeholder="选择或直接输入新供应商" filterable allow-create default-first-option clearable style="width:100%" @change="onCounterpartyChange">
+                <el-option v-for="cp in counterpartyOptions" :key="cp.name" :label="cp.name" :value="cp.name">
+                  <span>{{ cp.name }}</span>
+                  <span class="opt-tag">{{ cp.type === 'customer' ? '客户' : '供应商' }}</span>
+                </el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="6">
-            <el-form-item label="钻石类型" prop="diamondType">
-              <el-select v-model="form.diamondType" style="width:100%">
-                <el-option label="天然钻" value="天然钻" />
-                <el-option label="培育钻" value="培育钻" />
+            <el-form-item label="钻石级别" prop="diamondType">
+              <el-select v-model="form.diamondType" placeholder="请选择级别" clearable filterable allow-create default-first-option style="width:100%">
+                <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
               </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="材质" prop="materialType">
+              <el-select v-model="form.materialType" placeholder="请选择材质" style="width:100%">
+                <el-option v-for="m in materialOptions" :key="m" :label="m" :value="m" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="产品名称">
+              <el-select v-model="form.productName" placeholder="选择或输入新产品名称" filterable allow-create default-first-option clearable style="width:100%">
+                <el-option v-for="p in productNameOptions" :key="p" :label="p" :value="p" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="内容">
+              <el-select v-model="form.content" placeholder="选择或输入新内容" filterable allow-create default-first-option clearable style="width:100%">
+                <el-option v-for="c in contentOptions" :key="c" :label="c" :value="c" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="6">
+            <el-form-item label="经办人">
+              <el-input v-model="form.createByName" placeholder="默认登录人，可改" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-divider content-position="left">数量与金额</el-divider>
+        <el-divider content-position="left">本单</el-divider>
 
         <el-row :gutter="16">
           <el-col :span="8">
             <el-form-item label="卡数(ct)" prop="carat">
-              <el-input-number v-model="form.carat" :min="0" :precision="4" style="width:100%" @change="calc" />
+              <el-input-number v-model="form.carat" :min="0" :precision="2" style="width:100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="单价(元/ct)" prop="unitPrice">
-              <el-input-number v-model="form.unitPrice" :min="0" :precision="2" style="width:100%" @change="calc" />
+              <el-input-number v-model="form.unitPrice" :min="0" :precision="2" style="width:100%" />
             </el-form-item>
           </el-col>
           <el-col :span="8">
-            <el-form-item label="金额">
+            <el-form-item label="应付金额">
               <el-input :model-value="amountDisplay" readonly style="width:100%" />
             </el-form-item>
           </el-col>
@@ -62,82 +90,49 @@
 
         <el-row :gutter="16">
           <el-col :span="8">
-            <el-form-item label="付款金额">
-              <el-input-number v-model="form.paymentAmount" :min="0" :precision="2" style="width:100%" />
+            <el-form-item :label="form.direction === 1 ? '实付金额' : '收款金额'">
+              <div class="pay-row">
+                <el-input-number v-model="form.paymentAmount" :min="0" :precision="2" style="width:100%" />
+                <el-button link type="primary" class="pay-all" @click="form.paymentAmount = amount">全额</el-button>
+              </div>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item :label="form.direction === 1 ? '本单未付' : '本单未收'">
+              <div class="inline-amount" :class="debtClass">
+                {{ fmtMoney(debt) }}
+                <span class="inline-hint">{{ form.direction === 1 ? '金额 − 付款' : '金额 − 收款' }}</span>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="8">
             <el-form-item label="关联订单号">
-              <el-input v-model="form.orderNo" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="备注">
-              <el-input v-model="form.remark" />
+              <el-input v-model="form.orderNo" placeholder="出库填了订单号即算订单出库" />
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-divider content-position="left">累计</el-divider>
+        <!-- ⭐ 累计：选了供应商看该供应商，没选看全部往来单位（钱和石重是两个维度） -->
+        <InoutCumBlock
+          :title="cumTitle"
+          :tip="`截至 ${form.recordDate || '今天'} · 只算已生效单据（草稿 / 待审不计）`"
+          :cards="cumCards"
+          :span="4"
+          :flows="cumFlows"
+          :notes="cumNotes" />
 
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <div class="stat-box">
-              <div class="stat-label">上单累计金额</div>
-              <div class="stat-value">¥{{ lastTotal.lastTotalAmount.toFixed(2) }}</div>
-            </div>
-          </el-col>
-          <el-col :span="12">
-            <div class="stat-box highlight">
-              <div class="stat-label">本单累计金额</div>
-              <div class="stat-value">¥{{ currentTotalAmountDisplay.toFixed(2) }}</div>
-            </div>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="16" style="margin-top:12px">
-          <el-col :span="12">
-            <div class="stat-box">
-              <div class="stat-label">上单累计卡重</div>
-              <div class="stat-value">{{ lastTotal.lastTotalCarat.toFixed(4) }} ct</div>
-            </div>
-          </el-col>
-          <el-col :span="12">
-            <div class="stat-box highlight">
-              <div class="stat-label">本单累计卡重</div>
-              <div class="stat-value">{{ currentTotalCaratDisplay.toFixed(4) }} ct</div>
-            </div>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="16" style="margin-top:12px">
-          <el-col :span="12">
-            <el-form-item label="产品名称">
-              <el-input v-model="form.productName" placeholder="请输入产品名称" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="内容">
-              <el-input v-model="form.content" placeholder="请输入内容" />
-            </el-form-item>
-          </el-col>
-        </el-row>
-
-        <el-row :gutter="16">
-          <el-col :span="12">
-            <el-form-item label="经办人">
-              <el-input v-model="form.createByName" placeholder="默认登录人，可改" />
-            </el-form-item>
-          </el-col>
-        </el-row>
+        <el-form-item label="备注" style="margin-top:12px;">
+          <el-input v-model="form.remark" type="textarea" :rows="2" />
+        </el-form-item>
 
         <el-form-item label="图片" style="margin-top:8px;">
           <MultiImageUpload v-model="imageList" :max-count="10" type="inout" tip="可上传凭证、实物照片等，最多10张" />
         </el-form-item>
 
         <el-form-item style="margin-top:16px;">
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">提交录入</el-button>
-          <el-button @click="handleReset">重置</el-button>
+          <el-button type="primary" :loading="submitting" @click="handleSubmit">{{ isEdit ? '保存修改' : '提交录入' }}</el-button>
+          <el-button v-if="isEdit" @click="router.push('/inout/diamond-list')">取消</el-button>
+          <el-button v-else @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
     </el-card>
@@ -146,22 +141,33 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createDiamond, getDiamondLastTotal, getDiamondById } from '@/api/inout'
-import { getCounterpartyAll } from '@/api/counterparty'
+import { createDiamond, updateDiamond, getDiamondLastTotal, getDiamondById, getInoutFormOptions } from '@/api/inout'
 import MultiImageUpload from '@/components/MultiImageUpload.vue'
+import InoutCumBlock from '@/components/InoutCumBlock.vue'
+import { DIAMOND_CONTENT_OPTIONS, DIAMOND_GRADE_OPTIONS, DIAMOND_MATERIAL_OPTIONS } from '@/constants/inoutOptions'
+import { todayStr } from '@/utils/date'
 
 const route = useRoute()
+const router = useRouter()
 const formRef = ref()
 const submitting = ref(false)
-const counterparties = ref([])
+const counterpartyOptions = ref([])
+const productNameOptions = ref([])
+const contentOptions = ref([])
+const nameToId = ref({})
+const idToName = ref({})
+const materialOptions = ref([...DIAMOND_MATERIAL_OPTIONS])
+const gradeOptions = ref([...DIAMOND_GRADE_OPTIONS])
 
 const form = reactive({
-  recordDate: new Date().toISOString().slice(0, 10),
+  recordDate: todayStr(),
   direction: 1,
   counterpartyId: null,
-  diamondType: '天然钻',
+  counterpartyName: '',
+  diamondType: '',
+  materialType: '',
   carat: 0,
   unitPrice: 0,
   paymentAmount: 0,
@@ -197,58 +203,178 @@ const presetDirection = computed(() => {
   const d = route.meta.direction
   return (d === 0 || d === 1) ? Number(d) : null
 })
-const directionLocked = computed(() => presetDirection.value !== null)
+// 页面标题跟随路由（钻石入库 / 钻石出库）
+const isEdit = computed(() => !!route.query.id)
+const pageTitle = computed(() => {
+  const t = route.meta?.title || '钻石录入'
+  return isEdit.value ? `编辑${t}` : t
+})
 const applyDirectionPreset = () => {
+  // 编辑历史记录时以记录自身方向为准，不被入口覆盖
+  if (route.query.id) return
   if (presetDirection.value !== null) {
     form.direction = presetDirection.value
   }
 }
 
-const lastTotal = reactive({ lastTotalAmount: 0, lastTotalCarat: 0 })
+// 累计：石重（库存）与钱（采购未付）分开
+const lastTotal = reactive({
+  inCarat: 0, outCarat: 0, orderOutCarat: 0, stockCarat: 0,
+  purchaseAmount: 0, paidAmount: 0, unpaidAmount: 0,
+  allInCarat: 0, allOutCarat: 0, allOrderOutCarat: 0, allStockCarat: 0,
+  allPurchaseAmount: 0, allPaidAmount: 0, allUnpaidAmount: 0
+})
 
 const rules = {
   recordDate: [{ required: true, message: '请选择日期', trigger: 'change' }],
-  diamondType: [{ required: true, message: '请选择类型', trigger: 'change' }],
+  diamondType: [{ required: true, message: '请选择级别', trigger: 'change' }],
+  materialType: [{ required: true, message: '请选择材质', trigger: 'change' }],
   carat: [{ required: true, message: '请输入卡数', trigger: 'blur' }],
   unitPrice: [{ required: true, message: '请输入单价', trigger: 'blur' }]
 }
 
-const amount = computed(() => (form.carat || 0) * (form.unitPrice || 0))
+const fmt2 = (v) => (Math.round(Number(v || 0) * 100) / 100).toFixed(2)
+const fmtMoney = (v) => {
+  const n = Math.round(Number(v || 0) * 100) / 100
+  const s = Math.abs(n).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return (n < 0 ? '-¥' : '¥') + s
+}
+const debtOf = (v) => Math.round(Number(v || 0) * 100) / 100
+const debtClassOf = (v) => {
+  const n = debtOf(v)
+  return n > 0 ? 'debt-owed' : n < 0 ? 'debt-pre' : 'debt-clear'
+}
+
+const amount = computed(() => Math.round((form.carat || 0) * (form.unitPrice || 0) * 100) / 100)
 const amountDisplay = computed(() => amount.value.toFixed(2))
 const sign = computed(() => form.direction === 1 ? 1 : -1)
-const currentTotalAmountDisplay = computed(() => lastTotal.lastTotalAmount + sign.value * amount.value)
-const currentTotalCaratDisplay = computed(() => lastTotal.lastTotalCarat + sign.value * (form.carat || 0))
+// 本单未付/未收 = 本单金额 − 付款
+const debt = computed(() => Math.round((amount.value - (form.paymentAmount || 0)) * 100) / 100)
+const debtClass = computed(() => debtClassOf(debt.value))
 
-const loadCounterparties = async () => {
+// 录入后的累计：石重按方向增减；钱只在入库时增应付
+const stockAfter = computed(() => Math.round((lastTotal.stockCarat + sign.value * (form.carat || 0)) * 100) / 100)
+const unpaidAfter = computed(() =>
+  Math.round((lastTotal.unpaidAmount + (form.direction === 1 ? debt.value : 0)) * 100) / 100)
+const allStockAfter = computed(() => Math.round((lastTotal.allStockCarat + sign.value * (form.carat || 0)) * 100) / 100)
+const allUnpaidAfter = computed(() =>
+  Math.round((lastTotal.allUnpaidAmount + (form.direction === 1 ? debt.value : 0)) * 100) / 100)
+
+// ===== 累计区块（统一组件 InoutCumBlock）=====
+// 选了供应商 → 该供应商；没选 → 全部往来单位
+const hasCp = computed(() => !!(form.counterpartyName || '').trim())
+const cumTitle = computed(() => `累计 · ${hasCp.value ? form.counterpartyName : '全部往来单位'}`)
+const cumBase = computed(() => {
+  const all = !hasCp.value
+  return all
+    ? {
+        in: lastTotal.allInCarat, out: lastTotal.allOutCarat, orderOut: lastTotal.allOrderOutCarat,
+        stock: lastTotal.allStockCarat, purchase: lastTotal.allPurchaseAmount,
+        paid: lastTotal.allPaidAmount, unpaid: lastTotal.allUnpaidAmount
+      }
+    : {
+        in: lastTotal.inCarat, out: lastTotal.outCarat, orderOut: lastTotal.orderOutCarat,
+        stock: lastTotal.stockCarat, purchase: lastTotal.purchaseAmount,
+        paid: lastTotal.paidAmount, unpaid: lastTotal.unpaidAmount
+      }
+})
+const cumCards = computed(() => {
+  const t = cumBase.value
+  return [
+    { label: '累计入库（买进来）', value: fmt2(t.in), unit: ' ct', tone: 'in' },
+    {
+      label: '累计出库（出去 + 订单出去）', value: fmt2(t.out), unit: ' ct', tone: 'out',
+      sub: t.orderOut > 0 ? `其中订单 ${fmt2(t.orderOut)} ct` : ''
+    },
+    { label: '当前库存', value: fmt2(t.stock), unit: ' ct', tone: 'highlight' },
+    { label: '累计采购金额', value: fmtMoney(t.purchase), tone: 'in' },
+    { label: '累计已付', value: fmtMoney(t.paid), tone: 'out' },
+    {
+      label: '累计未付 = 采购 − 已付', value: fmtMoney(t.unpaid),
+      tone: debtOf(t.unpaid) > 0 ? 'pos' : 'plain'
+    }
+  ]
+})
+// 三段式字段：上单 / 本单 / 现在（现在 = 上单 ± 本单）
+const cumFlows = computed(() => {
+  const all = !hasCp.value
+  const carat = Number(form.carat || 0)
+  const dSign = form.direction === 1 ? 1 : -1
+  const debtDelta = form.direction === 1 ? debt.value : 0
+  return [
+    {
+      label: '库存石重',
+      last: fmt2(cumBase.value.stock) + ' ct',
+      delta: (dSign >= 0 ? '+' : '−') + fmt2(carat) + ' ct',
+      now: fmt2(all ? allStockAfter.value : stockAfter.value) + ' ct',
+      sub: `${form.direction === 1 ? '入库买进' : '出库卖出'}，本单 ${fmt2(carat)} ct`,
+      tone: 'highlight'
+    },
+    {
+      label: '应付供应商（未付）',
+      last: fmtMoney(cumBase.value.unpaid),
+      delta: (debtDelta >= 0 ? '+' : '−') + fmtMoney(Math.abs(debtDelta)),
+      now: fmtMoney(all ? allUnpaidAfter.value : unpaidAfter.value),
+      sub: form.direction === 1 ? '入库才增应付' : '出库是卖货收钱，不动应付',
+      tone: 'plain'
+    }
+  ]
+})
+const cumNotes = [
+  '<b>上单</b>：截至业务日期、已生效单据的累计（不含正在录入的这一单）；选了供应商算该供应商，没选算全部往来单位。',
+  '<b>本单</b>：这一单入库/出库的克拉数与金额。',
+  '<b>现在</b>：上单 + 本单。<b>库存石重(ct)</b> = 买进来的 − 出去的 − 订单出去的；出库时填了关联订单号即算「订单出库」，同样从库存扣减。',
+  '<b>钱（应付供应商）</b>：只算采购（入库）。本单未付 = 本单金额 − 付款；累计未付 = 累计采购金额 − 累计已付。出库卖货不进供应商应付。'
+]
+
+const loadFormOptions = async () => {
   try {
-    const res = await getCounterpartyAll()
-    if (res.data) counterparties.value = res.data
+    const res = await getInoutFormOptions('diamond')
+    const d = res?.data || {}
+    counterpartyOptions.value = d.counterparties || []
+    productNameOptions.value = d.productNames || []
+    // ⭐ 内容：固定清单（VVS/VS/i1/i2/i3），仍可手动输入新值
+    contentOptions.value = [...DIAMOND_CONTENT_OPTIONS]
+    const n2i = {}, i2n = {}
+    counterpartyOptions.value.forEach(c => { n2i[c.name] = c.id; i2n[c.id] = c.name })
+    nameToId.value = n2i
+    idToName.value = i2n
   } catch {}
 }
 
 const loadLastTotal = async () => {
   try {
-    const res = await getDiamondLastTotal(form.recordDate, form.counterpartyId)
+    const res = await getDiamondLastTotal(form.recordDate, form.counterpartyId || null, form.counterpartyName || '', route.query.id || undefined)
     if (res.success) Object.assign(lastTotal, res.data)
   } catch {}
 }
 
-const onCounterpartyChange = (cpId) => {
+// 下拉里没有的名称也能直接输入，提交时后端自动建档
+const onCounterpartyChange = (name) => {
+  form.counterpartyId = name ? (nameToId.value[name] ?? null) : null
   loadLastTotal()
 }
-
-const calc = () => {}
 
 const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     submitting.value = true
     try {
-      const res = await createDiamond(form)
+      const payload = {
+        ...form,
+        counterpartyId: form.counterpartyName ? (nameToId.value[form.counterpartyName] ?? null) : null,
+        counterpartyName: form.counterpartyName || '',
+        images: serializeImages(imageList.value)
+      }
+      // ⭐ 带 id 进来就是编辑：走 PUT 更新，避免重复建单
+      const editId = route.query.id
+      const res = editId ? await updateDiamond(editId, payload) : await createDiamond(payload)
       if (res.success) {
-        ElMessage.success('钻石录入成功')
+        ElMessage.success(editId ? '修改成功' : '钻石录入成功')
+        if (editId) { router.push('/inout/diamond-list'); return }
         handleReset()
         loadLastTotal()
+        loadFormOptions()
       }
     } catch (e) {
       ElMessage.error('提交失败')
@@ -260,19 +386,25 @@ const handleSubmit = async () => {
 
 const handleReset = () => {
   formRef.value?.resetFields()
-  form.recordDate = new Date().toISOString().slice(0, 10)
+  form.recordDate = todayStr()
   form.direction = presetDirection.value !== null ? presetDirection.value : 1
+  form.counterpartyId = null
+  form.counterpartyName = ''
+  form.materialType = ''
   form.carat = 0
   form.unitPrice = 0
   form.paymentAmount = 0
+  form.orderNo = ''
   form.remark = ''
   form.productName = ''
   form.content = ''
   form.createByName = currentUserName.value
+  imageList.value = []
 }
 
 onMounted(async () => {
-  loadCounterparties()
+  applyDirectionPreset()
+  await loadFormOptions()
   if (route.query.id) {
     try {
       const res = await getDiamondById(route.query.id)
@@ -280,12 +412,13 @@ onMounted(async () => {
         Object.assign(form, res.data)
         if (form.recordDate && form.recordDate.length > 10) form.recordDate = form.recordDate.slice(0, 10)
         if (!form.createByName) form.createByName = currentUserName.value
+        if (!form.counterpartyName && form.counterpartyId) form.counterpartyName = idToName.value[form.counterpartyId] || ''
+        imageList.value = parseImages(form.images)
       }
     } catch {}
   }
   if (!form.createByName) form.createByName = currentUserName.value
   loadLastTotal()
-  applyDirectionPreset()
 })
 
 watch(() => route.fullPath, () => {
@@ -297,8 +430,34 @@ watch(() => route.fullPath, () => {
 .inout-input-page { padding: 16px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; font-size: 16px; }
+.dir-tag { font-size: 14px; padding: 0 12px; height: 32px; line-height: 32px; }
+.dir-hint { margin-left: 8px; font-size: 12px; color: #a8abb2; }
+.opt-tag { float: right; margin-left: 10px; font-size: 12px; color: #a8abb2; }
+/* 付款输入 + 全额 */
+.pay-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+.pay-row .el-input-number { flex: 1; }
+.pay-all { flex: none; padding: 0; }
+.inline-amount { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 32px; }
+.inline-hint { font-size: 12px; font-weight: 400; color: #a8abb2; margin-left: 6px; }
 .stat-box { background: #f5f7fa; border-radius: 6px; padding: 10px 14px; border-left: 3px solid #909399; }
 .stat-box.highlight { border-left-color: #409EFF; background: #ecf5ff; }
+.stat-box.blue { border-left-color: #409EFF; background: #f4f8ff; }
+/* 未付配色：红=还没付清，绿=多付，灰=刚好付清 */
+.stat-box.debt-owed { border-left-color: #F56C6C; background: #fef0f0; }
+.stat-box.debt-owed .stat-value { color: #F56C6C; }
+.stat-box.debt-pre { border-left-color: #67C23A; background: #f0f9eb; }
+.stat-box.debt-pre .stat-value { color: #67C23A; }
+.stat-box.debt-clear { border-left-color: #909399; }
+.stat-box.debt-clear .stat-value { color: #909399; }
+.debt-owed { color: #F56C6C; }
+.debt-pre { color: #67C23A; }
+.debt-clear { color: #909399; }
+.debt-hint { font-size: 12px; color: #909399; line-height: 1.9; padding: 10px 14px; background: #fafafa; border-radius: 6px; }
+.debt-hint b { color: #606266; }
 .stat-label { font-size: 12px; color: #909399; margin-bottom: 4px; }
 .stat-value { font-size: 16px; font-weight: 600; color: #303133; }
+.stat-value b { font-size: 18px; }
+.stat-sub { font-size: 12px; color: #a8abb2; margin-top: 4px; }
+.unit { font-size: 12px; font-weight: 400; color: #909399; margin-left: 3px; }
+.unit-note { font-size: 12px; font-weight: 400; color: #E6A23C; margin-left: 6px; }
 </style>

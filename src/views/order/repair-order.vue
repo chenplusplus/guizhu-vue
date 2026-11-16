@@ -15,6 +15,43 @@
       </template>
 
       <el-form ref="formRef" :model="form" :rules="rules" size="default">
+        <!-- ⭐ 复制单：能不能带出源单数据，由工厂在这里选（下单时不再选） -->
+        <div v-if="copyInfo.isCopyOrder && !isEdit" class="copy-bar no-print">
+          <el-icon><CopyDocument /></el-icon>
+          <span class="copy-text">
+            该单是复制单，来源订单 <b>{{ copyInfo.sourceOrderNo || '—' }}</b>
+          </span>
+          <span class="copy-switch">
+            <span class="copy-switch-label">从复刻订单带出</span>
+            <el-switch v-model="bringRepair" :loading="copyInfo.loading" @change="onBringRepairChange" />
+          </span>
+          <span class="copy-hint">
+            {{ bringRepair ? '已带出源单的工费 / 主石 / 钻石价 / 链重等，可改' : '不带出，维修单从空白开始' }}
+          </span>
+        </div>
+        <el-alert
+          v-if="copyNotice"
+          :title="copyNotice"
+          type="success"
+          :closable="true"
+          show-icon
+          class="copy-notice no-print"
+          @close="copyNotice = ''"
+        />
+        <!-- ⭐ 历史钻石带入：同客户 + 同钻石级别，只带钻石部分（石重 / 粒数 / 价格 / 工费） -->
+        <div class="diamond-bring-bar no-print">
+          <span class="db-level">钻石级别：<b>{{ form.diamondLevel || '未填' }}</b></span>
+          <el-button
+            size="small"
+            type="primary"
+            plain
+            :loading="diamondBringLoading"
+            @click="handleBringDiamond"
+          >
+            带入历史钻石
+          </el-button>
+          <span class="db-hint" :class="{ 'is-ok': diamondBringOk }">{{ diamondBringHint }}</span>
+        </div>
         <div class="table-wrap">
           <!-- ============ 主表：可填写区域 ============ -->
           <table class="repair-table main-table">
@@ -30,7 +67,9 @@
                 </td>
                 <td colspan="4" class="title-cell">维修单</td>
                 <td class="red-text label-td">编号</td>
-                <td colspan="4"></td>
+                <td colspan="4">
+                  <el-input v-model="form.repairNo" size="small" placeholder="可手填，留空自动生成"/>
+                </td>
               </tr>
               <!-- 第3行：品名 | 订单日期 | 出货日期 | 流水单号 -->
               <tr>
@@ -75,8 +114,7 @@
                 </td>
                 <td class="label-td">出蜡</td>
                 <td>
-                  <span v-if="isOrderLoaded" class="readonly-value">{{ form.hasWaxOut || '-' }}</span>
-                  <el-input v-else v-model="form.hasWaxOut" size="small"/>
+                  <el-input v-model="form.waxOut" size="small" placeholder="手填：是/否/待定"/>
                 </td>
                 <td class="red-bg white-text label-td">钻石级别</td>
                 <td class="order-field">
@@ -91,7 +129,7 @@
                 </td>
               </tr>
 
-              <!-- 第5行：手寸/长度 | 克重要求 | 链重 | 出蜡时间 | 主石卡重 | 钻石价格 -->
+              <!-- 第5行：手寸/长度 | 克重要求 | 链重 | 出蜡时间 | 主石石重(ct) | 钻石价格 -->
               <tr>
                 <td class="label-td">手寸/长度</td>
                 <td class="order-field">
@@ -104,15 +142,14 @@
                   <el-input v-else v-model="form.weightRequirement" size="small"/>
                 </td>
                 <td class="label-td">链重</td>
-                <td class="order-field">
-                  <span v-if="isOrderLoaded" class="readonly-value">{{ form.chainWeight ?? '-' }}</span>
-                  <el-input-number v-else v-model="form.chainWeight" :min="0" :precision="2" style="width:100%" size="small"/>
+                <td>
+                  <el-input v-model="form.chainWeight" size="small" placeholder="手填，可带单位"/>
                 </td>
                 <td class="label-td">出蜡时间</td>
                 <td>
                   <el-date-picker v-model="form.waxOutTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width:100%" size="small"/>
                 </td>
-                <td class="label-td">主石卡重</td>
+                <td class="label-td">主石石重(ct)</td>
                 <td>
                   <el-input-number v-model="form.mainStoneWeight" :min="0" :precision="2" style="width:100%" size="small"/>
                 </td>
@@ -124,7 +161,10 @@
 
               <!-- 第6行：字印要求 | 扣头 | 版费 | 主石粒数 | 主石工费 -->
               <tr>
-                <td colspan="4" class="red-text label-td">字印要求</td>
+                <td class="red-text label-td">字印要求</td>
+                <td colspan="3" class="order-field">
+                  <el-input v-model="form.letterRequirement" size="small" placeholder="订单字印内容，可改"/>
+                </td>
                 <td class="label-td">扣头</td>
                 <td>
                   <el-input v-model="form.clasp" size="small"/>
@@ -149,11 +189,29 @@
                   <div class="img-group">
                     <div class="img-item">
                       <div class="img-label">产品图片</div>
-                      <img :src="imageUrls.product" alt="产品图" class="preview-img"/>
+                      <el-image
+                        v-if="imageUrls.product"
+                        :src="imageUrls.product"
+                        :preview-src-list="[imageUrls.product]"
+                        :preview-teleported="true"
+                        fit="cover"
+                        class="preview-img"
+                        alt="产品图"
+                      />
+                      <div v-else class="preview-img preview-img-empty">暂无图片</div>
                     </div>
                     <div class="img-item">
                       <div class="img-label">字印图片</div>
-                      <img :src="imageUrls.letter" alt="字印图" class="preview-img"/>
+                      <el-image
+                        v-if="imageUrls.letter"
+                        :src="imageUrls.letter"
+                        :preview-src-list="[imageUrls.letter]"
+                        :preview-teleported="true"
+                        fit="cover"
+                        class="preview-img"
+                        alt="字印图"
+                      />
+                      <div v-else class="preview-img preview-img-empty">暂无图片</div>
                     </div>
                   </div>
                 </td>
@@ -161,7 +219,7 @@
                 <td><el-input v-model="form.chainModel" size="small"/></td>
                 <td class="label-td">倒模重</td>
                 <td><el-input-number v-model="form.moldWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
-                <td class="label-td">副石卡重</td>
+                <td class="label-td">副石石重(ct)</td>
                 <td><el-input-number v-model="form.sideStoneWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
                 <td class="label-td">副石价格</td>
                 <td><el-input-number v-model="form.sideStonePrice" :min="0" :precision="2" style="width:100%" size="small"/></td>
@@ -283,15 +341,22 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { CopyDocument } from '@element-plus/icons-vue'
 import { createRepair, updateRepair, getRepairDetail, getRepairByOrderId } from '../../api/repair'
 import { getCustomerList } from '../../api/customer'
+import { getDiamondBring } from '../../api/order'
 import { dictApi } from '../../api/dict'
 
 const router = useRouter()
 const route = useRoute()
 const isEdit = computed(() => route.params.id && route.params.id !== 'create')
 const orderId = computed(() => parseInt(route.query.orderId) || null)
+// ⭐ 保存/取消后回到进来的那一页（订单编辑 → 维修单要回订单编辑，不要跳订单列表）
+const fromPath = computed(() => {
+  const f = route.query.from
+  return typeof f === 'string' && f ? f : '/order/factory-edit-list'
+})
 
 // 客户列表 & 字典
 const customerList = ref([])
@@ -307,6 +372,80 @@ const imageUrls = reactive({
   product: '',
   letter: '',
 })
+
+// ⭐ 复制下单提示（带出来源维修单时显示）
+const copyNotice = ref('')
+
+// ⭐ 复制单：是否带出源订单维修单数据，由工厂在这里选（下单时不再选）
+const copyInfo = reactive({ isCopyOrder: false, sourceOrderNo: '', loading: false })
+const bringRepair = ref(true)
+
+// ⭐ 历史钻石带入：同客户 + 同钻石级别才允许带，只带钻石部分（石重 / 粒数 / 价格 / 工费）
+const diamondBringLoading = ref(false)
+const diamondBringOk = ref(false)
+const DIAMOND_BRING_TIP = '按同客户 + 同钻石级别匹配历史订单，只带主石/副石石重、粒数、价格、工费'
+const diamondBringHint = ref(DIAMOND_BRING_TIP)
+
+const handleBringDiamond = async () => {
+  const level = String(form.diamondLevel || '').trim()
+  const customerId = Number(form.customerId || 0)
+  if (!level) {
+    ElMessage.warning('该单没有钻石级别：只有级别相同才允许带入')
+    return
+  }
+  if (!customerId) {
+    ElMessage.warning('请先选择客户，才能匹配历史订单')
+    return
+  }
+
+  const hasData = ['mainStoneWeight', 'mainStoneCount', 'mainStoneLaborFee', 'diamondPrice',
+    'sideStoneWeight', 'sideStoneCount', 'sideStonePrice', 'sideStoneLaborFee']
+    .some(k => Number(form[k] || 0) > 0)
+  if (hasData) {
+    try {
+      await ElMessageBox.confirm(
+        '当前维修单已填钻石数据，带入会覆盖石重 / 粒数 / 价格 / 工费，继续吗？',
+        '带入历史钻石数据',
+        { type: 'warning', confirmButtonText: '覆盖带入', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+  }
+
+  diamondBringLoading.value = true
+  diamondBringOk.value = false
+  try {
+    const res = await getDiamondBring({ customerId, diamondLevel: level })
+    const d = res?.data || res || {}
+    if (!d.found) {
+      diamondBringHint.value = d.message || '没有找到级别相同且填过钻石数据的历史订单'
+      ElMessage.info(diamondBringHint.value)
+      return
+    }
+
+    // ⭐ 只写钻石部分：主石（石重/粒数/单价/工费）、副石（石重/粒数/单价/工费）
+    const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+    form.mainStoneWeight = num(d.mainStoneWeight)
+    form.mainStoneCount = num(d.mainStoneQty)
+    form.mainStoneLaborFee = num(d.mainStoneSettingFee)
+    form.diamondPrice = num(d.mainStonePrice)
+    form.sideStoneWeight = num(d.subStoneWeight)
+    form.sideStoneCount = num(d.subStoneQty)
+    form.sideStonePrice = num(d.subStonePrice)
+    form.sideStoneLaborFee = num(d.subStoneSettingFee)
+
+    diamondBringOk.value = true
+    const dateStr = d.sourceOrderDate ? String(d.sourceOrderDate).slice(0, 10) : ''
+    diamondBringHint.value = `已带入 来源 ${d.sourceOrderNo || d.sourceOrderId}${dateStr ? '（' + dateStr + '）' : ''} 的钻石数据`
+    ElMessage.success('已带入历史钻石数据')
+  } catch (e) {
+    diamondBringHint.value = e?.message || '带入失败，请重试'
+    ElMessage.error(diamondBringHint.value)
+  } finally {
+    diamondBringLoading.value = false
+  }
+}
 
 const fetchCustomers = async () => {
   try {
@@ -336,14 +475,15 @@ const form = reactive({
   color: '',
   weightRequirement: '',
   widthThick: null,
-  chainWeight: null,
   diamondLevel: '',
+  letterRequirement: '',
   orderDate: '',
   deliveryDate: '',
   serialNo: '',
 
   // 工厂手填字段
-  hasWaxOut: false,
+  chainWeight: '',      // ⭐ 文本，可手填
+  waxOut: '',           // ⭐ 文本，可手填
   waxOutTime: '',
   laborFee: null,
   mainStoneWeight: null,
@@ -377,6 +517,87 @@ const rules = {
   productName: [{ required: true, message: '请输入品名', trigger: 'blur' }]
 }
 
+// ⭐ 订单预填（复制单切换「带出/不带出」时会再跑一遍，所以单独抽出来）
+const applyOrderPrefill = (data) => {
+  // ⭐ 只带 12 个字段
+  form.orderId = data.orderId || orderId.value
+  form.customerId = data.customerId
+  form.productName = data.productName || ''
+  form.quantity = data.quantity || 1
+  form.size = data.size || ''
+  form.color = data.color || ''
+  form.weightRequirement = data.weightRequirement || ''
+  form.widthThick = data.widthThick ? Number(data.widthThick) : null
+  form.diamondLevel = data.diamondLevel || ''
+  form.letterRequirement = data.letterRequirement || data.logoText || ''
+  form.orderDate = data.orderDate || ''
+  form.deliveryDate = data.deliveryDate || ''
+  form.serialNo = data.serialNo || ''
+
+  // ⭐ 额外带入：钻石 / 石重 / 工费 / 粒数 / 副石 / 倒模（没有则空着）
+  const numOrNull = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+  form.mainStoneWeight = numOrNull(data.mainStoneWeight)
+  form.mainStoneCount = numOrNull(data.mainStoneQty ?? data.mainStoneCount)
+  form.mainStoneLaborFee = numOrNull(data.mainStoneSettingFee ?? data.mainStoneLaborFee)
+  form.diamondPrice = numOrNull(data.mainStonePrice ?? data.diamondPrice)
+  form.laborFee = numOrNull(data.laborFee)
+  form.moldFee = numOrNull(data.moldFee)
+  form.sideStoneWeight = numOrNull(data.subStoneWeight ?? data.sideStoneWeight)
+  form.sideStoneCount = numOrNull(data.subStoneQty ?? data.sideStoneCount)
+  form.sideStonePrice = numOrNull(data.subStonePrice ?? data.sideStonePrice)
+  form.sideStoneLaborFee = numOrNull(data.subStoneSettingFee ?? data.sideStoneLaborFee)
+
+  // ⭐ 复制单带出来源维修单的其余字段（可改）；不带出时这些保持空白
+  //    ⚠️ 文本字段必须给空串而不是 null：后端 DTO 里这些列可空，
+  //       但传 null 会撞上 .NET 的隐式必填校验（「Note 为必填项」那串报错）
+  const copyTextKeys = ['clasp', 'chainModel', 'chainWeight', 'waxOut', 'note', 'remark2']
+  const copyNumKeys = ['claspFee', 'moldWeight', 'steelWeight', 'waxOutTime',
+    'customerStoneWeight', 'customerGoldWeight', 'bezelWeight',
+    'polishWeight', 'waxOutFee', 'polishOtherFee', 'cncFee']
+  copyTextKeys.forEach(k => { form[k] = data.fromCopy ? (data[k] ?? '') : '' })
+  copyNumKeys.forEach(k => { form[k] = data.fromCopy ? (data[k] ?? null) : null })
+  if (data.fromCopy) form.letterRequirement = data.letterRequirement || form.letterRequirement
+
+  copyNotice.value = data.fromCopy
+    ? (data.sourceRepairNo
+      ? `已带出复制来源订单的维修单（${data.sourceRepairNo}）数据，可直接修改`
+      : '已带出复制来源订单的维修单数据，可直接修改')
+    : ''
+
+  // 图片
+  imageUrls.product = data.productImage || ''
+  imageUrls.letter = data.letterImage || ''
+}
+
+// ⭐ 工厂切换「从复刻订单带出」：重新拉一次预填（带/不带源单维修单数据）
+const onBringRepairChange = async (val) => {
+  if (!orderId.value) return
+  if (!val) {
+    try {
+      await ElMessageBox.confirm(
+        '关闭后，已带出的源单维修单数据（工费 / 主石 / 钻石价 / 链重 等）会被清空，确定不从这个复刻订单带出吗？',
+        '不从复刻订单带出',
+        { type: 'warning', confirmButtonText: '确定不带出', cancelButtonText: '仍然带出' }
+      )
+    } catch {
+      bringRepair.value = true
+      return
+    }
+  }
+  copyInfo.loading = true
+  try {
+    const res = await getRepairByOrderId(orderId.value, val ? 1 : 0)
+    if (res.success && res.isNew) {
+      applyOrderPrefill(res.data)
+      ElMessage.success(val ? '已从复刻订单带出' : '已清空带出数据，从空白开始')
+    }
+  } catch (e) {
+    ElMessage.error('切换失败，请重试')
+  } finally {
+    copyInfo.loading = false
+  }
+}
+
 // ============================================================
 // 加载数据
 // ============================================================
@@ -402,37 +623,18 @@ const loadData = async () => {
       const res = await getRepairByOrderId(orderId.value)
       if (res.success && res.isNew) {
         const data = res.data
-        // ⭐ 只带 12 个字段
-        form.orderId = data.orderId || orderId.value
-        form.customerId = data.customerId
-        form.productName = data.productName || ''
-        form.quantity = data.quantity || 1
-        form.size = data.size || ''
-        form.color = data.color || ''
-        form.weightRequirement = data.weightRequirement || ''
-        form.widthThick = data.widthThick ? Number(data.widthThick) : null
-        form.chainWeight = data.chainWeight ? Number(data.chainWeight) : null
-        form.diamondLevel = data.diamondLevel || ''
-        form.orderDate = data.orderDate || ''
-        form.deliveryDate = data.deliveryDate || ''
-        form.serialNo = data.serialNo || ''
+        applyOrderPrefill(data)
+        // ⭐ 复制单：把「来源单号 + 当前带出开关」放到页面上，由工厂决定
+        copyInfo.isCopyOrder = !!data.isCopyOrder
+        copyInfo.sourceOrderNo = data.sourceOrderNo || ''
+        bringRepair.value = data.copyBringRepair === undefined || data.copyBringRepair === null
+          ? true
+          : Number(data.copyBringRepair) === 1
 
-        // ⭐ 额外带入：钻石 / 石重 / 工费 / 粒数（没有则空着）
-        form.diamondLevel = data.diamondLevel || ''
-        form.mainStoneWeight = data.mainStoneWeight != null ? Number(data.mainStoneWeight) : null
-        form.mainStoneCount = data.mainStoneQty != null ? Number(data.mainStoneQty) : null
-        form.mainStoneLaborFee = data.mainStoneSettingFee != null ? Number(data.mainStoneSettingFee) : null
-        form.diamondPrice = data.mainStonePrice != null ? Number(data.mainStonePrice) : null
-        form.laborFee = data.laborFee != null ? Number(data.laborFee) : null
-
-        // 图片
-        imageUrls.product = data.productImage || ''
-        imageUrls.letter = data.letterImage || ''
-
-        ElMessage.success('已从订单带入数据')
+        ElMessage.success(data.fromCopy ? '已从复制来源订单带出维修单数据' : '已从订单带入数据')
       } else if (res.success && !res.isNew) {
         ElMessage.info('该订单已有维修单，正在跳转...')
-        router.push(`/repair/edit/${res.data.id}`)
+        router.push({ path: `/repair/edit/${res.data.id}`, query: route.query.from ? { from: route.query.from } : {} })
       }
     } catch (error) {
       console.error('加载订单数据失败:', error)
@@ -450,7 +652,22 @@ const handleSubmit = async () => {
     try {
       const submitData = { ...form }
       delete submitData.id
-      delete submitData.repairNo
+      // ⭐ 维修单不做必填控制：文本字段一律补空串，避免后端隐式必填校验把保存拦掉
+      const textFields = ['repairNo', 'customerName', 'productName', 'serialNo', 'color', 'size',
+        'weightRequirement', 'diamondLevel', 'letterRequirement', 'chainWeight', 'waxOut',
+        'clasp', 'chainModel', 'note', 'remark', 'remark2', 'productImage', 'letterImage']
+      textFields.forEach(k => {
+        if (submitData[k] === null || submitData[k] === undefined) submitData[k] = ''
+      })
+      // ⭐ 日期字段空值要给 null（空串会被后端当成「格式不正确」）
+      ;['orderDate', 'deliveryDate', 'waxOutTime'].forEach(k => {
+        if (submitData[k] === '' || submitData[k] === undefined) submitData[k] = null
+      })
+      // ⭐ 编号可手填：留空由后端自动生成（编辑时留空 = 保持原编号）
+      submitData.repairNo = (form.repairNo || '').trim()
+      submitData.chainWeight = (form.chainWeight || '').toString().trim()
+      submitData.waxOut = (form.waxOut || '').toString().trim()
+      submitData.letterRequirement = (form.letterRequirement || '').toString().trim()
       submitData.productImage = imageUrls.product
       submitData.letterImage = imageUrls.letter
       submitData.customerName = customerName.value || '' 
@@ -465,7 +682,7 @@ const handleSubmit = async () => {
       }
       if (res.success) {
         ElMessage.success(isEdit.value ? '保存成功' : '创建成功')
-        router.push('/order/factory-list')
+        router.push(fromPath.value)
       } else {
         ElMessage.error(res.message || '操作失败')
       }
@@ -478,7 +695,7 @@ const handleSubmit = async () => {
   })
 }
 
-const handleCancel = () => router.push('/order/factory-list')
+const handleCancel = () => router.push(fromPath.value)
 
 const convertToPlainText = (source, target) => {
   const selector = '.el-input-number, .el-select, .el-date-editor, .el-checkbox, .el-input, .el-textarea'
@@ -611,16 +828,37 @@ const handlePrint = () => {
             min-height: 16px;
           }
 
-          /* ===== 图片 ===== */
-          .preview-img {
-            max-width: 100%;
-            height: 70px;
-            object-fit: contain;
+          /* ===== 图片 =====
+             ⚠️ 打印窗口是新开的空白页，没有引入 Element Plus 的 CSS，
+              el-image 内部的 <img> 没有任何尺寸约束 → 按原图尺寸渲染，
+              一张图就能占满整页。这里必须把 img 明确锁进小框里。 */
+          .img-cell { vertical-align: top; }
+          .img-group { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+          .img-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+          .img-label { font-size: 10px; text-align: left; color: #333; }
+
+          .preview-img,
+          .preview-img .el-image__inner {
+            display: block !important;
+            width: 200px !important;
+            min-width: 0 !important;
+            max-width: 200px !important;
+            height: 70px !important;
+            max-height: 70px !important;
+            object-fit: cover !important;
+            overflow: hidden !important;
             border: 1px solid #000;
+            background: #fff;
+            line-height: 0;
           }
-          .img-label { font-size: 10px; text-align: center; }
-          .img-group { display: flex; flex-direction: column; gap: 4px; }
-          .img-item { display: flex; flex-direction: column; align-items: center; }
+          .preview-img.preview-img-empty {
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #999;
+            border-color: #000;
+          }
 
           /* ===== 打印表格 ===== */
           .print-gap { height: 0 !important; margin: 0 !important; }
@@ -711,6 +949,53 @@ onMounted(() => {
   display: flex;
   gap: 8px;
 }
+
+.copy-notice {
+  margin-bottom: 10px;
+}
+
+/* ⭐ 复制单「从复刻订单带出」开关条 */
+.copy-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 9px 14px;
+  margin-bottom: 10px;
+  background: #f0f7ff;
+  border: 1px solid #c6e2ff;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #303133;
+}
+.copy-bar .copy-text b { color: #409eff; }
+.copy-bar .copy-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.copy-bar .copy-switch-label { font-weight: 600; }
+.copy-bar .copy-hint { color: #909399; font-size: 12px; }
+
+/* ⭐ 历史钻石带入条（维修单顶部） */
+.diamond-bring-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  background: #fdf6ec;
+  border: 1px solid #f5dab1;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #303133;
+}
+.diamond-bring-bar .db-level { color: #606266; }
+.diamond-bring-bar .db-level b { color: #1d2129; }
+.diamond-bring-bar .db-hint { color: #909399; font-size: 12px; }
+.diamond-bring-bar .db-hint.is-ok { color: #67c23a; }
 
 .table-wrap {
   width: 100%;
@@ -817,6 +1102,21 @@ onMounted(() => {
   border: 1px solid #dcdfe6;
   border-radius: 4px;
   background: #fafafa;
+  cursor: zoom-in;
+  display: block;
+}
+
+.preview-img :deep(img) {
+  object-fit: cover;
+}
+
+.preview-img-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c0c4cc;
+  font-size: 12px;
+  cursor: default;
 }
 
 /* 订单带出字段红字 */
@@ -950,12 +1250,22 @@ onMounted(() => {
     font-weight: 500;
   }
 
-  /* 图片打印 */
+  /* 图片打印：固定小图（与屏幕 220×80 接近），避免按原图尺寸撑满整页 */
   .preview-img {
-    max-width: 100%;
-    height: 70px;
-    object-fit: contain;
+    width: 200px !important;
+    max-width: 200px !important;
+    height: 70px !important;
+    overflow: hidden !important;
     border: 1px solid #000;
+  }
+  .preview-img :deep(img),
+  .preview-img .el-image__inner {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: cover !important;
+    display: block !important;
   }
 
   /* ⭐ 数据确认行无间隙 */

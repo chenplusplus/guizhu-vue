@@ -39,23 +39,47 @@
           </el-button>
         </template>
 
-        <!-- ⭐ 客户（含下单员和审核员）：确认/退回（flowStatus = billConfirmed 或 returned） -->
-        <template v-if="userStore.isCustomerType && (billData?.status === 'billConfirmed' || billData?.status === 'returned')">
-          <el-button v-if="billData?.status === 'billConfirmed'" type="success" @click="handleConfirm" :loading="confirming">
-            <el-icon><Check /></el-icon> 确认账单
+        <!-- ⭐ 客户侧两级：客户审核员先审核（billConfirmed），业务员再确认（customerApproved） -->
+        <template v-if="userStore.isCustomerType && billData?.status === 'billConfirmed'">
+          <el-button v-if="userStore.isCustomerAudit || userStore.isAdmin" type="warning" @click="handleCustomerAudit" :loading="customerAuditing">
+            <el-icon><Check /></el-icon> 审核通过
           </el-button>
           <el-button type="danger" @click="openReturnDialog">
             <el-icon><RefreshLeft /></el-icon> 退回
           </el-button>
+          <el-tag v-if="userStore.isCustomer" type="info" effect="plain">
+            等客户审核员审核通过后才会显示给你
+          </el-tag>
         </template>
 
-        <!-- ⭐ 工厂审核员：审批退回（status = returned） -->
-        <template v-if="userStore.isFactoryAudit && billData?.status === 'returned'">
+        <template v-if="userStore.isCustomerType && billData?.status === 'customerApproved'">
+          <el-button v-if="userStore.isCustomer || userStore.isAdmin" type="success" @click="handleConfirm" :loading="confirming">
+            <el-icon><Check /></el-icon> 确认账单
+          </el-button>
+          <el-button v-if="canCustomerReturn" type="danger" @click="openReturnDialog">
+            <el-icon><RefreshLeft /></el-icon> 退回
+          </el-button>
+          <el-tag v-if="userStore.isCustomerAudit && !userStore.isAdmin" type="success" effect="plain">
+            已审核通过{{ billData?.customerAuditedByName ? '（' + billData.customerAuditedByName + '）' : '' }}，等待业务员确认
+          </el-tag>
+        </template>
+
+        <!-- ⭐ 工厂操作员：客户退回后，口头沟通完在这里定退回方式 -->
+        <el-button
+          v-if="(userStore.isFactoryOrder || userStore.isAdmin) && billData?.status === 'returnRequested'"
+          type="primary"
+          @click="openHandleDialog"
+        >
+          <el-icon><EditPen /></el-icon> 处理退回
+        </el-button>
+
+        <!-- ⭐ 工厂审核员：审核退回（通过才落账，回到客户确认） -->
+        <template v-if="(userStore.isFactoryAudit || userStore.isAdmin) && billData?.status === 'returnPending'">
           <el-button type="success" @click="handleReturnAudit(true)" :loading="returnAuditing">
-            <el-icon><Select /></el-icon> 同意退回
+            <el-icon><Select /></el-icon> 通过退回
           </el-button>
           <el-button type="danger" @click="handleReturnAudit(false)" :loading="returnAuditing">
-            <el-icon><Close /></el-icon> 拒绝退回
+            <el-icon><Close /></el-icon> 驳回
           </el-button>
         </template>
 
@@ -70,6 +94,26 @@
 
     <!-- ===== 内容主体 ===== -->
     <div class="content-body">
+
+      <!-- ⭐ 退回处理中：审核通过前金额不动，先给个预估 -->
+      <el-alert
+        v-if="isReturnFlow"
+        class="return-banner"
+        :type="billData?.status === 'returnPending' ? 'warning' : 'info'"
+        :closable="false"
+        show-icon
+      >
+        <template #title>
+          <span v-if="billData?.status === 'returnRequested'">客户已申请退回，等待工厂确认退回方式（账单金额暂不变）</span>
+          <span v-else>退回方式已提交，等待工厂审核（通过后才改账单金额）</span>
+        </template>
+        <div class="return-banner-body">
+          <span>申请明细 <b>{{ activeReturnRecords.length }}</b> 行</span>
+          <span v-if="billData?.status === 'returnPending'">预计退回 <b style="color:#d64545;">¥{{ pendingReturnTotal.toFixed(2) }}</b></span>
+          <span v-if="billData?.status === 'returnPending'">处理后应收 <b>¥{{ pendingReceivable.toFixed(2) }}</b></span>
+          <span v-if="billData?.returnReason">退回原因：{{ billData.returnReason }}</span>
+        </div>
+      </el-alert>
 
       <!-- ===== 1. 账单概览卡片 ===== -->
       <div class="overview-cards">
@@ -154,6 +198,39 @@
             </div>
           </el-col>
         </el-row>
+        <!-- ⭐ 收款情况：工厂一录入就同步显示，客户也能看到逐笔已收 / 未收 -->
+        <el-row v-if="showReceiptInfo" :gutter="20" style="margin-top:8px;">
+          <el-col :xs="12" :sm="8" :md="6">
+            <div class="info-item">
+              <span class="label">应收款</span>
+              <span class="value">¥{{ receiptReceivable.toFixed(2) }}</span>
+            </div>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="6">
+            <div class="info-item">
+              <span class="label">已收款</span>
+              <span class="value" style="color:#1f9254;">¥{{ receiptPaid.toFixed(2) }}</span>
+            </div>
+          </el-col>
+          <el-col v-if="receiptOffset > 0" :xs="12" :sm="8" :md="6">
+            <div class="info-item">
+              <span class="label">抵扣</span>
+              <span class="value" style="color:#1d63c9;">¥{{ receiptOffset.toFixed(2) }}</span>
+            </div>
+          </el-col>
+          <el-col :xs="12" :sm="8" :md="6">
+            <div class="info-item">
+              <span class="label">未收款</span>
+              <span class="value" :style="{ color: receiptUnpaid > 0.001 ? '#d64545' : '#1f9254', fontWeight: 600 }">
+                ¥{{ receiptUnpaid.toFixed(2) }}
+                <el-tag size="small" :type="receiptUnpaid <= 0.001 ? 'success' : (receiptPaid > 0 ? 'warning' : 'info')" effect="plain" style="margin-left:6px;">
+                  {{ receiptUnpaid <= 0.001 ? '已收齐' : (receiptPaid > 0 ? '部分收款' : '未收款') }}
+                </el-tag>
+              </span>
+            </div>
+          </el-col>
+        </el-row>
+
         <!-- 退回原因 -->
         <el-row v-if="billData?.returnReason" style="margin-top:8px;">
           <el-col :span="24">
@@ -174,10 +251,12 @@
 
         <div class="table-wrapper">
           <el-table 
-            :data="billData?.details || []" 
+            :data="displayDetails"
             border 
             stripe 
             size="small"
+            :scrollbar-always-on="true"
+            :span-method="goldSpanMethod"
             style="width:100%;"
             max-height="500"
           >
@@ -195,7 +274,17 @@
             <el-table-column prop="orderDate" label="订单日期" width="100" align="center">
               <template #default="{ row }">{{ formatDate(row.orderDate) }}</template>
             </el-table-column>
-            <el-table-column prop="color" label="颜色" width="70" align="center" />
+            <el-table-column label="成色" width="105" align="center" class-name="gi-col">
+              <template #default="{ row }">
+                <span v-if="row.__gi">{{ row.__gi.purityName || row.color || '-' }}</span>
+                <!-- ⭐ 老账单没有分色子表：回退到明细 color -->
+                <span v-else>{{ row.purityLabel || row.color || '-' }}</span>
+              </template>
+            </el-table-column>
+            <!-- ⭐ 颜色（K黄/K白/K红）排在成色之后；取 gemColor，color 存的是成色名不能当颜色用 -->
+            <el-table-column prop="gemColor" label="颜色" width="70" align="center">
+              <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+            </el-table-column>
             <el-table-column prop="quantity" label="件数" width="60" align="center" />
             <el-table-column prop="size" label="手寸/长度" width="90" align="center">
               <template #default="{ row }">{{ row.size || '-' }}</template>
@@ -203,24 +292,24 @@
             <el-table-column prop="totalWeight" label="总重" width="80" align="right">
               <template #default="{ row }">{{ row.totalWeight || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="netWeight" label="净重" width="80" align="right">
-              <template #default="{ row }">{{ row.netWeight || '-' }}</template>
+            <el-table-column prop="netWeight" label="净重" width="80" align="right" class-name="gi-col">
+              <template #default="{ row }">{{ fmtG(gv(row, 'netWeight')) }}</template>
             </el-table-column>
-            <el-table-column prop="lossRate" label="损耗" width="70" align="right">
-              <template #default="{ row }">{{ row.lossRate || '-' }}</template>
+            <el-table-column prop="lossRate" label="损耗" width="70" align="right" class-name="gi-col">
+              <template #default="{ row }">{{ numOrDash(gv(row, 'lossRate')) }}</template>
             </el-table-column>
-            <el-table-column prop="addLossWeight" label="加耗重" width="80" align="right">
-              <template #default="{ row }">{{ row.addLossWeight || '-' }}</template>
+            <el-table-column prop="addLossWeight" label="加耗重" width="80" align="right" class-name="gi-col">
+              <template #default="{ row }">{{ fmtG(gv(row, 'addLossWeight')) }}</template>
             </el-table-column>
-            <el-table-column prop="goldPrice" label="金价" width="80" align="right">
-              <template #default="{ row }">{{ row.goldPrice || '-' }}</template>
+            <el-table-column prop="goldPrice" label="金价" width="80" align="right" class-name="gi-col">
+              <template #default="{ row }">{{ numOrDash(gv(row, 'goldPrice')) }}</template>
             </el-table-column>
-            <el-table-column prop="goldMaterialFee" label="足金料金额" width="100" align="right">
-              <template #default="{ row }">{{ row.goldMaterialFee || '-' }}</template>
+            <el-table-column prop="goldMaterialFee" label="足金料金额" width="100" align="right" class-name="gi-col">
+              <template #default="{ row }">{{ fmtM(gv(row, 'goldMaterialFee')) }}</template>
             </el-table-column>
-            <el-table-column prop="goldMaterialWeight" label="足金料" width="100" align="center">
+            <el-table-column prop="goldMaterialWeight" label="足金料" width="100" align="center" class-name="gi-col">
               <template #default="{ row }">
-                <span style="color:#67C23A;font-size:12px;">{{ (row.goldMaterialWeight || 0).toFixed(3) }}g</span>
+                <span style="color:#67C23A;font-size:12px;">{{ fmtG(gv(row, 'goldMaterialWeight')) }}g</span>
               </template>
             </el-table-column>
 
@@ -280,12 +369,16 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="退回" width="100" align="center" fixed="right">
+            <el-table-column label="退回" width="150" align="center" fixed="right">
               <template #default="{ row }">
-                <el-tag v-if="row.isReturned" :type="row.returnType === 'labor' ? 'warning' : 'danger'" size="small">
-                  {{ row.returnType === 'labor' ? '退料留工费' : '全部退回' }}
+                <el-tag v-if="row.isReturned" :type="row.returnType === 'full' ? 'danger' : 'warning'" size="small">
+                  {{ returnTypeText(row.returnType) }}
                 </el-tag>
+                <el-tag v-else-if="pendingReturnOf(row)" type="info" size="small">退回中</el-tag>
                 <span v-else style="color:#ccc;">-</span>
+                <div v-if="row.returnNote || pendingReturnOf(row)?.customerNote" class="return-note">
+                  {{ row.returnNote || pendingReturnOf(row)?.customerNote }}
+                </div>
               </template>
             </el-table-column>
           </el-table>
@@ -302,6 +395,13 @@
             应收合计：¥{{ (billData?.totalAmount || 0).toFixed(2) }}
           </span>
         </div>
+
+        <!-- ===== 修改记录（明细表下方，标红；工厂审核员重点核对） ===== -->
+        <BillModifyTrail
+          v-if="canSeeModifyTrail"
+          :bill-id="billId"
+          :details="billData?.details || []"
+        />
       </div>
 
       <!-- ===== 4. 汇总区 ===== -->
@@ -340,6 +440,10 @@
                 <span style="margin-left:4px;color:#999;font-size:12px;">g</span>
               </span>
               <span v-else class="value">{{ (billData?.receivedMaterial || 0).toFixed(3) }}g</span>
+              <!-- ⭐ 收款/抵扣勾选行 = 已用现金买下的金料，直接在来料里标「现金付款」 -->
+              <span v-if="(billData?.settledMaterialWeight || 0) > 0" class="value-sub">
+                其中现金付款 {{ (billData.settledMaterialWeight).toFixed(3) }}g
+              </span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="6">
@@ -412,70 +516,52 @@
         :source-type="'bill'"
         :source-id="billId"
         :field-labels="BILL_FIELD_LABELS"
+        :exclude-actions="['edit']"
       />
     </div>
 
-    <!-- ===== 退回弹窗 ===== -->
-    <el-dialog v-model="returnDialogVisible" title="退回明细" width="680px" destroy-on-close>
-      <el-alert 
-        title="选择要退回的明细，选择退回方式，并填写退回原因。退回后需要工厂审核员审批。" 
-        type="warning" 
-        :closable="false" 
-        show-icon 
-        style="margin-bottom:16px;" 
+    <!-- ===== 退回弹窗（客户：只标注要退哪些，方式由工厂定） ===== -->
+    <el-dialog v-model="returnDialogVisible" title="申请退回" width="820px" destroy-on-close>
+      <el-alert
+        title="勾选要退回的明细，逐行写明原因。提交后由工厂确认退回方式并审核，审核通过才改账单金额。"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom:16px;"
       />
 
-      <!-- 退回方式选择 -->
-      <div class="return-type-select">
-        <div class="return-type-label">退回方式：</div>
-        <el-radio-group v-model="returnForm.returnType">
-          <el-radio value="full" border>全部退回（材料+工费都不算）</el-radio>
-          <el-radio value="labor" border>退材料留工费（工费照算）</el-radio>
-        </el-radio-group>
-        <div class="return-type-tip">
-          <span v-if="returnForm.returnType === 'full'" style="color:#f56c6c;">所选明细金额全部退回，应收金额清零</span>
-          <span v-else style="color:#e6a23c;">所选明细只退回材料费，工费仍计入账单应收</span>
-        </div>
-      </div>
-
       <el-table
-        :data="billData?.details || []"
+        :data="returnableDetails"
         border
         stripe
         @selection-change="handleReturnSelection"
-        max-height="280"
+        max-height="320"
         size="small"
       >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="seqNo" label="#" width="50" align="center" />
+        <el-table-column type="selection" width="50" />
+        <el-table-column prop="seqNo" label="#" width="46" align="center" />
         <el-table-column prop="productName" label="品名" min-width="120" />
         <el-table-column label="工费" width="90" align="right">
           <template #default="{ row }">¥{{ (row.laborFee || 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="totalAmount" label="金额" width="110" align="right">
+        <el-table-column prop="totalAmount" label="应收" width="110" align="right">
           <template #default="{ row }">¥{{ (row.totalAmount || 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column label="本次退回" width="110" align="right">
+        <el-table-column label="退回说明（哪个要退 / 为什么）" min-width="240">
           <template #default="{ row }">
-            <span v-if="isSelected(row)" style="color:#f56c6c;font-weight:bold;">
-              ¥{{ returnAmountOf(row).toFixed(2) }}
-            </span>
-            <span v-else style="color:#ccc;">-</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="isReturned" label="状态" width="80" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.isReturned" type="danger" size="small">已退回</el-tag>
-            <span v-else style="color:#999;">正常</span>
+            <el-input
+              v-model="returnNotes[row.id]"
+              size="small"
+              :disabled="!isSelected(row)"
+              placeholder="例如：这条链子焊点发黑，要退"
+            />
           </template>
         </el-table-column>
       </el-table>
+
       <el-form style="margin-top:16px;">
         <el-form-item label="退回原因" required>
-          <el-input v-model="returnForm.reason" type="textarea" :rows="3" placeholder="请填写退回原因" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="returnForm.remark" type="textarea" :rows="2" placeholder="可选备注" />
+          <el-input v-model="returnForm.reason" type="textarea" :rows="3" placeholder="请填写退回原因（客户会看到）" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -484,10 +570,101 @@
           type="danger"
           @click="confirmReturn"
           :loading="returning"
-          :disabled="returnSelected.length === 0 || !returnForm.reason"
+          :disabled="returnSelected.length === 0 || !returnForm.reason.trim()"
         >
-          确认退回 ({{ returnSelected.length }})
+          提交退回 ({{ returnSelected.length }})
         </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ===== 处理退回弹窗（工厂操作员：定方式 + 损耗） ===== -->
+    <el-dialog v-model="handleDialogVisible" title="处理客户退回" width="980px" destroy-on-close>
+      <el-alert
+        title="与客户口头确认后选择退回方式。三种方式的区别：全退（材料+工费都不收）／退料留工费（只收工费，损耗也不收）／退料留工费+损耗（收工费，损耗照收）。提交后需工厂审核，审核通过才改账单金额。"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-bottom:14px;"
+      />
+
+      <div class="handle-quick">
+        <span class="hq-label">整单套用：</span>
+        <el-button size="small" type="danger" plain @click="applyHandleType('full')">全部全退</el-button>
+        <el-button size="small" type="warning" plain @click="applyHandleType('labor')">全部退料留工费</el-button>
+        <el-button size="small" type="primary" plain @click="applyHandleType('labor_loss')">全部退料留工费+损耗</el-button>
+      </div>
+
+      <el-table :data="handleRows" border stripe size="small" max-height="380">
+        <el-table-column prop="seqNo" label="#" width="46" align="center" />
+        <el-table-column prop="productName" label="品名" min-width="110" />
+        <el-table-column label="应收" width="100" align="right">
+          <template #default="{ row }">¥{{ fmt2(row.totalAmount) }}</template>
+        </el-table-column>
+        <el-table-column label="工费" width="90" align="right">
+          <template #default="{ row }">¥{{ fmt2(row.laborFee) }}</template>
+        </el-table-column>
+        <el-table-column label="损耗(金料)" width="120" align="right">
+          <template #default="{ row }">
+            <div>¥{{ fmt2(lossBaseOf(row)) }}</div>
+            <div class="cell-sub">{{ fmt2(row.goldMaterialWeight) }}g 足金</div>
+          </template>
+        </el-table-column>
+        <el-table-column label="退回方式" width="200">
+          <template #default="{ row }">
+            <el-radio-group v-model="row.returnType" size="small">
+              <el-radio-button value="full">全退</el-radio-button>
+              <el-radio-button value="labor">留工费</el-radio-button>
+              <el-radio-button value="labor_loss">留工费+损耗</el-radio-button>
+            </el-radio-group>
+          </template>
+        </el-table-column>
+        <el-table-column label="保留损耗" width="130" align="right">
+          <template #default="{ row }">
+            <el-input-number
+              v-if="row.returnType === 'labor_loss'"
+              v-model="row.lossAmount"
+              :min="0"
+              :precision="2"
+              :controls="false"
+              size="small"
+              style="width:100%"
+            />
+            <span v-else class="cell-sub">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="本次退回" width="110" align="right">
+          <template #default="{ row }">
+            <b style="color:#d64545;">¥{{ fmt2(handleReturnAmount(row)) }}</b>
+          </template>
+        </el-table-column>
+        <el-table-column label="处理后应收" width="110" align="right">
+          <template #default="{ row }">
+            <b>¥{{ fmt2(handleKeepAmount(row)) }}</b>
+          </template>
+        </el-table-column>
+        <el-table-column label="客户说明" min-width="150" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.customerNote || '—' }}</template>
+        </el-table-column>
+      </el-table>
+
+      <el-form style="margin-top:14px;">
+        <el-form-item label="处理备注" required>
+          <el-input v-model="handleRemark" type="textarea" :rows="2"
+            placeholder="必填：例如已与客户电话确认，客户同意按此方式退回" />
+          <div v-if="!handleRemark.trim()" class="handle-remark-tip">处理备注必须填写，提交后会显示在账单记录里</div>
+        </el-form-item>
+      </el-form>
+
+      <div class="handle-sum">
+        合计退回 <b style="color:#d64545;">¥{{ fmt2(handleTotals.returned) }}</b>
+        <span class="dot">·</span>
+        处理后本单应收 <b>¥{{ fmt2(handleTotals.keep) }}</b>
+      </div>
+
+      <template #footer>
+        <el-button @click="handleDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmHandle" :loading="handling"
+          :disabled="!handleRemark.trim()">提交审核</el-button>
       </template>
     </el-dialog>
 
@@ -506,14 +683,16 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox,ElLoading } from 'element-plus';
 import { 
   ArrowLeft, Check, Close, Select, RefreshLeft, Upload, Download,
-  Document, User, Money, Goods, View
+  Document, User, Money, Goods, View, EditPen
 } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { 
   getBillDetail, 
   auditBill, 
   confirmBill, 
-  returnBill, 
+  customerAuditBill,
+  requestBillReturn,
+  handleBillReturn,
   updatePayment, 
   exportBill,
   submitBillAudit,
@@ -522,12 +701,20 @@ import {
 import FlowLog from '@/components/FlowLog.vue';
 import ChangeLogTimeline from '@/components/ChangeLogTimeline.vue';
 import BillPreviewDialog from '@/components/BillPreviewDialog.vue';
+import BillModifyTrail from '@/components/BillModifyTrail.vue';
+import { resolveGemColor } from '@/utils/color';
+import { expandGoldDetails, goldSpanMethod } from '@/utils/goldRows';
 
 const route = useRoute();
 const router = useRouter();
 const userStore = useUserStore();
 
 const billId = computed(() => Number(route.params.id));
+
+// ⭐ 明细修改记录只给工厂侧看（客户侧不暴露内部改价痕迹）
+const canSeeModifyTrail = computed(() =>
+  userStore.isFactoryOrder || userStore.isFactoryAudit || userStore.isAdmin
+);
 
 // 字段标签：与后端 ChangeLogHelper.BillFieldLabels 对应
 const BILL_FIELD_LABELS = {
@@ -545,14 +732,40 @@ const BILL_FIELD_LABELS = {
 const loading = ref(false);
 const auditing = ref(false);
 const confirming = ref(false);
+const customerAuditing = ref(false);
 const returning = ref(false);
 const returnAuditing = ref(false);
 const submitting = ref(false);
 const billData = ref(null);
+
+// ⭐ 收款情况（客户也能看到，工厂录入后同步）
+const _r2 = (v) => Math.round(Number(v || 0) * 100) / 100;
+const _receiptRows = computed(() => (billData.value?.details || []).filter(d => d.id != null));
+const receiptReceivable = computed(() => Math.round(_receiptRows.value.reduce((s, d) => s + Number(d.totalAmount || 0), 0)));
+const receiptPaid = computed(() => _r2(_receiptRows.value.reduce(
+  (s, d) => s + (d.isOffset ? 0 : Number(d.actualReceipt || 0)), 0)));
+const receiptOffset = computed(() => _r2(_receiptRows.value.reduce(
+  (s, d) => s + (d.isOffset ? Number(d.offsetAmount || 0) : 0), 0)));
+const receiptUnpaid = computed(() => Math.max(0, _r2(receiptReceivable.value - receiptPaid.value - receiptOffset.value)));
+const showReceiptInfo = computed(() => userStore.isCustomerType
+  || receiptPaid.value > 0 || receiptOffset.value > 0
+  || (!!billData.value?.receiptStatus && billData.value.receiptStatus !== 'none'));
 const previewVisible = ref(false);   // 出货明细预览弹窗
 const returnDialogVisible = ref(false);
 const returnSelected = ref([]);
-const returnForm = ref({ reason: '', remark: '', returnType: 'full' });
+const returnForm = ref({ reason: '' });
+// 逐行退回说明：{ [detailId]: note }
+const returnNotes = ref({});
+// 可退回明细（必须用 computed 保持数组引用稳定，否则勾选会被表格重置）
+const returnableDetails = computed(() =>
+  (billData.value?.details || []).filter(d => !d.isReturned)
+);
+
+// ⭐ 工厂处理退回
+const handleDialogVisible = ref(false);
+const handleRows = ref([]);
+const handleRemark = ref('');
+const handling = ref(false);
 
 // ===== 汇总计算 =====
 const totalWeightSum = computed(() => {
@@ -574,6 +787,21 @@ const laborFeeSum = computed(() => {
   return (billData.value?.details || []).reduce((sum, d) => sum + (d.laborFee || 0), 0);
 });
 
+// ===== ⭐ 退回流程（审核通过前金额不变，只做预估展示） =====
+const isReturnFlow = computed(() => ['returnRequested', 'returnPending'].includes(billData.value?.status));
+
+const activeReturnRecords = computed(() =>
+  (billData.value?.returnRecords || []).filter(r => ['requested', 'pending'].includes(r.status))
+);
+
+const pendingReturnTotal = computed(() =>
+  activeReturnRecords.value.reduce((s, r) => s + Number(r.returnAmount || 0), 0)
+);
+
+const pendingReceivable = computed(() =>
+  Math.max(0, Number(billData.value?.totalAmount || 0) - pendingReturnTotal.value)
+);
+
 // ===== 状态映射 =====
 const statusMap = {
   pending: { text: '待提交审核', type: 'info' },
@@ -581,6 +809,10 @@ const statusMap = {
   approved: { text: '已通过', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   returned: { text: '退回待审批', type: 'danger' },
+  billConfirmed: { text: '待客户审核', type: 'warning' },
+  customerApproved: { text: '待业务确认', type: 'primary' },
+  returnRequested: { text: '客户退回待处理', type: 'danger' },
+  returnPending: { text: '退回待审核', type: 'warning' },
   confirmed: { text: '已完成', type: 'success' },
 };
 
@@ -592,7 +824,8 @@ const flowStatusMap = {
   factory_edit: { text: '工厂编辑中', type: 'primary' },
   polishing: { text: '制作完成', type: 'primary' },
   billPending: { text: '账单待审核', type: 'warning' },
-  billConfirmed: { text: '待确认', type: 'success' },
+  billConfirmed: { text: '待客户审核', type: 'warning' },
+  customerApproved: { text: '待业务确认', type: 'primary' },
   completed: { text: '已完成', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -678,7 +911,40 @@ const handleAudit = async (approved) => {
 };
 
 // ============================================================
-// 客户确认（含下单员和审核员）
+// 客户审核员审核通过（billConfirmed → customerApproved）
+// ============================================================
+const handleCustomerAudit = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '审核通过后业务员才能看到这张账单并确认，确定通过吗？核对有问题请用「退回」。',
+      '审核账单',
+      { type: 'info', confirmButtonText: '审核通过', cancelButtonText: '再看看' }
+    );
+  } catch { return; }
+
+  customerAuditing.value = true;
+  try {
+    const res = await customerAuditBill(billId.value);
+    ElMessage.success(res?.message || '已审核通过，等待业务员确认');
+    loadData();
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || '审核失败');
+  } finally {
+    customerAuditing.value = false;
+  }
+};
+
+// 当前角色能否退回：审核员退 billConfirmed，业务员退 customerApproved
+const canCustomerReturn = computed(() => {
+  const s = billData.value?.status;
+  if (userStore.isAdmin) return s === 'billConfirmed' || s === 'customerApproved';
+  if (userStore.isCustomerAudit) return s === 'billConfirmed';
+  if (userStore.isCustomer) return s === 'customerApproved';
+  return false;
+});
+
+// ============================================================
+// 客户确认（业务员最终确认）
 // ============================================================
 const handleConfirm = async () => {
   try {
@@ -698,7 +964,7 @@ const handleConfirm = async () => {
 };
 
 // ============================================================
-// 客户退回（含下单员和审核员）
+// 客户退回（下单员 / 审核员）：只勾明细 + 写说明，方式由工厂定
 // ============================================================
 const openReturnDialog = () => {
   const availableItems = (billData.value?.details || []).filter(d => !d.isReturned);
@@ -707,7 +973,8 @@ const openReturnDialog = () => {
     return;
   }
   returnSelected.value = [];
-  returnForm.value = { reason: '', remark: '', returnType: 'full' };
+  returnForm.value = { reason: '' };
+  returnNotes.value = {};
   returnDialogVisible.value = true;
 };
 
@@ -718,16 +985,6 @@ const handleReturnSelection = (selection) => {
 // 某明细是否被选中退回
 const isSelected = (row) => {
   return returnSelected.value.some(s => s.id === row.id);
-};
-
-// 某明细按当前退回方式应退回的金额
-const returnAmountOf = (row) => {
-  const total = Number(row.totalAmount || 0);
-  const labor = Number(row.laborFee || 0);
-  if (returnForm.value.returnType === 'labor') {
-    return Math.max(0, total - labor);
-  }
-  return total;
 };
 
 const confirmReturn = async () => {
@@ -742,19 +999,143 @@ const confirmReturn = async () => {
 
   returning.value = true;
   try {
-    await returnBill(billId.value, {
-      reason: returnForm.value.reason,
-      remark: returnForm.value.remark,
-      returnType: returnForm.value.returnType,
-      detailIds: returnSelected.value.map(d => d.id),
+    await requestBillReturn(billId.value, {
+      reason: returnForm.value.reason.trim(),
+      items: returnSelected.value.map(d => ({
+        detailId: d.id,
+        note: (returnNotes.value[d.id] || '').trim(),
+      })),
     });
-    ElMessage.success('退回申请已提交，等待工厂审核员审批');
+    ElMessage.success('退回申请已提交，等待工厂处理');
     returnDialogVisible.value = false;
     loadData();
-  } catch {
-    ElMessage.error('退回失败');
+  } catch (e) {
+    ElMessage.error(e?.message || '退回失败');
   } finally {
     returning.value = false;
+  }
+};
+
+// ============================================================
+// 工厂操作员：处理退回（三种方式 + 保留损耗）
+// ============================================================
+const fmt2 = (v) => (Number(v) || 0).toFixed(2);
+
+// ===== 多成色：一条明细展开成 N 行（每种成色一行，其余列合并） =====
+const displayDetails = computed(() => expandGoldDetails(billData.value?.details || []));
+
+// 取当前成色段的值；单色（没有 __gi）回退到行上的汇总值
+const gv = (row, key) => {
+  const it = row.__gi;
+  if (!it) return row[key];
+  const map = {
+    netWeight: 'netWeight',
+    lossRate: 'lossRate',
+    addLossWeight: 'addLossWeight',
+    goldPrice: 'goldPrice',
+    goldMaterialFee: 'amount',
+    goldMaterialWeight: 'foldWeight'
+  };
+  return it[map[key]];
+};
+const fmtG = (v) => Number(v || 0).toFixed(2);
+const fmtM = (v) => Number(v || 0).toFixed(2);
+const numOrDash = (v) => (Number(v) > 0 ? Number(v) : '-');
+
+const returnTypeText = (t) => ({
+  full: '全部退回',
+  labor: '退料留工费',
+  labor_loss: '退料留工费+损耗',
+}[t] || '已退回');
+
+// 明细上的「退回中」记录（客户已申请 / 工厂已定方式待审核）
+const pendingReturnOf = (row) => (billData.value?.returnRecords || [])
+  .find(r => r.detailId === row.id && ['requested', 'pending'].includes(r.status));
+
+// 损耗基数 = 该行金料金额（净重×损耗率×折算率×金价）
+const lossBaseOf = (row) => Number(row.goldMaterialFee || 0);
+
+const openHandleDialog = () => {
+  const details = billData.value?.details || [];
+  handleRows.value = (billData.value?.returnRecords || [])
+    .filter(r => r.status === 'requested')
+    .map(r => {
+      const d = details.find(x => x.id === r.detailId) || {};
+      return {
+        detailId: r.detailId,
+        recordId: r.id,
+        seqNo: d.seqNo || '',
+        productName: r.productName || d.productName || '',
+        totalAmount: Number(d.totalAmount || 0),
+        laborFee: Number(d.laborFee || 0),
+        goldMaterialFee: Number(d.goldMaterialFee || 0),
+        goldMaterialWeight: Number(d.goldMaterialWeight || 0),
+        customerNote: r.customerNote || '',
+        returnType: 'labor',
+        lossAmount: Number(d.goldMaterialFee || 0),
+      };
+    })
+    // 按明细顺序排（退回记录是倒序返回的）
+    .sort((a, b) => Number(a.seqNo || 0) - Number(b.seqNo || 0));
+  if (handleRows.value.length === 0) {
+    ElMessage.warning('没有待处理的退回明细');
+    return;
+  }
+  handleRemark.value = '';
+  handleDialogVisible.value = true;
+};
+
+const applyHandleType = (type) => {
+  handleRows.value.forEach(r => {
+    r.returnType = type;
+    if (type === 'labor_loss' && (r.lossAmount === null || r.lossAmount === undefined)) {
+      r.lossAmount = lossBaseOf(r);
+    }
+  });
+};
+
+// 本次退回金额
+const handleReturnAmount = (row) => {
+  const total = Number(row.totalAmount || 0);
+  const labor = Number(row.laborFee || 0);
+  if (row.returnType === 'full') return total;
+  if (row.returnType === 'labor') return Math.max(0, total - labor);
+  return Math.max(0, total - labor - Number(row.lossAmount || 0));
+};
+
+// 处理后该行应收
+const handleKeepAmount = (row) => Math.max(0, Number(row.totalAmount || 0) - handleReturnAmount(row));
+
+const handleTotals = computed(() => {
+  const returned = handleRows.value.reduce((s, r) => s + handleReturnAmount(r), 0);
+  const keep = handleRows.value.reduce((s, r) => s + handleKeepAmount(r), 0);
+  return { returned, keep };
+});
+
+const confirmHandle = async () => {
+  if (handleRows.value.length === 0) return;
+  // ⭐ 退回处理备注必填：写清与客户确认的情况，审核员据此判断
+  if (!handleRemark.value.trim()) {
+    ElMessage.warning('请填写处理备注');
+    return;
+  }
+  handling.value = true;
+  try {
+    await handleBillReturn(billId.value, {
+      remark: handleRemark.value.trim(),
+      items: handleRows.value.map(r => ({
+        detailId: r.detailId,
+        returnType: r.returnType,
+        lossAmount: r.returnType === 'labor_loss' ? Number(r.lossAmount || 0) : null,
+      })),
+    });
+    ElMessage.success('退回方式已提交，等待审核');
+    handleDialogVisible.value = false;
+    loadData();
+  } catch (e) {
+    ElMessage.error(e?.message || '提交失败');
+  } finally {
+    handling.value = false;
   }
 };
 
@@ -764,7 +1145,9 @@ const confirmReturn = async () => {
 const handleReturnAudit = async (approved) => {
   try {
     await ElMessageBox.confirm(
-      approved ? '确定同意退回申请吗？同意后订单将完成。' : '确定拒绝退回申请吗？',
+      approved
+        ? '确定通过退回吗？通过后账单金额会按退回方式重算，并回到客户确认。'
+        : '确定驳回退回吗？驳回后由工厂操作员重新选择退回方式。',
       '退回审批',
       { type: approved ? 'info' : 'warning' }
     );
@@ -917,12 +1300,13 @@ const formatDate = (date) => {
 // ============================================================
 // 初始化
 // ============================================================
-onMounted(() => {
-  console.log('userType:', userStore.userType);
-  console.log('isCustomerType:', userStore.isCustomerType);
-  console.log('isFactoryOrder:', userStore.isFactoryOrder);
-  console.log('isFactoryAudit:', userStore.isFactoryAudit);
-  loadData();
+onMounted(async () => {
+  await loadData();
+  // ⭐ 从「我的账单」点退回进来，直接打开退回弹窗
+  if (route.query.return === '1' && userStore.isCustomerType
+      && ['billConfirmed', 'customerApproved'].includes(billData.value?.status)) {
+    openReturnDialog();
+  }
 });
 </script>
 
@@ -1077,6 +1461,32 @@ onMounted(() => {
   border-radius: 8px;
   border: 1px solid #e8ecf1;
 }
+/* ⭐ 横向滚动条加高变蓝并常显，避免用户不知道能左右拉 */
+.table-wrapper :deep(.el-scrollbar__bar.is-horizontal) {
+  height: 14px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #e8f1ff;
+  border-top: 1px solid #c6dcff;
+  border-radius: 0;
+  opacity: 1;
+}
+.table-wrapper :deep(.el-scrollbar__bar.is-horizontal > div) {
+  height: 100%;
+  min-width: 60px;
+  border-radius: 7px;
+  background: #2f6fd0;
+  opacity: 1;
+  border: 2px solid #e8f1ff;
+}
+.table-wrapper :deep(.el-scrollbar__bar.is-horizontal > div:hover) {
+  background: #1f5bb8;
+  opacity: 1;
+}
+.table-wrapper :deep(.el-table__body-wrapper .el-scrollbar__view) {
+  padding-bottom: 12px;
+}
 :deep(.el-table) {
   border-radius: 8px;
 }
@@ -1128,6 +1538,13 @@ onMounted(() => {
   font-size: 15px;
   color: #1d2129;
   font-weight: 500;
+}
+/* ⭐ 已结算折足料说明（绿色＝已用现金结清，不再欠料） */
+.summary-item .value-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #1f9254;
 }
 .summary-item :deep(.el-input-number) {
   width: 100px;
@@ -1181,28 +1598,59 @@ onMounted(() => {
   border-top: 1px solid #e8ecf1;
 }
 
-/* ===== 退回方式选择 ===== */
-.return-type-select {
+/* ===== 退回流程 ===== */
+.return-banner {
   margin-bottom: 14px;
-  padding: 12px 16px;
+}
+.return-banner-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  font-size: 13px;
+  color: #606266;
+  margin-top: 4px;
+}
+.return-note {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+  line-height: 1.4;
+  white-space: normal;
+}
+
+/* ===== 工厂处理退回 ===== */
+.handle-quick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.hq-label {
+  font-size: 13px;
+  color: #606266;
+}
+.cell-sub {
+  font-size: 11px;
+  color: #909399;
+}
+.handle-sum {
+  margin-top: 12px;
+  padding: 10px 14px;
   background: #f8faff;
   border: 1px solid #e8f0fe;
   border-radius: 8px;
+  font-size: 14px;
+  color: #303133;
 }
-.return-type-label {
-  font-size: 13px;
-  color: #606266;
-  font-weight: 600;
-  margin-bottom: 8px;
+.handle-sum .dot {
+  margin: 0 10px;
+  color: #c0c4cc;
 }
-.return-type-select :deep(.el-radio) {
-  margin-right: 16px;
-  height: auto;
-  padding: 8px 12px;
-}
-.return-type-tip {
-  margin-top: 8px;
+.handle-remark-tip {
+  margin-top: 4px;
   font-size: 12px;
+  color: #d64545;
 }
 .log-section :deep(.el-timeline) {
   padding-left: 8px;

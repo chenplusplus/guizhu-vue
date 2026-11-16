@@ -104,13 +104,21 @@
       @selection-change="handleSelectionChange"
       v-loading="loading"
       row-key="orderId"
+      :scrollbar-always-on="true"
     >
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column prop="orderNo" label="订单号" width="150" />
       <el-table-column prop="customerName" label="客户" width="120" />
       <el-table-column prop="productName" label="品名" min-width="120" />
       <el-table-column prop="quantity" label="件数" width="70" align="center" />
-      <el-table-column prop="color" label="成色" width="80" align="center" />
+      <el-table-column label="成色" width="80" align="center">
+        <template #default="{ row }">
+          <PurityCell :label="row.purityLabel" :color="row.color" />
+        </template>
+      </el-table-column>
+      <el-table-column label="颜色" width="80" align="center">
+        <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="size" label="手寸" width="80" align="center" />
       <el-table-column prop="totalWeight" label="总重(g)" width="85" align="right">
         <template #default="{ row }">{{ row.totalWeight || '-' }}</template>
@@ -161,6 +169,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Search, RefreshRight } from '@element-plus/icons-vue';
 import { getAvailableOrders, createBill } from '@/api/bill';
 import { getCustomerList } from '@/api/customer';
+import { resolveGemColor } from '@/utils/color';
+import PurityCell from '@/components/PurityCell.vue';
 
 const route = useRoute();
 const router = useRouter();

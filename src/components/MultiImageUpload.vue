@@ -13,12 +13,12 @@
           :initial-index="index"
           class="preview-img"
         />
-        <div class="image-actions">
+        <div class="image-actions" v-if="!disabled">
           <el-button type="danger" link size="small" @click.stop="removeImage(index)">删除</el-button>
         </div>
       </div>
 
-      <div class="image-add" @click="triggerFileInput" v-if="images.length < maxCount">
+      <div class="image-add" @click="triggerFileInput" v-if="!disabled && images.length < maxCount">
         <el-icon><Plus /></el-icon>
         <span>添加</span>
       </div>
@@ -47,7 +47,9 @@ const props = defineProps({
   modelValue: { type: Array, default: () => [] },
   maxCount: { type: Number, default: 10 },
   type: { type: String, default: 'product' },
-  tip: { type: String, default: '' }
+  tip: { type: String, default: '' },
+  // ⭐ 只读模式：只显示已上传图片（可点开大图），不给添加/删除
+  disabled: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:modelValue'])

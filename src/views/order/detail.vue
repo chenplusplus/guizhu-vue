@@ -17,9 +17,33 @@
         <el-button v-if="canWithdraw" type="warning" size="small" @click="handleWithdraw">
           撤回审核
         </el-button>
-       <el-button v-if="canApplyModify" type="warning" size="small" @click="handleApplyModify">
+        <!-- ⭐ 工厂操作员：工厂流转阶段 + 制作完成（含待审核）可编辑 -->
+        <el-button v-if="canFactoryEdit" type="primary" size="small" @click="goFactoryEdit">
+          ✏️ 编辑
+        </el-button>
+        <!-- ⭐ 客户已审核通过、进入工厂环节后，改动需申请修改 -->
+        <el-button v-if="canApplyModify" type="warning" size="small" @click="handleApplyModify">
           申请修改
         </el-button>
+        <!-- ⭐ 取消订单 -->
+        <el-button v-if="canApplyCancel" type="danger" size="small" @click="handleApplyCancel">
+          ⛔ 取消
+        </el-button>
+        <!-- ⭐ 客户申请暂停 / 申请恢复（审核员审批） -->
+        <el-button v-if="canApplyPause" type="warning" size="small" @click="handleApplyPause">
+          ⏸ 申请暂停
+        </el-button>
+        <el-button v-if="canRequestRestore" type="success" size="small" @click="handleRequestRestore">
+          ▶ 申请恢复
+        </el-button>
+        <el-button v-if="canWithdrawCancelApply" type="info" size="small" plain @click="handleWithdrawCancelApply">
+          撤回取消申请
+        </el-button>
+        <!-- ⭐ 客户审核员：审批取消 -->
+        <template v-if="canAuditCancel">
+          <el-button type="success" size="small" @click="handleAuditCancel(true)">同意取消</el-button>
+          <el-button type="danger" size="small" plain @click="handleAuditCancel(false)">驳回取消</el-button>
+        </template>
         <el-button
           v-if="canConfirmModify"
           type="success"
@@ -34,6 +58,26 @@
 
     <!-- ===== 内容区域 ===== -->
     <div class="content-body">
+      <!-- ===== 工厂暂停中提示 ===== -->
+      <el-alert
+        v-if="orderData?.flowStatus === 'paused'"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="pause-banner"
+      >
+        <template #title>
+          ⏸ 订单暂停中（{{ orderData?.pauseOwner === 'customer' ? '客户申请暂停，等客户方申请恢复' : '等工厂恢复生产' }}）
+        </template>
+        <div class="pause-banner-body">
+          <span>暂停前工序：<b>{{ orderData?.pauseOriginStatusText || '—' }}</b></span>
+          <span>暂停时间：<b>{{ formatDateTime(orderData?.pausedAt) }}</b></span>
+          <span v-if="orderData?.pauseReason || orderData?.pauseReqReason">原因：{{ orderData.pauseReason || orderData.pauseReqReason }}</span>
+          <span v-if="orderData?.pauseOwner === 'customer'" class="pause-banner-tip">如需继续，请点上方「▶ 申请恢复」并由客户审核员审批</span>
+          <span v-else class="pause-banner-tip">如需取消，请先让工厂恢复生产</span>
+        </div>
+      </el-alert>
+
       <!-- ===== 预警提示 ===== -->
       <div v-if="warnings.length > 0" class="warning-section">
         <el-alert
@@ -81,12 +125,14 @@
             <template #default="{ row }">
               <span class="purity-cell">
                 <span class="color-dot" :style="{ background: currentPurityColor }"></span>
-                {{ row.color || '-' }}
-                <span v-if="currentPurityRate !== null" class="purity-rate">（折算率 {{ currentPurityRate.toFixed(3) }}）</span>
+                {{ row.purityLabel || row.color || '-' }}
+                <span v-if="currentPurityRate !== null && !row.purityLabel" class="purity-rate">（折算率 {{ currentPurityRate.toFixed(3) }}）</span>
               </span>
             </template>
           </el-table-column>
-          <el-table-column prop="gemColor" label="颜色" min-width="90" />
+          <el-table-column label="颜色" min-width="90">
+            <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+          </el-table-column>
           <el-table-column prop="quantity" label="数量" min-width="70" align="center" />
           <el-table-column prop="size" label="手寸/长度" min-width="100" />
           <el-table-column prop="widthThick" label="宽/厚度" min-width="90" />
@@ -319,11 +365,12 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Right } from '@element-plus/icons-vue';
-import { getOrderDetail, getOrderLogs, withdrawSubmit, getOrderModifyDiff, auditOrderModify, withdrawOrderModify, applyOrderModify, confirmOrderModify } from '@/api/order';
+import { getOrderDetail, getOrderLogs, withdrawSubmit, getOrderModifyDiff, auditOrderModify, withdrawOrderModify, applyOrderModify, confirmOrderModify, applyCancel, auditCancel, applyPause, requestRestore, withdrawCancel } from '@/api/order';
 import { getValueChangeLogs } from '@/api/valueChangeLog';
 import { dictApi } from '@/api/dict';
 import { useUserStore } from '@/stores/user';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import { resolveGemColor } from '@/utils/color';
 
 const userStore = useUserStore();
 const route = useRoute();
@@ -350,11 +397,63 @@ const FACTORY_EDITABLE = [
   'sweeping', 'stoneCutting', 'microInlay', 'handInlay', 'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay', 'billRejected'
 ];
 
+// ⭐ 工厂操作员可编辑订单主体的状态（与后端 FlowStatus.IsFactoryOrderEditable 对齐）
+//    制作完成（含已提交待审核）也放开：审核通过前允许改
+const FACTORY_ORDER_EDITABLE = [...FACTORY_EDITABLE, 'productionCompleted'];
+const canFactoryEdit = computed(() =>
+  (isFactoryOrder.value || isAdmin.value)
+  && FACTORY_ORDER_EDITABLE.includes(orderData.value?.flowStatus)
+);
+const goFactoryEdit = () => router.push(`/order/factory-edit/${orderId.value}`);
+
 const canApplyModify = computed(() =>
   isCustomer.value
   && Number(orderData.value?.submittedBy) === Number(userStore.userId)
   && FACTORY_EDITABLE.includes(orderData.value?.flowStatus)
   && orderData.value?.modifyTracking !== true
+);
+
+// ===== 取消订单 =====
+const CANCEL_FINAL = ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn', 'paused'];
+const canApplyCancel = computed(() =>
+  isCustomer.value
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId)
+  && orderData.value?.flowStatus
+  && !CANCEL_FINAL.includes(orderData.value?.flowStatus)
+  && (!orderData.value?.pauseStatus || orderData.value?.pauseStatus === 'none')
+);
+
+const canAuditCancel = computed(() =>
+  (isCustomerAudit.value || isAdmin.value)
+  && ['pendingCustomerAudit', 'pendingFactoryConfirm'].includes(orderData.value?.pauseStatus)
+  && !orderData.value?.pauseAuditAt
+);
+
+// ⭐ 客户申请暂停：工厂已接单之后、未暂停、无取消申请在走
+const canApplyPause = computed(() =>
+  isCustomer.value
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId)
+  && orderData.value?.flowStatus
+  && !CANCEL_FINAL.includes(orderData.value?.flowStatus)
+  && !['draft', 'pending', 'rejected'].includes(orderData.value?.flowStatus)
+  && (!orderData.value?.pauseStatus || orderData.value?.pauseStatus === 'none')
+  && (!orderData.value?.pauseReqStatus || orderData.value?.pauseReqStatus === 'none' || orderData.value?.pauseReqStatus === 'rejected')
+);
+
+// ⭐ 客户申请恢复：客户申请暂停的单，审批通过后由客户发起恢复
+const canRequestRestore = computed(() =>
+  isCustomer.value
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId)
+  && orderData.value?.flowStatus === 'paused'
+  && orderData.value?.pauseReqStatus === 'approved'
+);
+
+// ⭐ 撤回取消申请：客户审核员审批前
+const canWithdrawCancelApply = computed(() =>
+  isCustomer.value
+  && Number(orderData.value?.submittedBy) === Number(userStore.userId)
+  && orderData.value?.pauseStatus === 'pendingCustomerAudit'
+  && !orderData.value?.pauseAuditAt
 );
 
 const canApproveModify = computed(() =>
@@ -445,12 +544,27 @@ const canWithdraw = computed(() => isCustomer.value
 
 // ===== 修改记录（字段级改动明细，来自 value_change_logs） =====
 // ===== 账单状态显示 =====
+// ⭐ 订单上反写的 billStatus：兼容驼峰（billConfirmed）和下划线（bill_confirmed）两种历史写法
 const getBillStatusText = (status) => {
-  const map = {pending: '待审核', confirmed: '已确认', approved: '已审批', rejected: '已驳回', completed: '已完成', cancelled: '已取消'};
+  const map = {
+    pending: '待提交', bill_pending: '待审核', billPending: '待审核',
+    bill_confirmed: '待客户审核', billConfirmed: '待客户审核',
+    customer_approved: '待业务确认', customerApproved: '待业务确认',
+    bill_rejected: '审核驳回', billRejected: '审核驳回',
+    confirmed: '已确认', approved: '已审批', rejected: '已驳回',
+    returned: '已退回', completed: '已完成', cancelled: '已取消'
+  };
   return status ? (map[status] || status) : '-';
 };
 const getBillStatusType = (status) => {
-  const map = {pending: 'warning', confirmed: 'primary', approved: 'success', rejected: 'danger', completed: 'success', cancelled: 'info'};
+  const map = {
+    pending: 'warning', bill_pending: 'warning', billPending: 'warning',
+    bill_confirmed: 'warning', billConfirmed: 'warning',
+    customer_approved: 'primary', customerApproved: 'primary',
+    bill_rejected: 'danger', billRejected: 'danger',
+    confirmed: 'success', approved: 'success', rejected: 'danger',
+    returned: 'danger', completed: 'success', cancelled: 'info'
+  };
   return status ? (map[status] || 'info') : 'info';
 };
 
@@ -539,6 +653,114 @@ const handleApplyModify = async () => {
   }
 };
 
+// ===== 取消订单 =====
+const handleApplyCancel = async () => {
+  const status = orderData.value?.flowStatus;
+  const directCancel = ['draft', 'pending', 'rejected'].includes(status);
+  const tip = directCancel
+    ? '该订单尚未进入工厂，取消后将直接终止（不可恢复），确认继续？'
+    : status === 'customeraudited'
+      ? '该订单客户已审核、工厂尚未接单，提交取消申请后由客户审核员审批，同意即终止。'
+      : '该订单工厂已接单，提交取消申请后需客户审核员审批、工厂确认，确认即终止。';
+  try {
+    const { value } = await ElMessageBox.prompt(tip, '取消订单', {
+      confirmButtonText: directCancel ? '确认取消' : '提交取消申请',
+      cancelButtonText: '再想想',
+      inputType: 'textarea',
+      inputPlaceholder: '请填写取消原因',
+      inputValidator: v => v?.trim() ? true : '请填写取消原因'
+    });
+    if (!value || !value.trim()) return;
+
+    const res = await applyCancel(orderId.value, value.trim());
+    ElMessage.success(res?.data?.message || (directCancel ? '订单已取消' : '取消申请已提交'));
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败');
+  }
+};
+
+// ===== 客户申请暂停 / 恢复 / 撤回取消 =====
+const handleApplyPause = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '暂停后工厂无法继续推进，需客户审核员审批；恢复也要由我们提交恢复申请。请填写暂停原因：',
+      '申请暂停',
+      {
+        confirmButtonText: '提交申请', cancelButtonText: '取消',
+        inputType: 'textarea', inputPlaceholder: '如：客户改款，等确认后再做',
+        inputValidator: v => v?.trim() ? true : '请填写暂停原因'
+      }
+    );
+    if (!value || !value.trim()) return;
+    const res = await applyPause(orderId.value, value.trim());
+    ElMessage.success(res?.data?.message || '暂停申请已提交');
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
+};
+
+const handleRequestRestore = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写恢复原因', '申请恢复生产', {
+      confirmButtonText: '提交申请', cancelButtonText: '取消',
+      inputType: 'textarea', inputPlaceholder: '如：款式已确认，可以继续做'
+    });
+    await requestRestore(orderId.value, (value || '').trim());
+    ElMessage.success('恢复申请已提交，等待客户审核员审批');
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
+};
+
+const handleWithdrawCancelApply = async () => {
+  try {
+    await ElMessageBox.confirm('撤回后订单恢复正常流转，确定撤回取消申请吗？', '撤回取消申请', { type: 'warning' });
+    await withdrawCancel(orderId.value);
+    ElMessage.success('已撤回取消申请');
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '撤回失败');
+  }
+};
+
+const handleAuditCancel = async (approved) => {  try {
+    if (approved) {
+      const isFactoryStage = orderData.value?.pauseStatus === 'pendingFactoryConfirm'
+        || orderData.value?.cancelNeedFactoryConfirm === true;
+      await ElMessageBox.confirm(
+        isFactoryStage
+          ? '同意后取消申请将转给工厂确认，工厂确认后订单终止。确认同意？'
+          : '同意后订单将直接终止（不可恢复）。确认同意？',
+        '同意取消',
+        { type: 'warning', confirmButtonText: '确认同意', cancelButtonText: '再想想' }
+      );
+      await auditCancel(orderId.value, { approved: true, remark: '同意取消' });
+      ElMessage.success('已同意取消申请');
+    } else {
+      const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回取消', {
+        inputType: 'textarea',
+        confirmButtonText: '确认驳回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入驳回原因',
+        inputValidator: v => v?.trim() ? true : '请输入驳回原因'
+      });
+      await auditCancel(orderId.value, { approved: false, remark: value.trim() });
+      ElMessage.success('已驳回取消申请');
+    }
+    loadData();
+    loadLogs();
+  } catch (e) {
+    if (e !== 'cancel' && e?.name !== 'cancel') ElMessage.error(e.message || '操作失败');
+  }
+};
+
 const handleWithdraw = async () => {
   try {
     await ElMessageBox.confirm('撤回后订单会回到草稿状态，可以修改后重新提交。', '撤回审核', {
@@ -573,7 +795,12 @@ const statusMap = {
   glue: { text: '滴胶/磨石', type: 'primary' },
   inlay: { text: '镶嵌', type: 'primary' },
   assembly: { text: '组装', type: 'primary' },
-  polishing: { text: '制作完成', type: 'primary' },
+  polishing: { text: '抛光', type: 'primary' },
+  sweeping: { text: '扫镶口', type: 'primary' },
+  stoneCutting: { text: '车石', type: 'primary' },
+  microInlay: { text: '微镶', type: 'primary' },
+  handInlay: { text: '手镶', type: 'primary' },
+  productionCompleted: { text: '制作完成', type: 'warning' },
   billPending: { text: '账单待审核', type: 'warning' },
   billRejected: { text: '账单驳回', type: 'danger' },
   billConfirmed: { text: '待确认', type: 'success' },
@@ -582,6 +809,7 @@ const statusMap = {
   cancelled: { text: '已取消', type: 'info' },
   scrapped: { text: '报废', type: 'danger' },
   unqualifiedReturn: { text: '不合格退回', type: 'danger' },
+  paused: { text: '已暂停', type: 'warning' },
 };
 
 const statusText = computed(() => {
@@ -793,6 +1021,28 @@ onMounted(async () => {
 /* ===== 预警 ===== */
 .warning-section {
   margin-bottom: 12px;
+}
+
+/* ===== 暂停中提示 ===== */
+.pause-banner {
+  margin-bottom: 12px;
+  border: 1px solid #f5c98a;
+}
+.pause-banner :deep(.el-alert__title) {
+  font-weight: 700;
+  color: #b9770e;
+}
+.pause-banner-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #8a6100;
+}
+.pause-banner-tip {
+  color: #b9770e;
+  opacity: 0.85;
 }
 
 /* ===== 分割线 ===== */

@@ -219,6 +219,7 @@
 </template>
 
 <script setup>
+import { todayStr } from '@/utils/date';
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -247,7 +248,7 @@ const totalQuantity = computed(() => {
 
 // ===== 默认行 =====
 const getDefaultRow = () => ({
-  orderDate: new Date().toISOString().split('T')[0],
+  orderDate: todayStr(),
   productName: '',
   customerId: userStore.customerId || null,
   customerName: userStore.customerName || '',
@@ -291,7 +292,7 @@ const handleFileChange = (file) => {
 
       // 解析数据
       const parsedData = jsonData.map((row) => ({
-        orderDate: row['订单日期'] || row['orderDate'] || new Date().toISOString().split('T')[0],
+        orderDate: row['订单日期'] || row['orderDate'] || todayStr(),
         productName: row['品名'] || row['productName'] || '',
         customerId: row['客户ID'] || row['customerId'] || userStore.customerId || null,
         customerName: row['客户'] || row['customerName'] || userStore.customerName || '',

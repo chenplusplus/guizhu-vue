@@ -6,8 +6,11 @@ export const getRepairList = (params) => {
 }
 
 // 根据订单ID获取维修单（预填订单数据）
-export const getRepairByOrderId = (orderId) => {
-    return request.get(`/repair/by-order/${orderId}`)
+// bringRepair：复制单是否带出源订单维修单数据（1=带出 / 0=不带出），不传则用订单上存的值
+export const getRepairByOrderId = (orderId, bringRepair) => {
+    return request.get(`/repair/by-order/${orderId}`, {
+        params: bringRepair === undefined || bringRepair === null ? {} : { bringRepair }
+    })
 }
 
 // 获取维修单详情

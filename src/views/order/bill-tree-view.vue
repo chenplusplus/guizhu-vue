@@ -149,6 +149,7 @@
         :header-cell-style="headerCellStyle"
         :cell-style="cellStyle"
         class="bill-table"
+        :scrollbar-always-on="true"
       >
         <el-table-column prop="orderNo" label="流水单号" width="130" fixed="left">
           <template #default="{ row }">
@@ -289,7 +290,7 @@
               <span v-else>{{ row.subStoneQty || '' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="subStoneWeight" label="石重" width="70" align="right">
+          <el-table-column prop="subStoneWeight" label="石重(ct)" width="84" align="right">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.subStoneWeight) }}</b>
               <span v-else>{{ fmtW(row.subStoneWeight) }}</span>

@@ -149,7 +149,14 @@
       <el-table-column prop="size" label="手寸" width="80" align="center" />
       <el-table-column prop="widthThick" label="宽/厚度" width="90" align="center" />
       <el-table-column prop="quantity" label="数量" width="65" align="center" />
-      <el-table-column prop="color" label="成色" width="80" align="center" />
+      <el-table-column label="成色" width="80" align="center">
+        <template #default="{ row }">
+          <PurityCell :label="row.purityLabel" :color="row.color" />
+        </template>
+      </el-table-column>
+      <el-table-column label="颜色" width="80" align="center">
+        <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+      </el-table-column>
 
       <el-table-column prop="goldPrice" label="金价" width="85" align="right">
         <template #default="{ row }">{{ row.goldPrice || '-' }}</template>
@@ -274,7 +281,9 @@ import { Refresh, Search, RefreshRight, FullScreen } from '@element-plus/icons-v
 import { useUserStore } from '@/stores/user';
 import { getOrderList, auditOrder } from '@/api/order';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import PurityCell from '@/components/PurityCell.vue';
 import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
+import { resolveGemColor } from '@/utils/color';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -451,9 +460,9 @@ const hasPendingModify = (row) => {
 };
 
 // ===== 处理修改申请（跳转待办列表） =====
-// A 方案：同意/驳回操作统一在「修改订单」待办页处理，那里能拿到 requestId
+// A 方案：同意/驳回操作统一在「客户审批中心」的修改 tab 处理，那里能拿到 requestId
 const handleApproveModify = (row) => {
-  router.push('/order/modify-list');
+  router.push({ path: '/order/customer-approval', query: { tab: 'modify' } });
 };
 
 // ===== 单个审核 =====

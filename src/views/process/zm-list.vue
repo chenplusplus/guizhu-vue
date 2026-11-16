@@ -24,6 +24,11 @@
             <el-option v-for="m in options.materials" :key="m.id" :label="m.itemLabel" :value="m.id" />
           </el-select>
         </el-form-item>
+        <el-form-item label="内容">
+          <el-select v-model="searchForm.content" placeholder="全部" clearable filterable style="width:130px;" @change="loadData">
+            <el-option v-for="c in contentOptions" :key="c.itemValue" :label="c.itemLabel" :value="c.itemValue" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="全部" clearable style="width:100px;" @change="loadData">
             <el-option label="未审核" :value="0" />
@@ -130,10 +135,30 @@ const isAuditUser = computed(() => ['factoryaudit', 'admin'].includes(String(use
 const loading = ref(false);
 const tableData = ref([]);
 const total = ref(0);
-const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: [] });
+const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: [], zmContents: [] });
 const subProcesses = computed(() => options.zmSubProcesses);
-const dateRange = ref([]);
-const searchForm = reactive({ keyword: '', masterName: '', processDictId: null, materialId: null, status: null, startDate: '', endDate: '' });
+// 「内容」下拉：字典 zm_content（倒模货 / 水口 / 其他 / 金线 …）
+const contentOptions = computed(() => options.zmContents);
+
+// ⭐ 查询时间默认本月（1 号 → 今天）
+const monthStart = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-01`;
+};
+const todayText = () => {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const defaultRange = () => [monthStart(), todayText()];
+
+const dateRange = ref(defaultRange());
+const searchForm = reactive({
+  keyword: '', masterName: '', processDictId: null, materialId: null, status: null,
+  content: '',
+  startDate: dateRange.value[0], endDate: dateRange.value[1]
+});
 const pagination = reactive({ current: 1, pageSize: 20 });
 
 const auditVisible = ref(false);
@@ -155,6 +180,7 @@ const loadData = async () => {
       processDictId: searchForm.processDictId || undefined,
       materialId: searchForm.materialId || undefined,
       status: searchForm.status ?? undefined,
+      content: searchForm.content || undefined,
       startDate: searchForm.startDate || undefined,
       endDate: searchForm.endDate || undefined,
       page: pagination.current,
@@ -166,7 +192,14 @@ const loadData = async () => {
   finally { loading.value = false; }
 };
 
-const resetSearch = () => { Object.assign(searchForm, { keyword: '', processDictId: null, materialId: null, status: null, startDate: '', endDate: '' }); dateRange.value = []; pagination.current = 1; loadData(); };
+const resetSearch = () => {
+  // 重置回「本月」，不是回到不限日期
+  const r = defaultRange();
+  Object.assign(searchForm, { keyword: '', masterName: '', processDictId: null, materialId: null, status: null, content: '', startDate: r[0], endDate: r[1] });
+  dateRange.value = [...r];
+  pagination.current = 1;
+  loadData();
+};
 
 const openEdit = (row) => router.push(`/process/zm-input?id=${row.id}`);
 
@@ -190,6 +223,7 @@ const loadOptions = async () => {
     options.materials = res.data?.materials || [];
     options.zmSubProcesses = res.data?.zmSubProcesses || [];
     options.pgSubProcesses = res.data?.pgSubProcesses || [];
+    options.zmContents = res.data?.zmContents || [];
   } catch {}
 };
 

@@ -1,0 +1,1 @@
+import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/basedata/gold-prices`,{params:t}),n=t=>e.post(`/basedata/gold-price`,t),r=t=>e.put(`/basedata/gold-price`,t),i=t=>e.delete(`/basedata/gold-price/${t}`),a=()=>e.get(`/basedata/diamond-prices`),o=t=>e.put(`/basedata/diamond-price`,t);export{o as a,t as i,i as n,r as o,a as r,n as t};

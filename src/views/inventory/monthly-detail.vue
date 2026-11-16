@@ -250,7 +250,7 @@ const profitRows = (c) => [
 
 const hasVariance = (c) => Math.abs(c.manualTotalProfit - c.sysTotalProfit) > 0.01;
 const fmt = (n) => Number(n || 0).toFixed(2);
-const fmt4 = (n) => Number(n || 0).toFixed(4);
+const fmt4 = (n) => Number(n || 0).toFixed(2);
 const statusType = (s) => ({ draft: 'info', confirming: 'warning', confirmed: 'success' }[s] || 'info');
 const markDirty = () => {};
 

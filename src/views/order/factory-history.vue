@@ -1,6 +1,8 @@
 ﻿<!-- src/views/order/factory-history.vue -->
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
+    <!-- ⭐ 全屏时常驻右上角的退出按钮（滚动到表格中段也能点，Esc 亦可） -->
+    <FullscreenExit v-if="isFullscreen" @exit="toggleFullscreen" />
     <div class="page-header">
       <h2>📦 历史订单</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -93,7 +95,7 @@
 
     <!-- 汇总 -->
     <div v-show="!isFullscreen" class="summary-bar" v-if="pagination.total > 0">
-      <span>共 <b>{{ pagination.total }}</b> 个已完成订单</span>
+      <span>共 <b>{{ pagination.total }}</b> 条历史订单（含已完成 / 已取消 / 已暂停）</span>
     </div>
 
     <!-- 表格 -->
@@ -106,11 +108,22 @@
       @row-click="handleRowClick"
       row-key="orderId"
     >
-      <el-table-column prop="orderNo" label="订单号" width="150" fixed>
+      <el-table-column prop="orderNo" label="订单号" width="160" fixed>
         <template #default="{ row }">
-          <el-link type="primary" @click.stop="viewDetail(row.orderId)">
-            {{ row.orderNo }}
-          </el-link>
+          <span class="order-no-cell">
+            <el-link type="primary" @click.stop="viewDetail(row.orderId)">
+              {{ row.orderNo }}
+            </el-link>
+            <!-- ⭐ 暂停标记：橙色暂停条（不占用额外列） -->
+            <span v-if="isPausedRow(row)" class="paused-circle" :title="`暂停中 · 暂停前：${row.pauseOriginStatusText || row.pauseOriginStatus || '—'}`">⏸</span>
+          </span>
+        </template>
+      </el-table-column>
+
+      <!-- ⭐ 状态列：历史里可能是已完成 / 已取消 / 已暂停 / 报废 -->
+      <el-table-column label="状态" width="110" align="center">
+        <template #default="{ row }">
+          <el-tag :type="flowTagType(row.flowStatus)" size="small">{{ flowStatusText(row.flowStatus) }}</el-tag>
         </template>
       </el-table-column>
 
@@ -158,7 +171,14 @@
 
       <el-table-column prop="size" label="手寸" width="80" align="center" />
       <el-table-column prop="quantity" label="数量" width="70" align="center" />
-      <el-table-column prop="color" label="成色" width="80" align="center" />
+      <el-table-column label="成色" width="80" align="center">
+        <template #default="{ row }">
+          <PurityCell :label="row.purityLabel" :color="row.color" />
+        </template>
+      </el-table-column>
+      <el-table-column label="颜色" width="80" align="center">
+        <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="totalAmount" label="金额" width="110" align="right">
         <template #default="{ row }">
           <span style="color:#E6A23C;font-weight:bold;">
@@ -167,23 +187,27 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="completedAt" label="完成时间" width="160">
+      <el-table-column prop="completedAt" label="完成/暂停时间" width="170">
         <template #default="{ row }">
-          {{ formatDateTime(row.completedAt) }}
+          <span v-if="row.completedAt">{{ formatDateTime(row.completedAt) }}</span>
+          <span v-else-if="row.flowStatus === 'paused'" style="color:#b9770e;font-weight:600;">
+            ⏸ {{ formatDateTime(row.pausedAt) }}
+          </span>
+          <span v-else>-</span>
         </template>
       </el-table-column>
 
       <!-- ⭐ 操作列：根据角色显示不同按钮 -->
       <el-table-column v-if="!isFullscreen" label="操作" width="180" fixed="right" align="center">
         <template #default="{ row }">
-          <!-- 查看：所有人都可以 -->
-          <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
+          <!-- 查看：工厂侧跳工厂编辑页（只读），客户侧跳客户详情页 -->
+          <el-button size="small" type="primary" link @click.stop="openDetail(row.orderId)">
             查看
           </el-button>
 
-          <!-- ⭐ 再次下单：客户下单员 或 客户审核员 显示 -->
+          <!-- ⭐ 再次下单：仅客户下单员（customer）显示；客户审核员只审核，不下单 -->
           <el-button
-            v-if="userStore.isCustomerType"
+            v-if="userStore.isCustomer"
             size="small"
             type="success"
             link
@@ -242,6 +266,26 @@
         <el-button type="primary" @click="applyColumnSettings">应用</el-button>
       </template>
     </el-dialog>
+    <!-- ⭐ 账单预览弹窗：点账单号不再跳账单详情，直接弹预览（只读，与「我的账单」同一套账单表） -->
+    <el-dialog
+      v-model="billDialogVisible"
+      :title="billPreview ? `账单预览 · ${billPreview.billNo || ''}` : '账单预览'"
+      width="94%"
+      top="4vh"
+      class="bill-preview-dialog"
+      destroy-on-close
+    >
+      <div v-loading="billLoading" class="bill-preview-body" element-loading-text="加载账单...">
+        <BillPreviewSheet
+          v-if="billPreview"
+          :bill-data="billPreview"
+          :details="billPreview.details || []"
+          receipt-mode
+          hide-close
+        />
+        <el-empty v-else-if="!billLoading" description="账单加载失败" :image-size="70" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -252,9 +296,14 @@ import { ElMessage } from 'element-plus';
 import { Refresh, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getOrderList } from '@/api/order';
+import { getBillDetail } from '@/api/bill';
 import { getCustomerList } from '@/api/customer';
 import { getUserList } from '@/api/user';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import FullscreenExit from '@/components/FullscreenExit.vue';
+import PurityCell from '@/components/PurityCell.vue';
+import BillPreviewSheet from '@/components/BillPreviewSheet.vue';
+import { resolveGemColor } from '@/utils/color';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -293,6 +342,27 @@ const allColumns = ref([
 ]);
 
 const fixedColumns = ['orderNo'];
+
+// ⭐ 历史订单状态文案（已完成 / 已取消 / 已暂停 / 报废）
+const HISTORY_STATUS = {
+  completed: { text: '已完成', type: 'success' },
+  cancelled: { text: '已取消', type: 'info' },
+  paused: { text: '已暂停', type: 'warning' },
+  scrapped: { text: '报废', type: 'danger' },
+  unqualifiedReturn: { text: '不合格退回', type: 'danger' },
+  productionCompleted: { text: '制作完成', type: 'warning' },
+  billPending: { text: '账单待审核', type: 'warning' },
+  billConfirmed: { text: '待确认', type: 'success' },
+};
+const flowStatusText = (s) => HISTORY_STATUS[s]?.text || s || '-';
+const flowTagType = (s) => HISTORY_STATUS[s]?.type || 'info';
+
+// ⭐ 是否暂停订单（flowStatus=paused，兼容 pauseStatus=paused）
+const isPausedRow = (row) => {
+  const st = String(row?.flowStatus || '').trim().toLowerCase();
+  const ps = String(row?.pauseStatus || '').trim().toLowerCase();
+  return st === 'paused' || ps === 'paused';
+};
 
 const visibleColumns = computed(() => {
   return allColumns.value.filter(col => col.visible);
@@ -498,16 +568,44 @@ const handleRowClick = (row) => {
   flowDrawerVisible.value = true;
 };
 
-// ===== 查看详情 =====
+// ===== 查看详情（订单号穿透：保留跳客户详情页，本次不改） =====
 const viewDetail = (id) => {
   if (!id) return;
   router.push(`/order/detail/${id}`);
 };
 
-// ===== 查看账单 =====
-const viewBill = (id) => {
+// ===== 操作列「查看」=====
+//    ⭐ 工厂侧（含管理员）跳工厂编辑页只读版 ?mode=view：字段与编辑页完全一致（工厂数据 / 多成色金料 /
+//       成本行 / 图片数据包 / 制作进度），只是不能改，比客户详情页信息全
+//    ⭐ 客户侧仍跳客户详情页
+const openDetail = (id) => {
   if (!id) return;
-  router.push(`/order/bill/detail/${id}`);
+  if (userStore.isFactoryType || userStore.isAdmin) {
+    router.push({ path: `/order/factory-edit/${id}`, query: { mode: 'view' } });
+    return;
+  }
+  router.push(`/order/detail/${id}`);
+};
+
+// ===== 查看账单：直接弹预览（原来是 router.push 到账单详情页，按需求下线）=====
+const billDialogVisible = ref(false);
+const billLoading = ref(false);
+const billPreview = ref(null);
+
+const viewBill = async (id) => {
+  if (!id) return;
+  billPreview.value = null;
+  billDialogVisible.value = true;
+  billLoading.value = true;
+  try {
+    const res = await getBillDetail(id);
+    billPreview.value = res?.data || res || null;
+  } catch (e) {
+    ElMessage.error(e?.message || '账单加载失败');
+    billDialogVisible.value = false;
+  } finally {
+    billLoading.value = false;
+  }
 };
 
 // ===== ⭐ 再次下单 =====
@@ -545,6 +643,16 @@ onUnmounted(() => {
 
 <style scoped>
 .page-container { background: #fff; border-radius: 8px; padding: 20px; min-height: 100%; }
+
+/* ⭐ 订单号 + 暂停标记 */
+.order-no-cell { display: inline-flex; align-items: center; gap: 8px; }
+.paused-circle {
+  width: 18px; height: 18px; border-radius: 4px;
+  background-color: #e6a23c;
+  color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+  display: inline-block; flex-shrink: 0;
+  cursor: help;
+}
 
 .page-header {
   display: flex;
@@ -626,5 +734,12 @@ onUnmounted(() => {
 
 .table-fullscreen :deep(.el-link) {
   font-size: 16px !important;
+}
+
+/* ⭐ 账单预览弹窗：内容高时弹窗内部滚动，不要把整页撑出屏幕 */
+.bill-preview-body {
+  min-height: 180px;
+  max-height: 76vh;
+  overflow-y: auto;
 }
 </style>

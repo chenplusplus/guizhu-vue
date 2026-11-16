@@ -1,6 +1,7 @@
 <template>
   <div class="multi-file-upload">
     <el-upload
+      v-if="!disabled"
       :action="''"
       :http-request="handleUpload"
       :show-file-list="false"
@@ -24,7 +25,7 @@
             <span class="file-type">{{ (file.fileType || '').toUpperCase() }}</span>
           </div>
         </div>
-        <el-button type="danger" link @click="removeFile(idx)">
+        <el-button v-if="!disabled" type="danger" link @click="removeFile(idx)">
           <el-icon><Delete /></el-icon>
         </el-button>
       </div>
@@ -49,6 +50,8 @@ const props = defineProps({
   },
   type: { type: String, default: 'dataPackage' },
   maxSizeMB: { type: Number, default: 200 },
+  // ⭐ 只读模式：只显示已上传文件，不给上传/删除
+  disabled: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
 

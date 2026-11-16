@@ -187,7 +187,11 @@ const statusMap = {
 const billStatusMap = {
   pending: { label: '草稿', type: 'info' },
   billPending: { label: '待审核', type: 'warning' },
-  billConfirmed: { label: '待确认', type: 'success' },
+  bill_pending: { label: '待审核', type: 'warning' },
+  billConfirmed: { label: '待客户审核', type: 'warning' },
+  bill_confirmed: { label: '待客户审核', type: 'warning' },
+  customerApproved: { label: '待业务确认', type: 'primary' },
+  customer_approved: { label: '待业务确认', type: 'primary' },
   confirmed: { label: '已确认', type: 'success' },
   returned: { label: '已退回', type: 'danger' }
 };

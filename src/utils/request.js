@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { normalizeError } from './errorMessage'
 
 const request = axios.create({
   baseURL: '/api',
@@ -37,7 +38,19 @@ request.interceptors.response.use(
         window.location.replace('/login')
       }
     } else {
-      ElMessage.error(error.response?.data?.message || error.message || '请求失败')
+      // ⭐ 统一走 errorMessage.js：业务错误 / 模型校验 400 / axios 英文兜底都转中文，
+      //    并就地改写 error.message + 挂 error.friendlyMessage，
+      //    页面 catch 里写 e.message 或 e.friendlyMessage 都是人话
+      const friendly = normalizeError(error) || '请求失败'
+      // 开发期定位用：控制台能看到具体哪个接口出的错（生产可保留，不影响用户）
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[API ${error.response?.status || 'ERR'}] ${error.config?.method?.toUpperCase() || ''} ${error.config?.url || ''} → ${friendly}`
+        )
+      }
+      ElMessage.error(friendly)
+      // 标记已提示，main.js 的 unhandledrejection 兜底不再重复弹一次
+      try { error.__msgShown = true } catch { /* ignore */ }
     }
     return Promise.reject(error)
   }

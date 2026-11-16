@@ -40,15 +40,15 @@
       </div>
     </el-card>
 
-    <!-- ⭐ 口径说明（2026-10-29 定稿）：净利 = 销售额 − 进销存费用；草稿 LR 计入销售 -->
+    <!-- ⭐ 口径说明（2026-11-04 定稿）：销售额统一按账单；净利 = 销售额 − 进销存费用 -->
     <div class="caliber-box">
       <div class="caliber-head">口径说明</div>
       <div class="caliber-line">
-        <b>销售额</b>：按<b>账单日期</b>归月，取 LR 销售行；未做 LR 的账单取账单应收（currentMoney）。
-        <b>草稿 LR 同样计入</b> —— 订单经客户确认即为已定，LR 是否确认不影响销售归属。
+        <b>销售额</b>：按<b>账单创建时间</b>归月，取<b>账单应收</b>（currentMoney − 已审核抵扣 receiptOffset），与经营看板 / 资金口径完全同源。
+        <span class="caliber-em">全部有效账单都计入</span>，不再区分做没做 LR、也不用订单额代替。
       </div>
       <div class="caliber-line">
-        <b>成本</b>：取 LR 成本行（已录订单成本优先），仅用于计算「毛利」，<b>不参与经营净利</b>。
+        <b>成本 / 成色 / 钻石 / 其他费用</b>：仍取 <b>LR 行</b>（归期同为账单创建时间），<b>仅作毛利参考</b>，不参与经营净利。
         <b class="hl">经营净利 = 销售额 − 进销存费用</b>；进销存金料 / 钻石出库属采购领用，不在此扣减。
       </div>
     </div>
@@ -56,8 +56,11 @@
     <!-- 经营总览卡片 -->
     <div class="cards">
       <div class="card-item card-sale">
-        <div class="card-label">销售额</div>
+        <div class="card-label">销售额（账单应收）</div>
         <div class="card-value">{{ fmtMoney(totals.saleAmount) }}</div>
+        <div class="card-hint">
+          应收 {{ fmtMoney(totals.saleGross) }} − 抵扣 {{ fmtMoney(totals.saleOffset) }} · {{ totals.billCount }} 张
+        </div>
       </div>
       <div class="card-item card-cost">
         <div class="card-label">成本（LR 成本行）</div>
@@ -157,11 +160,11 @@
       </div>
     </el-card>
 
-    <!-- 钻石汇总（主石 / 副石：卡重 / 金额 / 镶石工费） -->
+    <!-- 钻石汇总（主石 / 副石：石重(ct) / 金额 / 镶石工费） -->
     <el-card shadow="never" class="block-card">
       <template #header>
         <div class="card-header">
-          <span class="block-title">💎 钻石汇总（卡重 / 金额 / 镶石工费）</span>
+          <span class="block-title">💎 钻石汇总（石重(ct) / 金额 / 镶石工费）</span>
           <span class="stone-tip">
             钻石合计 {{ fmtW(totals.diamondCarat) }} ct ｜ 金额 {{ fmtMoney(totals.diamondAmount) }} ｜
             镶石工费 {{ fmtMoney(totals.settingFee) }}
@@ -173,7 +176,7 @@
 
         <el-table-column label="销售" align="center" label-class-name="hdr-sale">
           <el-table-column prop="saleQty" label="数量" width="76" align="right" class-name="cell-sale" />
-          <el-table-column prop="saleCarat" label="卡重(ct)" width="104" align="right" class-name="cell-sale">
+          <el-table-column prop="saleCarat" label="石重(ct)" width="104" align="right" class-name="cell-sale">
             <template #default="{ row }"><b class="v-sale">{{ fmtC(row.saleCarat) }}</b></template>
           </el-table-column>
           <el-table-column prop="salePrice" label="单价(元/ct)" width="112" align="right" class-name="cell-sale">
@@ -188,7 +191,7 @@
         </el-table-column>
 
         <el-table-column label="成本" align="center" label-class-name="hdr-cost">
-          <el-table-column prop="costCarat" label="卡重(ct)" width="104" align="right" class-name="cell-cost">
+          <el-table-column prop="costCarat" label="石重(ct)" width="104" align="right" class-name="cell-cost">
             <template #default="{ row }">{{ fmtC(row.costCarat) }}</template>
           </el-table-column>
           <el-table-column prop="costAmount" label="金额(元)" width="130" align="right" class-name="cell-cost">
@@ -214,7 +217,7 @@
     <el-card shadow="never" class="block-card">
       <template #header>
         <div class="card-header">
-          <span class="block-title">🎨 成色汇总（销售 / 成本 / 利润）</span>
+          <span class="block-title">🎨 成色汇总（销售 / 成本 / 利润 · LR 口径参考）</span>
           <div class="legend-row">
             <span class="legend-chip mat-gold-999">足金</span>
             <span class="legend-chip mat-gold-18k">18K</span>
@@ -357,8 +360,8 @@ const selectedCustomerText = computed(() => {
 
 // ===== 数字格式 =====
 const fmtMoney = (v) => '¥' + Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtW = (v) => Number(v || 0).toFixed(3);
-const fmtC = (v) => Number(v || 0).toFixed(3);
+const fmtW = (v) => Number(v || 0).toFixed(2);
+const fmtC = (v) => Number(v || 0).toFixed(2);
 const profitClass = (v) => (Number(v) >= 0 ? 'profit-pos' : 'profit-neg');
 const unpaidClass = (v) => (Number(v) > 0 ? 'unpaid' : 'recv');
 
@@ -543,8 +546,8 @@ const handleExport = () => {
   XLSX.utils.book_append_sheet(wb, ws2, '成色汇总');
 
   // Sheet3：钻石汇总
-  const head3 = ['分类', '数量', '卡重(ct)', '单价(元/ct)', '金额(元)', '镶石工费(元)',
-    '成本卡重(ct)', '成本金额(元)', '成本镶石工费', '钻石利润', '镶石工费利润'];
+  const head3 = ['分类', '数量', '石重(ct)', '单价(元/ct)', '金额(元)', '镶石工费(元)',
+    '成本石重(ct)', '成本金额(元)', '成本镶石工费', '钻石利润', '镶石工费利润'];
   const body3 = byStone.value.map(r => [r.label, r.saleQty, r.saleCarat, r.salePrice, r.saleAmount, r.saleSetting,
     r.costCarat, r.costAmount, r.costSetting, r.profit, r.settingProfit]);
   const sSum = (k) => Math.round(byStone.value.reduce((s, r) => s + (Number(r[k]) || 0), 0) * 100) / 100;
@@ -633,6 +636,7 @@ onMounted(() => {
 .caliber-head { font-weight: 600; color: #185fa5; margin-bottom: 4px; font-size: 13px; }
 .caliber-line b { color: #303133; }
 .caliber-line b.hl { color: #c0392b; }
+.caliber-em { color: #1f9254; font-weight: 600; }
 
 .misc-row {
   display: flex; align-items: center; gap: 14px;

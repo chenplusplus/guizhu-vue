@@ -1,0 +1,1 @@
+import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/customer/list`,{params:t}),n=t=>e.post(`/customer`,t),r=t=>e.put(`/customer`,t),i=t=>e.delete(`/customer/${t}`),a=(t,n)=>e.patch(`/customer/${t}/toggle`,null,{params:{isActive:n}});export{r as a,a as i,i as n,t as r,n as t};

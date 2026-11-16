@@ -3,6 +3,8 @@
 -->
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
+    <!-- ⭐ 全屏时常驻右上角的退出按钮（滚动到表格中段也能点，Esc 亦可） -->
+    <FullscreenExit v-if="isFullscreen" @exit="toggleFullscreen" />
     <div class="page-header">
       <div class="header-left">
         <h2>📥 待接单</h2>
@@ -59,10 +61,13 @@
     >
       <el-table-column type="selection" width="45" align="center" />
 
-      <el-table-column label="标记" width="48" align="center" fixed>
+      <el-table-column label="标记" width="62" align="center" fixed>
         <template #default="{ row }">
-          <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
-          <span v-else-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">❗</span>
+          <!-- ⭐ 加急 🔥 与 注意 ❗ 是两个独立标记，可同时出现，互不影响 -->
+          <span v-if="row.urgentFlag || row.warnFlag || row.alertReason" class="order-flags">
+            <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">❗</span>
+            <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
+          </span>
           <span v-else class="order-flag-placeholder">-</span>
         </template>
       </el-table-column>
@@ -112,7 +117,14 @@
       <el-table-column prop="size" label="手寸/长度" width="100" align="center" />
       <el-table-column prop="widthThick" label="宽/厚度" width="100" align="center" />
       <el-table-column prop="quantity" label="数量" width="70" align="center" />
-      <el-table-column prop="color" label="成色" width="80" align="center" />
+      <el-table-column label="成色" width="80" align="center">
+        <template #default="{ row }">
+          <PurityCell :label="row.purityLabel" :color="row.color" />
+        </template>
+      </el-table-column>
+      <el-table-column label="颜色" width="80" align="center">
+        <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="goldPrice" label="金价" width="90" align="right" />
       <el-table-column prop="logoText" label="LOGO" width="100" show-overflow-tooltip />
       <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center" />
@@ -167,6 +179,9 @@ import { useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { getOrderList, acceptOrder } from '@/api/order';
+import FullscreenExit from '@/components/FullscreenExit.vue';
+import PurityCell from '@/components/PurityCell.vue';
+import { resolveGemColor } from '@/utils/color';
 
 const router = useRouter();
 const loading = ref(false);
@@ -272,6 +287,7 @@ onUnmounted(() => window.removeEventListener('keydown', handleEsc));
 .header-right { display: flex; gap: 8px; align-items: center; }
 .filter-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .no-img { color: #c0c4cc; font-size: 12px; }
+.order-flags { display: inline-flex; align-items: center; gap: 1px; }
 .order-flag { font-size: 16px; }
 .order-warning-flag { color: #e6a23c; }
 .order-urgent-flag { color: #f56c6c; }

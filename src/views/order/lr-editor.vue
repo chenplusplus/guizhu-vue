@@ -128,9 +128,9 @@
               </template>
             </el-table-column>
 
-            <!-- ===== 主石（列顺序：卡重 → 单价 → 粒数 → 镶石工费 → 金额） ===== -->
+            <!-- ===== 主石（列顺序：石重(ct) → 单价 → 粒数 → 镶石工费 → 金额） ===== -->
             <el-table-column label="主石" align="center">
-              <el-table-column prop="stoneWeight" label="卡重" width="75" align="center">
+              <el-table-column prop="stoneWeight" label="石重(ct)" width="86" align="center">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.stoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.stoneWeight || '-' }}</span>
@@ -162,9 +162,9 @@
               </el-table-column>
             </el-table-column>
 
-            <!-- ===== 副石（列顺序：卡重 → 单价 → 粒数 → 镶石工费 → 金额） ===== -->
+            <!-- ===== 副石（列顺序：石重(ct) → 单价 → 粒数 → 镶石工费 → 金额） ===== -->
             <el-table-column label="副石" align="center">
-              <el-table-column prop="subStoneWeight" label="卡重" width="65" align="center">
+              <el-table-column prop="subStoneWeight" label="石重(ct)" width="86" align="center">
                 <template #default="{ row }">
                   <el-input v-if="row.rowType === 'cost' && canEdit" v-model.number="row.subStoneWeight" size="small" class="cell-input" @input="onCellChange(row)" />
                   <span v-else>{{ row.subStoneWeight || '-' }}</span>
@@ -258,17 +258,17 @@
         <!-- 第二部分：利润+收支 Excel原生表格 -->
         <table class="excel-summary-table">
           <tbody>
-            <!-- 第1行：上单 -->
+            <!-- 第1行：上单（应收/已收/尚欠/成本/总利润） -->
             <tr>
-              <td class="label-cell">上单钻石利润：</td>
-              <td class="value-cell">{{ prevSummary.diamondProfit }}</td>
-              <td class="label-cell">上单金利润：</td>
-              <td class="value-cell">{{ prevSummary.goldProfit }}</td>
-              <td class="label-cell">上单镶石利润：</td>
-              <td class="value-cell">{{ prevSummary.settingProfit }}</td>
-              <td class="label-cell">上单工费利润：</td>
-              <td class="value-cell">{{ prevSummary.laborProfit }}</td>
-              <td class="label-cell">上单应收金额总利润：</td>
+              <td class="label-cell">上单应收：</td>
+              <td class="value-cell">{{ prevSummary.dailyIncome }}</td>
+              <td class="label-cell">上单已收：</td>
+              <td class="value-cell">{{ prevSummary.received }}</td>
+              <td class="label-cell red-text bold">上单尚欠：</td>
+              <td class="value-cell red-text bold">{{ prevSummary.debt }}</td>
+              <td class="label-cell">上单成本：</td>
+              <td class="value-cell">{{ prevSummary.dailyExpense }}</td>
+              <td class="label-cell">上单应收总利润：</td>
               <td class="value-cell">{{ prevSummary.totalProfit }}</td>
             </tr>
             <!-- 第2行：本单 -->
@@ -297,34 +297,34 @@
               <td class="label-cell blue-text">累计应收金额利润：</td>
               <td class="value-cell blue-text" :class="getProfitClass(totalSummary.totalProfit)">{{ totalSummary.totalProfit.toFixed(2) }}</td>
             </tr>
-            <!-- 第4行：上单每日收入/开支/出货件数 + 应收总金额（跨行2行） -->
+            <!-- 第4行：上单出货件数/净重/加耗重 + 应收总金额（跨行2行） -->
             <tr>
-              <td class="label-cell">上单每日收入：</td>
-              <td class="value-cell">{{ prevSummary.dailyIncome }}</td>
-              <td class="label-cell">上单每日开支：</td>
-              <td class="value-cell">-</td>
               <td class="label-cell">上单出货件数：</td>
-              <td class="value-cell">-</td>
+              <td class="value-cell">{{ prevSummary.qty }}</td>
+              <td class="label-cell">上单净重：</td>
+              <td class="value-cell">{{ weightTotals.prevNet }}</td>
+              <td class="label-cell">上单加耗重：</td>
+              <td class="value-cell">{{ weightTotals.prevLoss }}</td>
               <td rowspan="2" class="label-cell red-text total-amount-cell">应收总金额：</td>
               <td rowspan="2" class="value-cell red-text total-amount-cell">¥{{ (summaryData.totalReceivable || 0).toFixed(2) }}</td>
             </tr>
-            <!-- 第5行：本单每日收入/开支/出货件数 -->
+            <!-- 第5行：本单出货件数/净重/加耗重 -->
             <tr>
-              <td class="label-cell">本单每日收入：</td>
-              <td class="value-cell">{{ (summaryData.totalReceivable || 0).toFixed(2) }}</td>
-              <td class="label-cell">本单每日开支：</td>
-              <td class="value-cell">{{ currSummary.dailyExpense }}</td>
               <td class="label-cell">本单出货件数：</td>
               <td class="value-cell">{{ currSummary.qty }}</td>
+              <td class="label-cell">本单净重：</td>
+              <td class="value-cell">{{ weightTotals.currNet }}</td>
+              <td class="label-cell">本单加耗重：</td>
+              <td class="value-cell">{{ weightTotals.currLoss }}</td>
             </tr>
-            <!-- 第6行：累计收入/开支/出货件数 + 支出平衡总金额 -->
+            <!-- 第6行：累计件数/重量 + 支出平衡总金额 -->
             <tr>
-              <td class="label-cell blue-text">累计收入：</td>
-              <td class="value-cell blue-text">¥{{ totalSummary.dailyIncome.toFixed(2) }}</td>
-              <td class="label-cell blue-text">累计开支：</td>
-              <td class="value-cell blue-text">¥{{ totalSummary.dailyExpense.toFixed(2) }}</td>
               <td class="label-cell blue-text">累计出货件数：</td>
-              <td class="value-cell blue-text">{{ totalSummary.qty }}</td>
+              <td class="value-cell blue-text">{{ weightTotals.totalQty }}</td>
+              <td class="label-cell blue-text">累计净重：</td>
+              <td class="value-cell blue-text">{{ weightTotals.totalNet }}</td>
+              <td class="label-cell blue-text">累计加耗重：</td>
+              <td class="value-cell blue-text">{{ weightTotals.totalLoss }}</td>
               <td class="label-cell red-text">支出平衡总金额：</td>
               <td class="value-cell red-text">¥{{ totalSummary.balance.toFixed(2) }}</td>
             </tr>
@@ -379,8 +379,8 @@ import { useRoute } from 'vue-router';
 import { ElMessage, ElLoading, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Download, Upload, View } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getLrTable, saveLr, generateLr, exportLr, getLrCurrentNode, getLrNodeActions, executeLrAction, getLrSummary } from '@/api/lr';
-import { getCustomerShangdan } from '@/api/inventoryMonthly';
+import { getLrTable, saveLr, generateLr, exportLr, getLrCurrentNode, getLrNodeActions, executeLrAction, getLrThreePeriod } from '@/api/lr';
+import { COLOR_BASE, normalizeColor } from '@/utils/color';
 import * as XLSX from 'xlsx';
 import ChangeLogTimeline from '@/components/ChangeLogTimeline.vue';
 import LrPreviewDialog from '@/components/LrPreviewDialog.vue';
@@ -409,12 +409,27 @@ const lrInfo = ref(null);const summaryData = ref({
 });
 
 const loadSummary = async () => {
-  if (!billId.value) return;
+  const id = lrId.value || null;
+  if (!id && !billId.value) return;
   try {
-    const res = await getLrSummary(billId.value);
-    if (res?.data) {
-      summaryData.value = res.data;
-    }
+    // 全公司口径唯一数据源（后端 CompanyLedgerService），前端只渲染不自算
+    const res = await getLrThreePeriod(id ? { lrId: id } : { billId: billId.value });
+    const d = res?.data;
+    if (!d) return;
+    // 后端已带 prevProfit / prevBillAmount / todayBillAmount / inout 等兼容字段
+    summaryData.value = d;
+    prevData.value.details = (d.prevColors || []).map(c => ({
+      color: normalizeColor(c.color),
+      netWeight: Number(c.netWeight) || 0,
+      addLossWeight: Number(c.addLossWeight) || 0
+    }));
+    todayColors.value = (d.currentColors || []).map(c => ({
+      color: normalizeColor(c.color),
+      netWeight: Number(c.netWeight) || 0,
+      addLossWeight: Number(c.addLossWeight) || 0,
+      goldMaterialWeight: Number(c.goldMaterialWeight) || 0,
+      diamondWeight: Number(c.diamondWeight) || 0
+    }));
   } catch (e) {
     console.error('加载汇总失败:', e);
   }
@@ -449,7 +464,7 @@ const isSubmitAction = (action) => /submit|提交/i.test(`${getActionKey(action)
 const isApproveAction = (action) => /approve|audit|confirm|通过|审核/i.test(`${getActionKey(action)} ${getActionName(action)}`) && !/reject|驳回/i.test(`${getActionKey(action)} ${getActionName(action)}`);
 const findAction = (matcher, fallback) => flowActions.value.find(matcher) || { actionKey: fallback };
 
-// ==================== 上单数据（从后端加载） ====================
+// ==================== 上单数据（从后端全公司口径加载） ====================
 const prevData = ref({
   summary: {
     totalSale: 0, totalCost: 0, totalProfit: 0,
@@ -458,6 +473,8 @@ const prevData = ref({
   },
   details: []
 });
+// 本单成色明细（后端口径：账单出货 + 金录出）
+const todayColors = ref([]);
 
 // ==================== 数据 ====================
 const saleRows = ref([]);
@@ -507,14 +524,14 @@ const recalcRow = (row) => {
   // 足金料金额 = 足金料克重 × 金价（联动）
   row.goldMaterialFee = +(row.goldMaterialWeight * goldPrice).toFixed(2);
 
-  // 主石金额 = 卡重 × 单价 + 粒数 × 镶石工费
+  // 主石金额 = 石重 × 单价 + 粒数 × 镶石工费
   const sw = Number(row.stoneWeight) || 0;
   const sp = Number(row.stonePrice) || 0;
   const sq = Number(row.stoneQty) || 0;
   const ssf = Number(row.stoneSettingFee) || 0;
   row.stoneAmount = +(sw * sp + sq * ssf).toFixed(2);
 
-  // 副石金额 = 卡重 × 单价 + 粒数 × 镶石工费
+  // 副石金额 = 石重 × 单价 + 粒数 × 镶石工费
   const ssw = Number(row.subStoneWeight) || 0;
   const ssp = Number(row.subStonePrice) || 0;
   const ssq = Number(row.subStoneQty) || 0;
@@ -550,7 +567,7 @@ const onCellChange = (row) => {
   nextTick();
 };
 
-// 主石/副石的单价、卡重、粒数、镶石工费都用 onCellChange（统一 recalcRow）
+// 主石/副石的单价、石重、粒数、镶石工费都用 onCellChange（统一 recalcRow）
 const onStonePriceChange = (row) => {
   recalcRow(row);
   syncRowToSource(row);
@@ -567,37 +584,64 @@ const onGoldPriceChange = (row) => {
   nextTick();
 };
 
-// ==================== 工具：按成色汇总销售行 ====================
-const getSaleRowsByColor = () => {
-  const saleList = displayRows.value.filter(r => r.rowType === 'sale');
-  const colorMap = new Map();
-  saleList.forEach(r => {
-    const color = r.color || 'Au755';
-    if (!colorMap.has(color)) colorMap.set(color, []);
-    colorMap.get(color).push(r);
-  });
-  return colorMap;
-};
 
 // ==================== 第一部分：净重 + 加耗重（按成色） ====================
+// 上单 / 本单 / 累计 的出货件数与重量合计（用于汇总表第 4~6 行）
+// 上单按「表头合计」（lr_tables 汇总值，权威口径），本单按销售行累加
+const weightTotals = computed(() => {
+  const fmt = (v) => (Number(v) || 0).toFixed(3);
+  const b = summaryData.value.prevBillAmount || {};
+  const c = summaryData.value.todayBillAmount || {};
+  // 全公司口径：净重 / 加耗重 已含「金录出」，前端不再自己累加销售行
+  const prevNet = Number(b.netWeight) || 0;
+  const prevLoss = Number(b.addLossWeight) || 0;
+  const prevQty = Number(b.qty) || 0;
+  const currNet = Number(c.netWeight) || 0;
+  const currLoss = Number(c.addLossWeight) || 0;
+  const currQty = Number(c.qty) || 0;
+  return {
+    prevNet: fmt(prevNet), prevLoss: fmt(prevLoss),
+    currNet: fmt(currNet), currLoss: fmt(currLoss),
+    totalQty: prevQty + currQty,
+    totalNet: fmt(prevNet + currNet),
+    totalLoss: fmt(prevLoss + currLoss),
+  };
+});
+
 const summaryWeightRows = computed(() => {
-  const colorMap = getSaleRowsByColor();
-  const colors = Array.from(colorMap.keys()).sort();
+  // 上单 / 本单成色明细都来自后端（本单含金录出，前端算不出来）
+  const map = new Map();
+  const ensure = (color) => {
+    if (!map.has(color)) map.set(color, { color, prevNet: 0, prevLoss: 0, currNet: 0, currLoss: 0 });
+    return map.get(color);
+  };
+  COLOR_BASE.forEach(c => ensure(c));
+  (prevData.value.details || []).forEach(d => {
+    const it = ensure(d.color);
+    it.prevNet += Number(d.netWeight) || 0;
+    it.prevLoss += Number(d.addLossWeight) || 0;
+  });
+  (todayColors.value || []).forEach(d => {
+    const it = ensure(d.color);
+    it.currNet += Number(d.netWeight) || 0;
+    it.currLoss += Number(d.addLossWeight) || 0;
+  });
+
+  const colors = [...map.keys()].sort((a, b) => {
+    const ia = COLOR_BASE.indexOf(a); const ib = COLOR_BASE.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+
   return colors.map(color => {
-    const rows = colorMap.get(color);
-    const currNetWeight = rows.reduce((sum, r) => sum + (Number(r.netWeight) || 0), 0);
-    const currAddLoss = rows.reduce((sum, r) => sum + (Number(r.addLossWeight) || 0), 0);
-    const prevDetail = prevData.value.details.find(d => d.color === color);
-    const prevNetWeight = prevDetail?.netWeight ?? 0;
-    const prevAddLoss = prevDetail?.addLossWeight ?? 0;
+    const it = map.get(color);
     return {
       color,
-      prevNetWeight: prevNetWeight > 0 ? prevNetWeight.toFixed(3) : '-',
-      currNetWeight: currNetWeight.toFixed(3),
-      totalNetWeight: (prevNetWeight + currNetWeight).toFixed(3),
-      prevAddLoss: prevAddLoss > 0 ? prevAddLoss.toFixed(3) : '-',
-      currAddLoss: currAddLoss.toFixed(3),
-      totalAddLoss: (prevAddLoss + currAddLoss).toFixed(3)
+      prevNetWeight: it.prevNet > 0 ? it.prevNet.toFixed(3) : '-',
+      currNetWeight: it.currNet.toFixed(3),
+      totalNetWeight: (it.prevNet + it.currNet).toFixed(3),
+      prevAddLoss: it.prevLoss > 0 ? it.prevLoss.toFixed(3) : '-',
+      currAddLoss: it.currLoss.toFixed(3),
+      totalAddLoss: (it.prevLoss + it.currLoss).toFixed(3)
     };
   });
 });
@@ -615,6 +659,8 @@ const prevSummary = computed(() => {
     dailyIncome: (b.income || 0).toFixed(2),
     dailyExpense: (b.expense || 0).toFixed(2),
     qty: b.qty || 0,
+    received: (b.received || 0).toFixed(2),
+    debt: (b.debt || 0).toFixed(2),
   };
 });
 
@@ -670,21 +716,18 @@ const currSummary = computed(() => {
 const totalSummary = computed(() => {
   const prev = summaryData.value.prevProfit || {};
   const curr = currProfit.value;
-  const prevB = summaryData.value.prevBillAmount || {};
-  const currB = summaryData.value.todayBillAmount || {};
-  const balance = (summaryData.value.totalReceivable || 0)
-    + (summaryData.value.inoutIncome || 0)
-    - (summaryData.value.inoutExpense || 0);
+  const t = summaryData.value.total || {};
+  // 收入 / 开支 / 支出平衡：全公司资金口径（账单 + 金录出 + 钻录出 + 费用入 / 入库 + 费用出）
   return {
     diamondProfit: (prev.diamondProfit || 0) + curr.diamondProfit,
     goldProfit: (prev.goldProfit || 0) + curr.goldProfit,
     settingProfit: (prev.settingProfit || 0) + curr.settingProfit,
     laborProfit: (prev.laborProfit || 0) + curr.laborProfit,
     totalProfit: (prev.totalProfit || 0) + curr.totalProfit,
-    dailyIncome: (prevB.income || 0) + (currB.income || 0),
-    dailyExpense: (prevB.expense || 0) + (currB.expense || 0),
-    qty: (prevB.qty || 0) + (currB.qty || 0),
-    balance,
+    dailyIncome: Number(t.income) || 0,
+    dailyExpense: Number(t.expense) || 0,
+    qty: Number(t.qty) || 0,
+    balance: Number(t.net) || 0,
   };
 });
 
@@ -706,37 +749,6 @@ const inoutSummary = computed(() => {
     todayNet: Number(i.todayNet) || 0,
   };
 });
-
-// ==================== 加载上单数据 ====================
-const loadPrevData = async () => {
-  const customerId = lrInfo.value?.customerId;
-  if (!customerId) return;
-  const recordDate = lrInfo.value?.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0];
-  try {
-    const res = await getCustomerShangdan(customerId, recordDate);
-    if (res?.success && res?.data) {
-      const d = res.data;
-      prevData.value.summary = {
-        totalSale: d.totalAmount || 0,
-        totalCost: 0,
-        totalProfit: d.totalProfit || 0,
-        totalDiamondProfit: d.diamondProfit || 0,
-        totalGoldProfit: d.goldProfit || 0,
-        totalSettingProfit: d.settingProfit || 0,
-        totalLaborProfit: d.laborProfit || 0,
-        totalNetWeight: d.netWeight || 0,
-        totalAddLossWeight: d.addLossWeight || 0
-      };
-      prevData.value.details = (d.materials || []).map(m => ({
-        color: m.color,
-        netWeight: m.manualNetWeight,
-        addLossWeight: m.manualAddLossWeight
-      }));
-    }
-  } catch (e) {
-    console.error('加载上单失败:', e);
-  }
-};
 
 // ==================== 加载数据 ====================
 const loadData = async () => {
@@ -760,7 +772,6 @@ const loadData = async () => {
     } else {
       await generateLrTable();
     }
-    await loadPrevData();
     await loadFlowState();
     await loadSummary();
   } catch (e) {
@@ -997,7 +1008,7 @@ const handleExport = async () => {
 const previewVisible = ref(false);
 // 预览用账单头：直接取当前 lrInfo（含 id / billNo / customerName / color / customerId / createdAt）
 const previewData = computed(() => lrInfo.value || {});
-// 预览用明细行：销售行在前、成本行在后，与Excel/列表预览顺序一致（取当前正在编辑的值）
+// 预览用明细行：按当前正在编辑的值传出，预览组件内部会按序号排成「一行销售、一行成本」
 const previewRowsData = computed(() => [
   ...saleRows.value.map(r => ({ ...r, rowType: 'sale' })),
   ...costRows.value.map(r => ({ ...r, rowType: 'cost' })),

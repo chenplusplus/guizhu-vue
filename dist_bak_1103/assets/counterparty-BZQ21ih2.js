@@ -1,0 +1,1 @@
+import{t as e}from"./api-B3ZF2141.js";var t=t=>e.get(`/counterparty/list`,{params:t}),n=t=>e.get(`/counterparty/all`,{params:t}),r=t=>e.post(`/counterparty`,t),i=t=>e.put(`/counterparty`,t),a=t=>e.delete(`/counterparty/${t}`);export{i as a,t as i,a as n,n as r,r as t};

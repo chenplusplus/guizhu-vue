@@ -37,8 +37,8 @@
     <div class="summary-cards">
       <div class="summary-card green"><div class="card-label">客户总数</div><div class="card-value">{{ stats.customerCount }} 家</div></div>
       <div class="summary-card orange"><div class="card-label">供应商总数</div><div class="card-value">{{ stats.supplierCount }} 家</div></div>
-      <div class="summary-card blue"><div class="card-label">当月总收入</div><div class="card-value">¥{{ stats.totalIn.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</div></div>
-      <div class="summary-card red"><div class="card-label">当月总支出</div><div class="card-value">¥{{ stats.totalOut.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</div></div>
+      <div class="summary-card blue"><div class="card-label">当月入库金额（付钱）</div><div class="card-value">¥{{ stats.totalIn.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</div></div>
+      <div class="summary-card red"><div class="card-label">当月出库金额（收钱）</div><div class="card-value">¥{{ stats.totalOut.toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</div></div>
     </div>
 
     <!-- 表格 -->
@@ -52,10 +52,10 @@
         <el-table-column prop="typeLabel" label="类型" width="90" align="center">
           <template #default="{ row }"><el-tag :type="row.counterpartyType === 'customer' ? 'success' : 'warning'" size="small">{{ row.typeLabel }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="totalIn" label="收入(元)" width="140" align="right">
+        <el-table-column prop="totalIn" label="入库(元)" width="140" align="right">
           <template #default="{ row }"><span class="amount-in">¥{{ (row.totalIn || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span></template>
         </el-table-column>
-        <el-table-column prop="totalOut" label="支出(元)" width="140" align="right">
+        <el-table-column prop="totalOut" label="出库(元)" width="140" align="right">
           <template #default="{ row }"><span class="amount-out">¥{{ (row.totalOut || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2 }) }}</span></template>
         </el-table-column>
         <el-table-column prop="balance" label="结余(元)" width="140" align="right">
@@ -65,10 +65,10 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column prop="inCount" label="收入笔数" width="100" align="center">
+        <el-table-column prop="inCount" label="入库笔数" width="100" align="center">
           <template #default="{ row }"><el-tag type="success" size="small">{{ row.inCount || 0 }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="outCount" label="支出笔数" width="100" align="center">
+        <el-table-column prop="outCount" label="出库笔数" width="100" align="center">
           <template #default="{ row }"><el-tag type="danger" size="small">{{ row.outCount || 0 }}</el-tag></template>
         </el-table-column>
       </el-table>

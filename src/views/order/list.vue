@@ -1,6 +1,8 @@
 ﻿<!-- src/views/order/list.vue -->
 <template>
   <div class="page-container" :class="{ 'is-fullscreen': isFullscreen }">
+    <!-- ⭐ 全屏时常驻右上角的退出按钮（滚动到表格中段也能点，Esc 亦可） -->
+    <FullscreenExit v-if="isFullscreen" @exit="toggleFullscreen" />
     <div class="page-header">
       <h2>📋 订单列表</h2>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
@@ -144,7 +146,7 @@
       <!-- 多选列 -->
       <el-table-column type="selection" width="40" align="center" />
 
-      <el-table-column label="标记" width="48" fixed align="center">
+      <el-table-column label="标记" width="62" fixed align="center">
         <template #default="{ row }">
           <el-tooltip
             v-if="row.warnFlag || row.alertReason || row.urgentFlag"
@@ -176,7 +178,11 @@
       <!-- ⭐ 状态列 -->
       <el-table-column prop="flowStatus" label="状态" width="110" fixed align="center">
         <template #default="{ row }">
-          <el-tag :type="getStatusType(row.flowStatus)" size="default" effect="light">
+          <span v-if="row.flowStatus === 'paused'" class="paused-status" title="工厂暂停中，可恢复生产">
+            <span class="paused-bars"><i></i><i></i></span>
+            <span class="paused-text">已暂停</span>
+          </span>
+          <el-tag v-else :type="getStatusType(row.flowStatus)" size="default" effect="light">
             {{ getStatusText(row.flowStatus) }}
           </el-tag>
         </template>
@@ -238,6 +244,10 @@
             <span v-else style="color:#ccc;font-size:12px;">无图</span>
           </template>
 
+          <template v-else-if="col.prop === 'gemColor'">
+            {{ resolveGemColor(row) || '-' }}
+          </template>
+
           <template v-else-if="col.prop === 'goldPrice'">
             {{ row.goldPrice || '-' }}
           </template>
@@ -265,7 +275,7 @@
       </el-table-column>
 
       <!-- ⭐ 操作列 -->
-      <el-table-column v-if="!isFullscreen" label="操作" width="280" fixed="right" align="center">
+      <el-table-column v-if="!isFullscreen" label="操作" width="320" fixed="right" align="center">
         <template #default="{ row }">
           <!-- 查看 -->
           <el-button size="small" type="primary" link @click.stop="viewDetail(row.orderId)">
@@ -292,6 +302,58 @@
           >
             申请修改
           </el-button>
+
+          <!-- 取消订单 -->
+          <el-button
+            v-if="canApplyCancelRow(row)"
+            size="small"
+            type="danger"
+            link
+            @click.stop="handleApplyCancel(row)"
+          >
+            取消
+          </el-button>
+
+          <!-- 申请暂停 / 申请恢复（客户方发起，审核员审批） -->
+          <el-button
+            v-if="canApplyPauseRow(row)"
+            size="small"
+            type="warning"
+            link
+            @click.stop="handleApplyPause(row)"
+          >
+            申请暂停
+          </el-button>
+          <el-button
+            v-if="canRequestRestoreRow(row)"
+            size="small"
+            type="success"
+            link
+            @click.stop="handleRequestRestore(row)"
+          >
+            申请恢复
+          </el-button>
+
+          <!-- 撤回取消申请（审批前） -->
+          <el-button
+            v-if="canWithdrawCancelRow(row)"
+            size="small"
+            type="info"
+            link
+            @click.stop="handleWithdrawCancelRow(row)"
+          >
+            撤回取消
+          </el-button>
+
+          <!-- 客户审核员：审批取消申请 -->
+          <template v-if="canAuditCancelRow(row)">
+            <el-button size="small" type="success" link @click.stop="handleAuditCancel(row, true)">
+              同意取消
+            </el-button>
+            <el-button size="small" type="danger" link @click.stop="handleAuditCancel(row, false)">
+              驳回取消
+            </el-button>
+          </template>
 
           <!-- 自己的订单才显示 -->
           <template v-if="isMine(row)">
@@ -431,17 +493,20 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { Plus, Refresh, Download, Search, RefreshRight, Setting } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit, applyOrderModify } from '@/api/order';
+import { getOrderList, deleteOrder, auditOrder, submitOrder, withdrawSubmit, applyOrderModify, applyCancel, auditCancel, applyPause, requestRestore, withdrawCancel } from '@/api/order';
 import { createManualAlert } from '@/api/alert';
 import { dictApi } from '@/api/dict';
 import FlowDrawer from '@/components/FlowDrawer.vue';
+import FullscreenExit from '@/components/FullscreenExit.vue';
 import ModifyTripodIcon from '@/components/ModifyTripodIcon.vue';
+import { resolveGemColor } from '@/utils/color';
 
 const router = useRouter();
+const route = useRoute();
 const userStore = useUserStore();
 const tableRef = ref();
 
@@ -456,6 +521,7 @@ const allColumns = ref([
   { prop: 'widthThick', label: '宽/厚度', width: 100, visible: true },
   { prop: 'quantity', label: '数量', width: 70, visible: true },
   { prop: 'color', label: '成色', width: 80, visible: true },
+  { prop: 'gemColor', label: '颜色', width: 80, visible: true },
   { prop: 'goldPrice', label: '金价', width: 90, align: 'right', visible: true },
   { prop: 'logoText', label: 'LOGO', width: 100, visible: true },
   { prop: 'diamondLevel', label: '钻石级别', width: 100, visible: true },
@@ -549,11 +615,13 @@ const statusMap = {
   inlay: { text: '镶嵌', type: 'primary', color: '#409EFF' },
   assembly: { text: '组装', type: 'primary', color: '#409EFF' },
   polishing: { text: '制作完成待审核', type: 'warning', color: '#E6A23C' },
+  productionCompleted: { text: '制作完成', type: 'warning', color: '#E6A23C' },
   completed: { text: '已完成', type: 'success', color: '#67C23A' },
   rejected: { text: '已驳回', type: 'danger', color: '#F56C6C' },
   cancelled: { text: '已取消', type: 'info', color: '#909399' },
   scrapped: { text: '已报废', type: 'danger', color: '#F56C6C' },
   unqualifiedReturn: { text: '不合格退回', type: 'danger', color: '#F56C6C' },
+  paused: { text: '已暂停', type: 'warning', color: '#E6A23C' },
 };
 
 const getStatusText = (status) => statusMap[status]?.text || status || '-';
@@ -625,14 +693,18 @@ const TAB_STATUS_MAP = {
   factoryProcessing: [
     'accepted', 'factory_edit', 'dataConfirm', 'waxing', 'molded', 'partsMissing',
     'setting', 'cnc', 'sweeping', 'stoneCutting', 'microInlay', 'handInlay',
-    'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay'
+    'assembly', 'polishing', 'stoneReady', 'glue', 'inlay'
   ],
   productionAudit: ['productionCompleted'],
-  completed: ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn'],
+  completed: ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn', 'paused'],
   all: null,
 };
 
+// ⭐ 工作台卡片可带 ?status=xxx 精确过滤（草稿 / 待审核 / 已驳回 / 已完成）
+const exactStatus = ref('');
+
 const matchTab = (order, tab) => {
+  if (exactStatus.value) return order.flowStatus === exactStatus.value;
   const statuses = TAB_STATUS_MAP[tab];
   if (!statuses) return true;
   return statuses.includes(order.flowStatus);
@@ -663,6 +735,7 @@ const getSubStatusCount = (status) => {
 
 const onTabChange = () => {
   subStatus.value = '';
+  exactStatus.value = '';       // 手动切页签 = 看整组
   pagination.current = 1;
   loadData();
 };
@@ -685,7 +758,7 @@ const getDefaultDateRange = () => {
     return `${year}-${month}-${day}`;
   };
 
-  return [format(sevenDaysAgo), format(today)];
+  return [];   // ⭐ 默认「全部时间」：工作台统计的是全部，避免两边数字对不上
 };
 
 // ===== 点击行查看流程 =====
@@ -736,6 +809,7 @@ const goEdit = (id) => {
 // ===== 权限判断 =====
 const canEdit = (row) => {
   const status = row.flowStatus;
+  // ⭐ 草稿 / 已驳回：直接编辑；待客户审核要先「撤回」再编辑（按钮已单独提供）
   return status === 'draft' || status === 'rejected';
 };
 
@@ -756,16 +830,15 @@ const canDelete = (row) => {
 };
 
 // ===== 可申请修改的阶段 =====
-// 客户阶段：draft / pending / rejected / customeraudited（与后端 ApplyOrderModifyAsync 一致）
-// 工厂阶段：FACTORY_EDITABLE（与后端 FlowStatus.IsFactoryEditable 一致）
+// ⭐ 草稿 / 已驳回：直接编辑；待客户审核：撤回后再编辑（都不走申请修改）
+// ⭐ 以下阶段订单已进入工厂环节，改动需审核：customeraudited + FACTORY_EDITABLE
 const FACTORY_EDITABLE = [
   'customeraudited', 'factory_edit', 'dataConfirm', 'waxing', 'molded', 'cnc', 'partsMissing',
   'sweeping', 'stoneCutting', 'microInlay', 'handInlay', 'assembly', 'polishing', 'paused', 'stoneReady', 'glue', 'inlay', 'billRejected'
 ];
 
 const APPLY_MODIFY_ALLOWED = [
-  'pending', 'rejected',
-  ...FACTORY_EDITABLE
+  ...FACTORY_EDITABLE   // 已含 customeraudited（待工厂接单）
 ];
 
 const canApplyModifyRow = (row) => {
@@ -780,7 +853,7 @@ const canApplyModifyRow = (row) => {
 const handleApplyModify = async (row) => {
   try {
     const { value } = await ElMessageBox.prompt(
-      '请填写申请修改的原因（提交后由客户审核员审批，同意后订单退回草稿可重新编辑）',
+      '该订单已进入工厂环节，填写修改原因后由客户审核员审批，同意后退回草稿重新编辑',
       '申请修改',
       {
         confirmButtonText: '提交申请',
@@ -803,6 +876,156 @@ const handleApplyModify = async (row) => {
     loadData();
   } catch (e) {
     if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
+};
+
+// ===== 可申请取消的阶段 =====
+// 取消 = 终止订单；终态(completed/cancelled/scrapped/unqualifiedReturn)不可再取消
+// ⚠️ 工厂已暂停(paused)的订单要先恢复生产才能取消，避免 pause* 字段互相覆盖
+const CANCEL_FINAL = ['completed', 'cancelled', 'scrapped', 'unqualifiedReturn', 'paused'];
+
+const canApplyCancelRow = (row) => {
+  if (userStore.userType !== 'customer') return false;
+  if (Number(row.submittedBy) !== Number(userStore.userId)) return false;
+  if (!row.flowStatus) return false;
+  if (CANCEL_FINAL.includes(row.flowStatus)) return false;
+  // 已有进行中的取消申请
+  if (row.pauseStatus && row.pauseStatus !== 'none') return false;
+  return true;
+};
+
+// ===== 客户申请暂停 / 恢复（2026-11-06）=====
+// 暂停 = 客户方申请、客户审核员审批后订单停下，工厂不能自行恢复；恢复也要客户方申请
+const canApplyPauseRow = (row) => {
+  if (userStore.userType !== 'customer') return false;
+  if (Number(row.submittedBy) !== Number(userStore.userId)) return false;
+  if (!row.flowStatus) return false;
+  if (CANCEL_FINAL.includes(row.flowStatus)) return false;          // 含 paused：已暂停不用再申请
+  if (['draft', 'pending', 'rejected'].includes(row.flowStatus)) return false; // 还没进工厂，直接取消更合适
+  if (row.pauseStatus && row.pauseStatus !== 'none') return false;  // 有取消申请在走
+  if (row.pauseReqStatus && row.pauseReqStatus !== 'none' && row.pauseReqStatus !== 'rejected') return false;
+  return true;
+};
+
+const canRequestRestoreRow = (row) => {
+  if (userStore.userType !== 'customer') return false;
+  if (Number(row.submittedBy) !== Number(userStore.userId)) return false;
+  return row.flowStatus === 'paused' && row.pauseReqStatus === 'approved';
+};
+
+// 撤回取消申请：审批前才能撤
+const canWithdrawCancelRow = (row) => {
+  if (userStore.userType !== 'customer') return false;
+  if (Number(row.submittedBy) !== Number(userStore.userId)) return false;
+  return row.pauseStatus === 'pendingCustomerAudit' && !row.pauseAuditAt;
+};
+
+const handleApplyPause = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '暂停后工厂无法继续推进，需客户审核员审批；恢复也要由我们提交恢复申请。请填写暂停原因：',
+      '申请暂停',
+      {
+        confirmButtonText: '提交申请', cancelButtonText: '取消',
+        inputType: 'textarea', inputPlaceholder: '如：客户改款，等确认后再做',
+        inputValidator: v => v?.trim() ? true : '请填写暂停原因'
+      }
+    );
+    if (!value || !value.trim()) return;
+    const res = await applyPause(row.orderId, value.trim());
+    ElMessage.success(res?.data?.message || '暂停申请已提交');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
+};
+
+const handleRequestRestore = async (row) => {
+  try {
+    const { value } = await ElMessageBox.prompt('请填写恢复原因', '申请恢复生产', {
+      confirmButtonText: '提交申请', cancelButtonText: '取消',
+      inputType: 'textarea', inputPlaceholder: '如：款式已确认，可以继续做'
+    });
+    await requestRestore(row.orderId, (value || '').trim());
+    ElMessage.success('恢复申请已提交，等待客户审核员审批');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '提交失败');
+  }
+};
+
+const handleWithdrawCancelRow = async (row) => {
+  try {
+    await ElMessageBox.confirm('撤回后订单恢复正常流转，确定撤回取消申请吗？', '撤回取消申请', { type: 'warning' });
+    await withdrawCancel(row.orderId);
+    ElMessage.success('已撤回取消申请');
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '撤回失败');
+  }
+};
+
+const handleApplyCancel = async (row) => {  // 客户审核前(draft/pending/rejected)：直接取消，无审批
+  const directCancel = ['draft', 'pending', 'rejected'].includes(row.flowStatus);
+  const tip = directCancel
+    ? '该订单尚未进入工厂，取消后将直接终止（不可恢复），确认继续？'
+    : row.flowStatus === 'customeraudited'
+      ? '该订单客户已审核、工厂尚未接单，提交取消申请后由客户审核员审批，同意即终止。'
+      : '该订单工厂已接单，提交取消申请后需客户审核员审批、工厂确认，确认即终止。';
+
+  try {
+    const { value } = await ElMessageBox.prompt(tip, '取消订单', {
+      confirmButtonText: directCancel ? '确认取消' : '提交取消申请',
+      cancelButtonText: '再想想',
+      inputType: 'textarea',
+      inputPlaceholder: '请填写取消原因',
+      inputValidator: v => v?.trim() ? true : '请填写取消原因'
+    });
+    if (!value || !value.trim()) return;
+
+    const res = await applyCancel(row.orderId, value.trim());
+    ElMessage.success(res?.data?.message || (directCancel ? '订单已取消' : '取消申请已提交'));
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error(e.message || '操作失败');
+  }
+};
+
+// ===== 客户审核员：审批取消申请 =====
+const canAuditCancelRow = (row) => {
+  if (userStore.userType !== 'customerAudit' && userStore.userType !== 'admin') return false;
+  return (row.pauseStatus === 'pendingCustomerAudit' || row.pauseStatus === 'pendingFactoryConfirm')
+    && !row.pauseAuditAt;
+};
+
+const handleAuditCancel = async (row, approved) => {
+  try {
+    if (approved) {
+      const isFactoryStage = row.pauseStatus === 'pendingFactoryConfirm'
+        || row.cancelNeedFactoryConfirm === true;
+      await ElMessageBox.confirm(
+        isFactoryStage
+          ? '同意后取消申请将转给工厂确认，工厂确认后订单终止。确认同意？'
+          : '同意后订单将直接终止（不可恢复）。确认同意？',
+        '同意取消',
+        { type: 'warning', confirmButtonText: '确认同意', cancelButtonText: '再想想' }
+      );
+      await auditCancel(row.orderId, { approved: true, remark: '同意取消' });
+      ElMessage.success('已同意取消申请');
+    } else {
+      const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回取消', {
+        inputType: 'textarea',
+        confirmButtonText: '确认驳回',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入驳回原因',
+        inputValidator: v => v?.trim() ? true : '请输入驳回原因'
+      });
+      await auditCancel(row.orderId, { approved: false, remark: value.trim() });
+      ElMessage.success('已驳回取消申请');
+    }
+    loadData();
+  } catch (e) {
+    if (e !== 'cancel' && e?.name !== 'cancel') ElMessage.error(e.message || '操作失败');
   }
 };
 
@@ -833,6 +1056,8 @@ const loadData = async () => {
       orderBy: query.orderBy,
       descending: query.descending,
     };
+    // ⭐ 审核员默认只返回「待审核」，这里要整客户的单来做页签统计
+    if (userStore.userType === 'customerAudit') params.status = 'all';
 
     if (query.dateRange && query.dateRange.length === 2) {
       params.startDate = query.dateRange[0];
@@ -849,8 +1074,11 @@ const loadData = async () => {
     else if (data.data && Array.isArray(data.data)) list = data.data;
     else list = [];
 
-    // ⭐ 只显示自己提交的
-    list = list.filter(x => Number(x.submittedBy) === Number(userStore.userId));
+    // ⭐ 下单员只看自己提交的单；客户审核员要审整个客户的单，所以不过滤
+    //    （工作台计数与之保持同一口径，否则「卡片显示 N 条、点进去 M 条」）
+    if (userStore.userType !== 'customerAudit') {
+      list = list.filter(x => Number(x.submittedBy) === Number(userStore.userId));
+    }
 
     // ⭐ 更新 Tab 数量（从全量算）
     updateTabCounts(list);
@@ -1001,6 +1229,14 @@ onMounted(async () => {
   loadColumnSettings();
   query.dateRange = getDefaultDateRange();
 
+  // ⭐ 工作台卡片直达：?tab=factoryProcessing&status=draft
+  const qTab = String(route.query.tab || '');
+  if (qTab && ['pending', 'waitingFactory', 'factoryProcessing', 'productionAudit', 'completed', 'all'].includes(qTab)) {
+    activeTab.value = qTab;
+  }
+  const qStatus = String(route.query.status || '');
+  if (qStatus) exactStatus.value = qStatus;
+
   // 加载制作节点字典
   try {
     const res = await dictApi.getItemsByKey('production_status');
@@ -1130,6 +1366,37 @@ onUnmounted(() => {
 }
 :deep(.el-table .row-alert:hover) {
   background-color: #ffccc7 !important;
+}
+
+/* ⭐ 暂停状态：橙色暂停条（工厂临时停，可恢复） */
+.paused-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.paused-bars {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background-color: #e6a23c;
+  box-shadow: 0 0 0 3px rgba(230, 162, 60, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.paused-bars i {
+  display: block;
+  width: 2px;
+  height: 7px;
+  background: #fff;
+  border-radius: 1px;
+}
+.paused-text {
+  color: #e6a23c;
+  font-weight: 700;
+  font-size: 13px;
 }
 
 .order-flag {

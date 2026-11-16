@@ -57,7 +57,7 @@
         <el-row :gutter="20">
           <el-col :xs="24" :sm="12">
             <el-form-item label="重量(g)">
-              <el-input-number v-model="form.weight" :precision="3" :min="0" style="width:100%;" />
+              <el-input-number v-model="form.weight" :precision="2" :min="0" style="width:100%;" />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12">
