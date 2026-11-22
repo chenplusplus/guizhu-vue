@@ -86,7 +86,7 @@
         <div class="k-label">纯钻石 <em>石金额 − 镶石工费</em></div>
         <div class="k-value">¥{{ fmt(summary.diamondMaterial) }}</div>
         <div class="k-sub">
-          含镶石工费 {{ fmt(summary.settingFee) }}（已单列在左卡）· {{ summary.diamondQty || 0 }} 粒 / {{ fmtNum(summary.diamondCarat) }} ct
+          含镶石工费 {{ fmt(summary.settingFee) }}（已单列在「镶石工费」卡）· {{ summary.diamondQty || 0 }} 粒 / {{ fmtNum(summary.diamondCarat) }} ct
         </div>
         <div class="k-sub gray">
           总数 {{ fmt(summary.diamondMaterialGross) }} ·
@@ -113,32 +113,42 @@
       </div>
     </div>
 
-    <!-- 三项对比 -->
+    <!-- 三项对比：一张卡一组，卡内「收入 / 对应支出」上下两行，差额单独收尾 -->
     <div class="compare-panel" v-loading="loading">
       <div class="panel-title">够不够花 / 够不够付师傅 / 钻石赚多少</div>
-      <div class="cmp-head">
-        <span class="c1">项目</span>
-        <span class="c2">收入（扣完退货）</span>
-        <span class="c3">对应支出</span>
-        <span class="c4">差额</span>
-      </div>
-      <template v-for="c in compares" :key="c.key">
-        <div class="cmp-row">
-          <div class="c1">
-            <b>{{ c.label }}</b>
-            <em>{{ c.hint }}</em>
-          </div>
-          <div class="c2 in">¥{{ fmt(c.income) }}</div>
-          <div class="c3 out">¥{{ fmt(c.cost) }}</div>
-          <div class="c4" :class="c.diff >= 0 ? 'pos' : 'neg'">
-            {{ c.diff >= 0 ? '+' : '−' }}¥{{ fmt(Math.abs(c.diff)) }}
+      <div class="cmp-grid">
+        <div class="cmp-card" v-for="c in compares" :key="c.key" :class="'cmp-' + c.key">
+          <div class="cc-head">
+            <span class="cc-title">{{ c.label }}</span>
             <span class="tag" :class="c.diff >= 0 ? 'tag-ok' : 'tag-bad'">
               {{ c.diff >= 0 ? c.okText : c.badText }}
             </span>
           </div>
+
+          <div class="cc-block in">
+            <div class="cc-line">
+              <span class="cc-label">收入（扣完退货）</span>
+              <span class="cc-value">¥{{ fmt(c.income) }}</span>
+            </div>
+            <div class="cc-track"><span class="cc-fill blue" :style="{ width: barPct(c.income, c.cost) + '%' }"></span></div>
+          </div>
+          <div class="cc-block out">
+            <div class="cc-line">
+              <span class="cc-label">对应支出</span>
+              <span class="cc-value">¥{{ fmt(c.cost) }}</span>
+            </div>
+            <div class="cc-track"><span class="cc-fill amber" :style="{ width: barPct(c.cost, c.income) + '%' }"></span></div>
+          </div>
+
+          <div class="cc-diff" :class="c.diff >= 0 ? 'pos' : 'neg'">
+            <span class="cc-diff-label">差额</span>
+            <span class="cc-diff-value">{{ c.diff >= 0 ? '+' : '−' }}¥{{ fmt(Math.abs(c.diff)) }}</span>
+          </div>
+
+          <div class="cc-note">{{ c.hint }}</div>
+          <div class="cc-note gray">{{ c.note }}</div>
         </div>
-        <div class="cmp-note">{{ c.note }}</div>
-      </template>
+      </div>
 
       <!-- 费用构成：哪些是生产外包，哪些是日常开销 -->
       <div class="exp-note" v-if="summary.expenseCategories && summary.expenseCategories.length">
@@ -316,6 +326,15 @@ let chart = null;
 // ===== 格式化 =====
 const fmt = (v) => Number(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtNum = (v) => Number(v || 0).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+
+// 对比条：收入/支出两条按同一基准（两者较大值）缩放，长度差就是差距
+const barPct = (v, other) => {
+  const a = Math.abs(Number(v) || 0);
+  const b = Math.abs(Number(other) || 0);
+  const max = Math.max(a, b);
+  if (!max) return 0;
+  return Math.max(2, Math.round((a / max) * 100));
+};
 
 // 退货扣减 tooltip：拆到加工 / 镶石 / 钻石料
 const dedTip = (row) => {
@@ -567,9 +586,9 @@ onBeforeUnmount(() => {
 }
 .caliber-tip b { color: #2f6fd0; }
 
-.kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+.kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
 .kpi-card {
-  background: #fff; border-radius: 8px; padding: 14px 16px;
+  background: #fff; border-radius: 8px; padding: 16px 18px;
   border: 1px solid #ebeef5; border-top: 3px solid #409eff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
@@ -579,7 +598,7 @@ onBeforeUnmount(() => {
 .kpi-card.c-gold { border-top-color: #909399; }
 .k-label { font-size: 13px; color: #303133; font-weight: 600; }
 .k-label em { font-style: normal; font-weight: 400; font-size: 11px; color: #909399; margin-left: 6px; }
-.k-value { font-size: 26px; font-weight: 700; color: #303133; margin: 6px 0 4px; letter-spacing: -0.5px; }
+.k-value { font-size: 30px; font-weight: 700; color: #303133; margin: 8px 0 6px; letter-spacing: -0.5px; }
 .k-sub { font-size: 12px; color: #909399; }
 .k-sub + .k-sub { margin-top: 3px; }
 .k-sub.gray { color: #a8abb2; border-top: 1px dashed #f0f2f5; padding-top: 4px; margin-top: 6px; }
@@ -589,21 +608,43 @@ onBeforeUnmount(() => {
 
 .compare-panel { background: #fff; border: 1px solid #ebeef5; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; }
 .panel-title { font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 10px; }
-.cmp-head, .cmp-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1.2fr; gap: 10px; align-items: center; }
-.cmp-head { font-size: 12px; color: #909399; padding: 6px 0; border-bottom: 1px solid #f0f2f5; }
-.cmp-row { padding: 10px 0 2px; }
-.cmp-row:last-of-type { }
-.cmp-row .c1 b { font-size: 13px; color: #303133; }
-.cmp-row .c1 em { display: block; font-style: normal; font-size: 11px; color: #a8abb2; margin-top: 2px; }
-.cmp-note {
-  font-size: 12px; color: #a8abb2; padding: 0 0 8px 0; border-bottom: 1px dashed #f0f2f5;
+
+/* 对比卡：一组一张，卡内「收入 / 对应支出」上下两行，带同基准对比条 */
+.cmp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cmp-card {
+  background: #fcfdfe; border: 1px solid #ebeef5; border-radius: 8px;
+  padding: 12px 14px 14px; display: flex; flex-direction: column;
 }
-.c2, .c3 { font-size: 14px; font-variant-numeric: tabular-nums; }
-.c2.in { color: #2f6fd0; }
-.c3.out { color: #b88230; }
-.c4 { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.c4.pos { color: #c0392b; }
-.c4.neg { color: #2e7d32; }
+.cmp-card.cmp-process { border-top: 3px solid #409eff; }
+.cmp-card.cmp-setting { border-top: 3px solid #e6a23c; }
+.cmp-card.cmp-diamond { border-top: 3px solid #67c23a; }
+.cc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.cc-title { font-size: 13px; font-weight: 600; color: #303133; }
+.cc-block { margin-bottom: 10px; }
+.cc-line { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.cc-label { font-size: 12px; color: #909399; white-space: nowrap; }
+.cc-value { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.3px; }
+.cc-block.in .cc-value { color: #2f6fd0; }
+.cc-block.out .cc-value { color: #b88230; }
+.cc-track { height: 5px; border-radius: 3px; background: #eef1f6; margin-top: 5px; overflow: hidden; }
+.cc-fill { display: block; height: 100%; border-radius: 3px; transition: width .3s; }
+.cc-fill.blue { background: linear-gradient(90deg, #8ebbf2, #2f6fd0); }
+.cc-fill.amber { background: linear-gradient(90deg, #f3ca86, #b88230); }
+.cc-diff {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-top: 2px; padding-top: 8px; border-top: 1px solid #eef1f6;
+}
+.cc-diff-label { font-size: 12px; color: #909399; }
+.cc-diff-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cc-diff.pos .cc-diff-value { color: #c0392b; }
+.cc-diff.neg .cc-diff-value { color: #2e7d32; }
+.cc-note { font-size: 11px; color: #a8abb2; line-height: 1.6; margin-top: 6px; }
+.cc-note.gray { margin-top: auto; padding-top: 6px; border-top: 1px dashed #f0f2f5; color: #b3b7bf; }
+
+@media (max-width: 1280px) {
+  .cmp-grid { grid-template-columns: 1fr; }
+  .kpi-row { grid-template-columns: 1fr; }
+}
 .tag { font-size: 11px; font-weight: 400; padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
 .tag-ok { background: #fdf0ee; color: #c0392b; }
 .tag-bad { background: #eef7ee; color: #2e7d32; }
