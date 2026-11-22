@@ -586,20 +586,22 @@ onBeforeUnmount(() => {
 }
 .caliber-tip b { color: #2f6fd0; }
 
-.kpi-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 14px; }
+/* 四个汇总保持一排四列，等宽排开 */
+.kpi-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
 .kpi-card {
-  background: #fff; border-radius: 8px; padding: 16px 18px;
+  background: #fff; border-radius: 8px; padding: 14px 16px;
   border: 1px solid #ebeef5; border-top: 3px solid #409eff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  min-width: 0;
 }
 .kpi-card.c-process { border-top-color: #409eff; }
 .kpi-card.c-setting { border-top-color: #e6a23c; }
 .kpi-card.c-diamond { border-top-color: #67c23a; }
 .kpi-card.c-gold { border-top-color: #909399; }
-.k-label { font-size: 13px; color: #303133; font-weight: 600; }
-.k-label em { font-style: normal; font-weight: 400; font-size: 11px; color: #909399; margin-left: 6px; }
-.k-value { font-size: 30px; font-weight: 700; color: #303133; margin: 8px 0 6px; letter-spacing: -0.5px; }
-.k-sub { font-size: 12px; color: #909399; }
+.k-label { font-size: 13px; color: #303133; font-weight: 600; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 6px; }
+.k-label em { font-style: normal; font-weight: 400; font-size: 11px; color: #909399; }
+.k-value { font-size: 24px; font-weight: 700; color: #303133; margin: 8px 0 6px; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.k-sub { font-size: 12px; color: #909399; line-height: 1.6; }
 .k-sub + .k-sub { margin-top: 3px; }
 .k-sub.gray { color: #a8abb2; border-top: 1px dashed #f0f2f5; padding-top: 4px; margin-top: 6px; }
 .ded { color: #c86a3c; font-weight: 600; }
@@ -641,8 +643,15 @@ onBeforeUnmount(() => {
 .cc-note { font-size: 11px; color: #a8abb2; line-height: 1.6; margin-top: 6px; }
 .cc-note.gray { margin-top: auto; padding-top: 6px; border-top: 1px dashed #f0f2f5; color: #b3b7bf; }
 
-@media (max-width: 1280px) {
+@media (max-width: 1440px) {
+  .k-value { font-size: 21px; }
+}
+/* 窄屏：四个汇总两列两行，对比卡单列，避免文字挤压 */
+@media (max-width: 1180px) {
+  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cmp-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
   .kpi-row { grid-template-columns: 1fr; }
 }
 .tag { font-size: 11px; font-weight: 400; padding: 1px 5px; border-radius: 3px; margin-left: 6px; }
