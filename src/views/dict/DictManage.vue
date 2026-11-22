@@ -98,7 +98,8 @@
             <el-table-column prop="sortOrder" label="排序" width="60" align="center" />
             <el-table-column label="标签" min-width="120">
               <template #default="{ row }">
-                <span :class="{ 'row-inactive': !row.isActive }">{{ row.itemLabel || '—' }}</span>
+                <!-- ⭐ 收款账号这类条目只填了「值」（itemLabel 为空），列表里就用值兜底显示 -->
+                <span :class="{ 'row-inactive': !row.isActive }">{{ row.itemLabel || row.itemValue || '—' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="itemKey" label="键名" width="130">
@@ -176,7 +177,8 @@
           <el-input v-model="itemForm.itemKey" placeholder="程序内部标识（可选），如：gold999" />
         </el-form-item>
         <el-form-item label="值" prop="itemValue">
-          <el-input v-model="itemForm.itemValue" placeholder="实际存储的值，如：580.00" />
+          <el-input v-model="itemForm.itemValue"
+            :placeholder="selectedCategory?.categoryKey === 'bank_account' ? '收款账号，如：邮储(3362)、LCP建行' : '实际存储的值，如：580.00'" />
         </el-form-item>
         <el-form-item label="扩展数据" prop="extraData">
           <el-input v-model="itemForm.extraData" placeholder='JSON格式，如：{"unit":"元/克"}' type="textarea" :rows="2" />

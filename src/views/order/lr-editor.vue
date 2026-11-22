@@ -818,7 +818,9 @@ const generateLrTable = async () => {
       }
     }
   } catch (e) {
-    ElMessage.error('生成LR表失败');
+    // ⭐ 后端已返回具体原因（如「账单还没最终确认，确认后系统会自动生成 LR」），
+    //    请求拦截器已弹过提示，这里不再重复弹「生成LR表失败」
+    if (!e?.__msgShown) ElMessage.error('生成LR表失败');
   }
 };
 

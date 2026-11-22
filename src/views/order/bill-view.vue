@@ -65,7 +65,7 @@
           <!-- 2 序号 -->
           <el-table-column prop="seqNo" label="序号" width="50" align="center" />
           <!-- 3 品名 -->
-          <el-table-column prop="productName" label="品名" min-width="130" align="left" />
+          <el-table-column prop="productName" label="品名" min-width="130" align="center" />
           <!-- 4 客户 -->
           <el-table-column prop="customerName" label="客户" width="100" align="center">
             <template #default="{ row }">
@@ -85,35 +85,35 @@
           <!-- 9 手寸/长度 -->
           <el-table-column prop="size" label="手寸/长度" width="85" align="center" />
           <!-- 10 总重 -->
-          <el-table-column prop="totalWeight" label="总重" width="70" align="right" />
+          <el-table-column prop="totalWeight" label="总重" width="70" align="center" />
           <!-- 11 净重 -->
-          <el-table-column prop="netWeight" label="净重" width="70" align="right" />
+          <el-table-column prop="netWeight" label="净重" width="70" align="center" />
           <!-- 12 损耗 -->
-          <el-table-column prop="lossRate" label="损耗" width="60" align="right" />
+          <el-table-column prop="lossRate" label="损耗" width="60" align="center" />
           <!-- 13 加耗重 -->
-          <el-table-column prop="addedWeight" label="加耗重" width="70" align="right" />
+          <el-table-column prop="addedWeight" label="加耗重" width="70" align="center" />
           <!-- 14 金价 -->
-          <el-table-column prop="goldPrice" label="金价" width="70" align="right" />
+          <el-table-column prop="goldPrice" label="金价" width="70" align="center" />
           <!-- 15 足金料 -->
-          <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="right" />
+          <el-table-column prop="goldMaterialFee" label="足金料" width="80" align="center" />
           <!-- 16-20 主石 -->
           <el-table-column label="主石" align="center">
             <el-table-column prop="mainStoneQty" label="粒数" width="55" align="center" />
-            <el-table-column prop="mainStoneWeight" label="石重(ct)" width="80" align="right" />
-            <el-table-column prop="mainStonePrice" label="单价(元)" width="80" align="right" />
-            <el-table-column prop="mainStoneAmount" label="金额(元)" width="85" align="right" />
-            <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="85" align="right" />
+            <el-table-column prop="mainStoneWeight" label="石重(ct)" width="80" align="center" />
+            <el-table-column prop="mainStonePrice" label="单价(元)" width="80" align="center" />
+            <el-table-column prop="mainStoneAmount" label="金额(元)" width="85" align="center" />
+            <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="85" align="center" />
           </el-table-column>
           <!-- 21-25 副石 -->
           <el-table-column label="副石" align="center">
             <el-table-column prop="subStoneQty" label="粒数" width="55" align="center" />
-            <el-table-column prop="subStoneWeight" label="石重(ct)" width="84" align="right" />
-            <el-table-column prop="subStonePrice" label="单价(元)" width="80" align="right" />
-            <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="right" />
-            <el-table-column prop="subStoneSettingFee" label="镶石工费" width="85" align="right" />
+            <el-table-column prop="subStoneWeight" label="石重(ct)" width="84" align="center" />
+            <el-table-column prop="subStonePrice" label="单价(元)" width="80" align="center" />
+            <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center" />
+            <el-table-column prop="subStoneSettingFee" label="镶石工费" width="85" align="center" />
           </el-table-column>
           <!-- 26 包装证书邮费 -->
-          <el-table-column label="包装证书邮费" width="105" align="right">
+          <el-table-column label="包装证书邮费" width="105" align="center">
             <template #default="{ row }">
               {{ row.rowType === 'detail'
                 ? ((row.packingFee || 0) + (row.certificateFee || 0) + (row.postageFee || 0)).toFixed(2)
@@ -121,11 +121,11 @@
             </template>
           </el-table-column>
           <!-- 27 版费 -->
-          <el-table-column prop="moldFee" label="版费" width="65" align="right" />
+          <el-table-column prop="moldFee" label="版费" width="65" align="center" />
           <!-- 28 工费 -->
-          <el-table-column prop="laborFee" label="工费" width="70" align="right" />
+          <el-table-column prop="laborFee" label="工费" width="70" align="center" />
           <!-- 29 应收金额 -->
-          <el-table-column prop="totalAmount" label="应收金额" width="95" align="right">
+          <el-table-column prop="totalAmount" label="应收金额" width="95" align="center">
             <template #default="{ row }">
               <span class="amount-red">{{ (row.totalAmount || 0).toFixed(2) }}</span>
             </template>

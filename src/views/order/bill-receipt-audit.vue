@@ -30,30 +30,30 @@
       <el-table :data="rows" border size="small" v-loading="loading" empty-text="暂无收款单"
         :scrollbar-always-on="true"
       >
-        <el-table-column prop="billNo" label="账单号" min-width="150" show-overflow-tooltip>
+        <el-table-column prop="billNo" label="账单号" min-width="150" show-overflow-tooltip align="center">
           <template #default="{ row }">
             <span class="mono">{{ row.billNo }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="customerName" label="客户" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="customerName" label="客户" min-width="140" show-overflow-tooltip align="center" />
         <el-table-column prop="operatorName" label="销售" width="90" align="center" />
         <el-table-column label="账单日期" width="110" align="center">
           <template #default="{ row }">{{ fmtDate(row.billDate) }}</template>
         </el-table-column>
-        <el-table-column label="应收" width="115" align="right">
+        <el-table-column label="应收" width="115" align="center">
           <template #default="{ row }">¥{{ yuan(row.receiptReceivable) }}</template>
         </el-table-column>
-        <el-table-column label="实收" width="110" align="right">
+        <el-table-column label="实收" width="110" align="center">
           <template #default="{ row }">
             <b class="actual">¥{{ num(row.receiptActual).toFixed(2) }}</b>
           </template>
         </el-table-column>
-        <el-table-column label="抵扣" width="105" align="right">
+        <el-table-column label="抵扣" width="105" align="center">
           <template #default="{ row }">
             <b class="offset">¥{{ num(row.receiptOffset).toFixed(2) }}</b>
           </template>
         </el-table-column>
-        <el-table-column label="差额" width="105" align="right">
+        <el-table-column label="差额" width="105" align="center">
           <template #default="{ row }">
             <span :class="{ warn: Math.abs(num(row.receiptReceivable) - num(row.receiptActual) - num(row.receiptOffset)) > 0.001 }">
               ¥{{ (num(row.receiptReceivable) - num(row.receiptActual) - num(row.receiptOffset)).toFixed(2) }}

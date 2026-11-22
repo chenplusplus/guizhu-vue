@@ -9,19 +9,12 @@
           <el-icon><ArrowLeft /></el-icon> 返回
         </el-button>
         <h2>{{ isView ? '📄 订单详情（只读）' : '✏️ 编辑订单' }}</h2>
-        <!-- ⭐ 小字提示：告诉工厂「怎么算做完」以及做完之后会去哪（只读不提示） -->
-        <span class="edit-hint" v-if="!isView">订单制作完成，点击状态更新到【制作完成】，订单进入待审核页面等待提交</span>
         <el-tag type="primary" size="large">{{ orderData?.orderNo || '' }}</el-tag>
         <el-tag v-if="orderData?.flowStatus" :type="getStatusType(orderData.flowStatus)" size="large">
           {{ getStatusText(orderData.flowStatus) }}
         </el-tag>
         <!-- ⭐ 只读模式标记：内容与编辑页完全一致，只是不能改 -->
         <el-tag v-if="isView" type="info" size="large">只读查看</el-tag>
-      </div>
-      <div class="header-right">
-        <el-button v-if="!isView" type="primary" @click="handleSave" :loading="saving">
-          <el-icon><Check /></el-icon> 保存
-        </el-button>
       </div>
     </div>
 
@@ -92,6 +85,17 @@
                 <el-option v-for="item in lossRateOptions" :key="item.value" :value="item.value" :label="item.label" />
               </el-select>
               <el-input v-else v-model="lossText" disabled style="width:100%;" />
+              <div
+                v-if="!goldMulti && customerDefaultLoss > 0"
+                class="loss-cust-tip"
+                :title="`在「客户管理」里给该客户设置的默认损耗率，下单自动带出`"
+              >
+                客户默认 {{ Number(customerDefaultLoss).toFixed(2) }}
+                <a
+                  v-if="!isView && Number(orderData.lossRate) !== Number(customerDefaultLoss)"
+                  @click="applyCustomerLoss"
+                >用客户默认</a>
+              </div>
             </el-form-item>
           </el-col>
           <el-col :xs="12" :sm="4">
@@ -646,6 +650,15 @@
         </div>
       </div>
     </div>
+
+    <!-- ===== 底部操作栏：保存放页面下方（滚动时贴底，不用往上找） ===== -->
+    <div v-if="!isView" class="bottom-actions">
+      <span class="bottom-tip">成本行随订单一起保存</span>
+      <el-button size="large" @click="goBack">取消</el-button>
+      <el-button type="primary" size="large" @click="handleSave" :loading="saving">
+        <el-icon><Check /></el-icon> 保存
+      </el-button>
+    </div>
   </div>
 </template>
 
@@ -690,10 +703,10 @@ const loading = ref(false);
 const saving = ref(false);
 const statusLoading = ref(false);
 
-// ⭐ 历史钻石带入：同客户 + 同钻石级别，只带主石/副石 石重、单价、粒数、镶石工费
+// ⭐ 历史钻石带入：同客户 + 同钻石级别，带主石/副石 石重、单价、粒数、镶石工费 + 工费
 const diamondBringLoading = ref(false);
 const diamondBringOk = ref(false);
-const DIAMOND_BRING_TIP = '按同客户 + 同钻石级别匹配历史订单，只带钻石部分';
+const DIAMOND_BRING_TIP = '按同客户 + 同钻石级别匹配历史订单，带入钻石部分 + 工费';
 const diamondBringHint = ref(DIAMOND_BRING_TIP);
 
 // ⭐ 成品图片上传
@@ -702,6 +715,8 @@ const finishedImages = ref([]);
 const dataPackages = ref([]);
 const selectedStatus = ref('');
 const lossRateOptions = ref([]);
+// ⭐ 该客户在「客户管理」里设置的默认损耗率（订单未设损耗时自动带出）
+const customerDefaultLoss = ref(0);
 const productionStatuses = ref([]);
 
 // ⭐ 步骤条只画主工序；「报废 / 暂停」属于旁支状态，不进流程链
@@ -748,6 +763,15 @@ const lossText = computed(() => {
   return lr.toFixed(2);
 });
 
+// ⭐ 一键用回客户默认损耗（本单手改过后想还原）
+const applyCustomerLoss = () => {
+  const v = Number(customerDefaultLoss.value || 0);
+  if (!v) return;
+  orderData.value.lossRate = v;
+  calcFactory();
+  ElMessage.success(`已使用客户默认损耗 ${v.toFixed(2)}`);
+};
+
 // 明细变化 → 回写订单汇总字段（后端保存时会再用明细重算一次，双保险）
 const onGoldChange = (s) => {
   if (!s) return;
@@ -771,7 +795,7 @@ const syncSingleGoldRow = (rate) => {
     purityId: o.purityId || null,
     purityName: purityNameOf(o.purityId),
     netWeight: Number(o.netWeight || 0),
-    lossRate: Number(o.lossRate || 1.01),
+    lossRate: Number(o.lossRate || customerDefaultLoss.value || 1.01),
     addLossWeight: Number(o.addLossWeight || 0),
     foldRate: Number(rate) || 0,
     foldWeight: Number(o.goldMaterialWeight || 0),
@@ -1352,7 +1376,7 @@ const calcFactory = () => {
     //    加耗重 = 净重 × 损耗 → 足金料克重 = 加耗重 × 成色折算率 → 金额 = 克重 × 金价
     if (orderData.value.netWeight != null) orderData.value.netWeight = rnd2(orderData.value.netWeight);
     const net = Number(orderData.value.netWeight) || 0;
-    const loss = Number(orderData.value.lossRate) || 1.10;
+    const loss = Number(orderData.value.lossRate) || customerDefaultLoss.value || 1.10;
     const rate = Number(currentPurityRate.value) || 1;
     orderData.value.addLossWeight = rnd2(net * loss);
     orderData.value.goldMaterialWeight = rnd2(orderData.value.addLossWeight * rate);
@@ -1406,8 +1430,8 @@ const calcTotal = () => {
 };
 
 // ==================== ⭐ 带入历史钻石数据 ====================
-// 规则：同客户 + 钻石级别相同才允许带入；只写钻石部分（主石/副石 石重、单价、粒数、镶石工费），
-//       金重/净重/损耗/费用一律不动；账单按订单字段生成、成本行未录入时默认与销售一致，故三处自然一致
+// 规则：同客户 + 钻石级别相同才允许带入；写钻石部分（主石/副石 石重、单价、粒数、镶石工费）+ 工费，
+//       金重/净重/损耗等其他费用一律不动；账单按订单字段生成、成本行未录入时默认与销售一致，故三处自然一致
 const handleBringDiamond = async () => {
   const level = String(orderData.value?.diamondLevel || '').trim();
   const customerId = Number(orderData.value?.customerId || 0);
@@ -1421,15 +1445,15 @@ const handleBringDiamond = async () => {
     return;
   }
 
-  // 已填过钻石数据 → 覆盖前确认（只覆盖钻石部分）
+  // 已填过钻石数据或工费 → 覆盖前确认（只覆盖钻石部分 + 工费）
   const hasData = [
     'mainStoneWeight', 'mainStoneQty', 'mainStonePrice', 'mainStoneSettingFee',
-    'subStoneWeight', 'subStoneQty', 'subStonePrice', 'subStoneSettingFee',
+    'subStoneWeight', 'subStoneQty', 'subStonePrice', 'subStoneSettingFee', 'laborFee',
   ].some(k => Number(orderData.value?.[k] || 0) > 0);
   if (hasData) {
     try {
       await ElMessageBox.confirm(
-        '当前订单已填主石/副石数据，带入会覆盖这些钻石字段（金重、损耗、工费等其他字段不变），继续吗？',
+        '当前订单已填主石/副石或工费，带入会覆盖钻石字段和工费（金重、损耗等其他字段不变），继续吗？',
         '带入历史钻石数据',
         { type: 'warning', confirmButtonText: '覆盖带入', cancelButtonText: '取消' }
       );
@@ -1453,6 +1477,11 @@ const handleBringDiamond = async () => {
       return;
     }
 
+    // ⭐ 工费：历史单有工费才带（历史为 0 / 空时不动当前已填的工费）
+    //    必须在 calcMainStone() 之前赋，calcMainStone 里会连带重算总额
+    const histLabor = Number(d.laborFee || 0);
+    if (histLabor > 0) orderData.value.laborFee = histLabor;
+
     // ⭐ 只写钻石部分
     const apply = (key, val) => { orderData.value[key] = val == null ? null : Number(val); };
     apply('mainStoneWeight', d.mainStoneWeight);
@@ -1466,8 +1495,9 @@ const handleBringDiamond = async () => {
     calcMainStone(); // 内含 calcTotal
     calcSubStone();
 
-    // 成本未录入时成本行默认与销售行一致 → 同步钻石部分；已录入则不改
+    // 成本未录入时成本行默认与销售行一致 → 同步钻石部分（含工费）；已录入则不改
     if (!costHasData.value && costRow.value) {
+      costRow.value.laborFee = orderData.value.laborFee;
       costRow.value.stoneWeight = orderData.value.mainStoneWeight;
       costRow.value.stonePrice = orderData.value.mainStonePrice;
       costRow.value.stoneQty = orderData.value.mainStoneQty;
@@ -1483,10 +1513,11 @@ const handleBringDiamond = async () => {
 
     diamondBringOk.value = true;
     const src = `来源 ${d.sourceOrderNo || d.sourceOrderId}${d.sourceOrderDate ? '（' + formatDate(d.sourceOrderDate) + '）' : ''}`;
+    const laborTxt = histLabor > 0 ? ` + 工费 ${histLabor}` : '（历史单无工费，工费未动）';
     diamondBringHint.value = costHasData.value
-      ? `已带入 ${src}；成本行已录入，未改动`
-      : `已带入 ${src}；成本行已随销售行同步，保存后生效`;
-    ElMessage.success('已带入历史钻石数据');
+      ? `已带入 ${src} 钻石数据${laborTxt}；成本行已录入，未改动`
+      : `已带入 ${src} 钻石数据${laborTxt}；成本行已随销售行同步，保存后生效`;
+    ElMessage.success(histLabor > 0 ? '已带入历史钻石数据 + 工费' : '已带入历史钻石数据');
   } catch (e) {
     diamondBringHint.value = e?.message || '带入失败，请重试';
     ElMessage.error(diamondBringHint.value);
@@ -1509,6 +1540,14 @@ const loadData = async () => {
     if (res?.data) {
       orderData.value = res.data;
 
+      // ⭐ 客户默认损耗率：订单还没设损耗时，自动带出该客户设置的默认值
+      //    （在「客户管理」里给客户设一次，之后每单进来就是这个值，仍可本单手改）
+      const custLoss = Number(res.data.customerDefaultLossRate || 0);
+      customerDefaultLoss.value = custLoss > 0 ? custLoss : 0;
+      if (!Number(res.data.lossRate) && custLoss > 0) {
+        orderData.value.lossRate = custLoss;
+      }
+
       // ⭐ 金料明细：有子表直接回填；老单按现有单值合成一条（保存后转成真实子表行）
       const loadedItems = Array.isArray(res.data.goldItems) ? res.data.goldItems : [];
       if (loadedItems.length) {
@@ -1519,7 +1558,7 @@ const loadData = async () => {
           purityId: res.data.purityId,
           purityName: '',
           netWeight: Number(res.data.netWeight || 0),
-          lossRate: Number(res.data.lossRate || 1.01),
+          lossRate: Number(res.data.lossRate || (custLoss > 0 ? custLoss : 1.01)),
           addLossWeight: Number(res.data.addLossWeight || 0),
           foldRate: 0,                       // 等成色字典到齐后自动补
           foldWeight: Number(res.data.goldMaterialWeight || 0),
@@ -1840,19 +1879,28 @@ onMounted(async () => {
   font-weight: 600;
   margin: 0;
 }
-/* ⭐ 标题旁的小字说明：做完了怎么办 */
-.edit-hint {
+/* ⭐ 制作完成的提示已挪到「订单编辑」列表页，编辑页不再重复提示 */
+
+/* ===== 底部操作栏（保存按钮放下面，滚动时贴底） ===== */
+.bottom-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 24px;
+  background: #fff;
+  border-top: 1px solid #e8ecf1;
+  border-radius: 8px;
+  box-shadow: 0 -4px 14px rgba(0, 0, 0, 0.06);
+}
+.bottom-actions .bottom-tip {
+  margin-right: auto;
   font-size: 12px;
   color: #909399;
-  line-height: 1.4;
-  padding-left: 4px;
-  border-left: 3px solid #e4e7ed;
-  max-width: 620px;
-}
-.header-right {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 /* ===== 内容区域 ===== */
@@ -1967,6 +2015,21 @@ onMounted(async () => {
   color: #F56C6C !important;
   font-weight: 600;
 }
+
+/* ⭐ 客户默认损耗提示（下单自动带出，可一键还原） */
+.loss-cust-tip {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #909399;
+  white-space: nowrap;
+}
+.loss-cust-tip a {
+  color: #409EFF;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.loss-cust-tip a:hover { text-decoration: underline; }
 
 /* ⭐ 成色颜色点 */
 .color-dot {

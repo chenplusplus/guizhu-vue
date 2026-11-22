@@ -693,7 +693,8 @@ onUnmounted(() => {
 .page-container.is-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  /* ⚠️ 低于 Element Plus 弹层层级（2000 起），否则全屏时弹框/提示看不到 */
+  z-index: 1999;
   background: #fff;
   padding: 16px 20px;
   overflow: auto;

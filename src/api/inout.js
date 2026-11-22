@@ -94,7 +94,8 @@ export const getExpenseList = (params) => {
 export const getGoldById = (id) => api.get(`/inout/gold/${id}`)
 
 // 更新
-export const updateGold = (id, data) => request.put(`/inout/gold/${id}`, data)
+// ⭐ 原为 request.put，但本文件只引入了 api（./index），request 未定义 → 编辑保存必报 "request is not defined"
+export const updateGold = (id, data) => api.put(`/inout/gold/${id}`, data)
 
 // 钻石
 export const getDiamondById = (id) => api.get(`/inout/diamond/${id}`)

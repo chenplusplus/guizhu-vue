@@ -15,11 +15,13 @@
       </template>
 
       <div class="card-grid" v-loading="loading">
-        <div v-for="c in cards" :key="c.type" class="audit-card" :class="{ 'is-empty': !c.count, 'is-readonly': c.isReadonly }">
+        <div v-for="c in cards" :key="c.type" class="audit-card"
+             :class="{ 'is-empty': !c.count, 'is-readonly': c.isReadonly, 'is-urgent': c.urgent && c.count }">
           <div class="card-top">
             <span class="card-icon">{{ c.icon }}</span>
             <span class="card-name">{{ c.label }}</span>
             <el-tag v-if="c.isReadonly" size="small" type="info" effect="plain">只读</el-tag>
+            <el-tag v-else-if="c.urgent && c.count" size="small" type="danger" effect="dark">挂起</el-tag>
           </div>
           <div class="card-count" :class="{ zero: !c.count }">{{ c.count }}</div>
           <div class="card-meta">最近提交：{{ c.latestAt ? fmtTime(c.latestAt) : '—' }}</div>
@@ -96,7 +98,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { getAuditPendingSummary, getAuditPendingList } from '@/api/audit';
 import TodayGoldPriceBar from '@/components/TodayGoldPriceBar.vue';
@@ -111,12 +113,18 @@ const reportShortcuts = [
   { label: '耗材分析', path: '/transaction/factory-summary' },
   { label: '经营看板', path: '/transaction/operating-dashboard' },
   { label: '客户月度账单', path: '/order/customer-monthly-bill' },
-  { label: '往来单位汇总', path: '/transaction/counterpart-summary' },
+  // ⭐ 原「往来单位汇总」（/transaction/counterpart-summary）已下线，统一走对账单
+  { label: '往来单位对账单', path: '/inout/report/statement' },
+  // ⭐ 月度盘点：直接进盘点列表（新建盘点 / 盘点核算）
+  { label: '月度盘点', path: '/inventory/monthly-list' },
 ];
 
 // 卡片元数据：type → 名称 / 图标 / 跳转目标
 // 进销存按「进 / 出」拆卡，direction: 1=进（收），0=出（支）
 const CARD_META = [
+  // ⭐ 待审金价：按「天」计，任何一天没审就挂起（横幅里可直接一天一行审核）
+  { type: 'priceSheet', icon: '💹', label: '待审金价', urgent: true,
+    actions: [{ label: '去审核', path: '/system/gold-price' }] },
   { type: 'orderAudit', icon: '🏭', label: '制作完成待审',
     actions: [{ label: '去审核', path: '/order/factory-audit-list', query: { mode: 'audit' } }] },
   // ⭐ 退货审核：工厂操作员已定退回方式，等审核员审核（通过才改账单金额）
@@ -145,7 +153,6 @@ const cards = computed(() => CARD_META.map(m => {
   const hit = (counts.value.items || []).find(x => x.type === m.type) || {};
   return { ...m, count: hit.count || 0, latestAt: hit.latestAt, isReadonly: !!m.isReadonly };
 }));
-
 const totalPending = computed(() => counts.value.totalPending || 0);
 
 const typeLabel = (t) => (CARD_META.find(x => x.type === t)?.label || t);
@@ -153,7 +160,7 @@ const tagType = (t) => ({
   goldIn: 'warning', goldOut: 'warning', diamondIn: 'primary', diamondOut: 'primary',
   expenseIn: 'success', expenseOut: 'success',
   bill: 'danger', receipt: 'success', lr: 'primary', batch: 'info', process: 'warning',
-  orderAudit: 'success', returnAudit: 'danger'
+  orderAudit: 'success', returnAudit: 'danger', priceSheet: 'danger'
 }[t] || 'info');
 const fmtDate = (v) => (v ? String(v).slice(0, 10) : '-');
 const fmtTime = (v) => (v ? String(v).replace('T', ' ').slice(0, 16) : '-');
@@ -168,14 +175,14 @@ const loadList = async () => {
   rows.value = res?.data || [];
 };
 
-const loadAll = async () => {
-  loading.value = true;
+const loadAll = async (silent = false) => {
+  if (!silent) loading.value = true;
   try {
     await Promise.all([loadSummary(), loadList()]);
   } catch (e) {
     console.error('加载审核待办失败:', e);
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 
@@ -185,7 +192,21 @@ const goType = (type) => {
   if (meta?.actions?.length) go(meta.actions[0]);
 };
 
-onMounted(loadAll);
+// ⭐ 顶部金价横幅审完一批后，刷新这里的待办计数
+const onPriceAudited = () => loadAll();
+// ⭐ 30 秒自动刷新待办数量：别人提交后不用手动刷新也能看到提醒（页面切后台时不刷）
+let refreshTimer = null;
+onMounted(() => {
+  loadAll();
+  window.addEventListener('audit-pending-refresh', onPriceAudited);
+  refreshTimer = setInterval(() => {
+    if (!document.hidden && !loading.value) loadAll(true);
+  }, 30000);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('audit-pending-refresh', onPriceAudited);
+  if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
+});
 </script>
 
 <style scoped>
@@ -204,6 +225,9 @@ onMounted(loadAll);
 .audit-card:hover { border-color: #c6e2ff; box-shadow: 0 2px 10px rgba(64, 158, 255, .12); }
 .audit-card.is-empty { background: #fafafa; }
 .audit-card.is-readonly { background: #f7f9fc; }
+/* ⭐ 挂起项（金价有未审天）：红边框 + 浅红底，一眼能看到 */
+.audit-card.is-urgent { background: #fff7f6; border-color: #ffb3ad; box-shadow: 0 0 0 1px rgba(207, 19, 34, .08); }
+.audit-card.is-urgent .card-name { color: #a8071a; font-weight: 600; }
 .card-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .card-icon { font-size: 16px; }
 .card-name { font-size: 13px; color: #606266; font-weight: 500; flex: 1; }

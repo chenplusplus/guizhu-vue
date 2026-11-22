@@ -72,9 +72,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { getSummaryByMaterial, getInventory, getEntryReconciliation, getSummaryByCounterparty } from '@/api/inoutReport'
+import { shortcutRange } from '@/utils/date'
 
 const loading = ref(false)
-const dateRange = ref([])
+// ⭐ 默认本月（1 号 ~ 今天），期初/期末才按整月口径算
+const dateRange = ref(shortcutRange('month'))
 const summaryData = ref([])
 const reconciliationData = ref([])
 

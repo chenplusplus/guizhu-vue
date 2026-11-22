@@ -34,8 +34,8 @@
               <th style="width:150px;">订单号</th>
               <th style="width:130px;">品名</th>
               <th style="width:130px;">修改项</th>
-              <th style="width:120px;text-align:right;">原值</th>
-              <th style="width:130px;text-align:right;">改后</th>
+              <th style="width:120px;">原值</th>
+              <th style="width:130px;">改后</th>
             </tr>
           </thead>
           <tbody>
@@ -177,27 +177,28 @@ defineExpose({ reload: load })
   background: #fdf5f5;
   color: #909399;
   font-weight: 500;
-  text-align: left;
+  text-align: center;
   padding: 5px 8px;
   border-bottom: 1px solid #f5e0e0;
 }
 .trail-table td {
+  text-align: center;
   padding: 5px 8px;
   border-bottom: 1px solid #faf0f0;
   color: #303133;
 }
 .trail-table tr:last-child td { border-bottom: none; }
-.trail-table td.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.trail-table td.mono { text-align: center; font-family: ui-monospace, Menlo, Consolas, monospace; }
 .trail-table td.ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trail-table td.field { color: #606266; }
 .trail-table td.old {
-  text-align: right;
+  text-align: center;
   color: #a8abb2;
   text-decoration: line-through;
   font-variant-numeric: tabular-nums;
 }
 .trail-table td.new {
-  text-align: right;
+  text-align: center;
   color: #F56C6C;
   font-weight: 700;
   font-variant-numeric: tabular-nums;

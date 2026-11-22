@@ -47,13 +47,13 @@
       >
 
         <el-table-column prop="OrderNo" label="流水单号" width="120" fixed="left"
-          :cell-style="{fontWeight:'bold'}"/>
+          :cell-style="{fontWeight:'bold'}" align="center" />
 
         <el-table-column prop="Seq" label="序号" width="60" align="center"/>
 
-        <el-table-column prop="ProductName" label="品名" min-width="130"/>
+        <el-table-column prop="ProductName" label="品名" min-width="130" align="center" />
 
-        <el-table-column prop="CustomerName" label="客户" width="100"/>
+        <el-table-column prop="CustomerName" label="客户" width="100" align="center" />
 
         <el-table-column prop="DiamondLevel" label="钻石级别" width="90" align="center"/>
 
@@ -66,24 +66,24 @@
         <el-table-column prop="Size" label="手寸/长度" width="80" align="center"/>
 
         <!-- 总重 + 净重 + 损耗 + 加耗重 -->
-        <el-table-column label="总重" width="80" align="right">
+        <el-table-column label="总重" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.TotalWeight) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.TotalWeight) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="净重" width="80" align="right">
+        <el-table-column label="净重" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.NetWeight) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.NetWeight) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="损耗" width="70" align="right">
+        <el-table-column label="损耗" width="70" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.LossRate) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="加耗重" width="90" align="right">
+        <el-table-column label="加耗重" width="90" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.AddLossWeight) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.AddLossWeight) }}</span>
@@ -91,12 +91,12 @@
         </el-table-column>
 
         <!-- 金价 + 足金料 -->
-        <el-table-column label="金价" width="80" align="right">
+        <el-table-column label="金价" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary && row.GoldPrice > 0">{{ fmt(row.GoldPrice) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="足金料" width="100" align="right">
+        <el-table-column label="足金料" width="100" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.GoldMaterialFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.GoldMaterialFee) }}</span>
@@ -115,24 +115,24 @@
               <span v-if="!row.IsCustomerSummary">{{ row.MainStoneQty || 0 }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="石重(ct)" width="85" align="right">
+          <el-table-column label="石重(ct)" width="85" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.MainStoneWeight) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.MainStoneWeight) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="单价(元)" width="85" align="right">
+          <el-table-column label="单价(元)" width="85" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary && row.MainStonePrice > 0">{{ fmt(row.MainStonePrice) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="金额(元)" width="95" align="right">
+          <el-table-column label="金额(元)" width="95" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.MainStoneAmount) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.MainStoneAmount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="镶石工费" width="90" align="right">
+          <el-table-column label="镶石工费" width="90" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.MainStoneSettingFee) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.MainStoneSettingFee) }}</span>
@@ -147,24 +147,24 @@
               <span v-if="!row.IsCustomerSummary">{{ row.SubStoneQty || 0 }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="石重(ct)" width="84" align="right">
+          <el-table-column label="石重(ct)" width="84" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.SubStoneWeight) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.SubStoneWeight) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="单价(元)" width="85" align="right">
+          <el-table-column label="单价(元)" width="85" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary && row.SubStonePrice > 0">{{ fmt(row.SubStonePrice) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="金额(元)" width="90" align="right">
+          <el-table-column label="金额(元)" width="90" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.SubStoneAmount) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.SubStoneAmount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="镶石工费" width="90" align="right">
+          <el-table-column label="镶石工费" width="90" align="center">
             <template #default="{ row }">
               <span v-if="!row.IsCustomerSummary">{{ fmt(row.SubStoneSettingFee) }}</span>
               <span v-else class="summary-cell">{{ fmt(row.SubStoneSettingFee) }}</span>
@@ -173,7 +173,7 @@
         </el-table-column>
 
         <!-- 包装证书邮费 -->
-        <el-table-column label="包装证书邮费" width="100" align="right">
+        <el-table-column label="包装证书邮费" width="100" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.PackingFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.PackingFee) }}</span>
@@ -181,7 +181,7 @@
         </el-table-column>
 
         <!-- 版费 -->
-        <el-table-column label="版费" width="80" align="right">
+        <el-table-column label="版费" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.CertificateFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.CertificateFee) }}</span>
@@ -189,7 +189,7 @@
         </el-table-column>
 
         <!-- 工费 -->
-        <el-table-column label="工费" width="80" align="right">
+        <el-table-column label="工费" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.LaborFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.LaborFee) }}</span>
@@ -197,7 +197,7 @@
         </el-table-column>
 
         <!-- 磨石费 -->
-        <el-table-column label="磨石费" width="80" align="right">
+        <el-table-column label="磨石费" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.MoldFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.MoldFee) }}</span>
@@ -205,7 +205,7 @@
         </el-table-column>
 
         <!-- 模具费 -->
-        <el-table-column label="模具费" width="80" align="right">
+        <el-table-column label="模具费" width="80" align="center">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary">{{ fmt(row.MoldFee) }}</span>
             <span v-else class="summary-cell">{{ fmt(row.MoldFee) }}</span>
@@ -213,7 +213,7 @@
         </el-table-column>
 
         <!-- 应收金额 -->
-        <el-table-column label="应收金额" width="110" align="right" fixed="right"
+        <el-table-column label="应收金额" width="110" align="center" fixed="right"
           :cell-style="{fontWeight:'bold'}">
           <template #default="{ row }">
             <span v-if="!row.IsCustomerSummary" style="color:#E6A23C;font-weight:bold;">

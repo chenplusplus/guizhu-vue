@@ -12,6 +12,9 @@ dist
 dist-ssr
 dist-*/
 *.local
+# 本地发布备份，不进仓库
+dist_bak_*
+dist-*.tar.gz
 
 # Editor directories and files
 .vscode/*

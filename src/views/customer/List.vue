@@ -3,7 +3,7 @@
   <div class="page-container">
     <div class="page-header">
       <h2>客户管理</h2>
-      <el-button type="primary" @click="showAddDialog = true">新增客户</el-button>
+      <el-button type="primary" @click="openAdd">新增客户</el-button>
     </div>
 
     <!-- 搜索 -->
@@ -32,6 +32,13 @@
       <el-table-column prop="contactPerson" label="联系人" width="100" />
       <el-table-column prop="contactPhone" label="联系电话" width="120" />
       <el-table-column prop="level" label="等级" width="80" />
+      <el-table-column label="默认损耗率" width="110" align="center">
+        <template #default="{ row }">
+          <span :class="{ 'loss-unset': !row.defaultLossRate }">
+            {{ row.defaultLossRate ? Number(row.defaultLossRate).toFixed(2) : '未设置' }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" width="80">
         <template #default="{ row }">
           <el-tag :type="row.isActive ? 'success' : 'danger'">
@@ -65,7 +72,7 @@
 
     <!-- 新增/编辑对话框 -->
     <el-dialog :title="dialogTitle" v-model="showAddDialog" width="500px">
-      <el-form :model="form" :rules="rules" ref="formRef" label-width="80px">
+      <el-form :model="form" :rules="rules" ref="formRef" label-width="100px">
         <el-form-item label="客户名称" prop="customerName">
           <el-input v-model="form.customerName" placeholder="请输入客户名称" />
         </el-form-item>
@@ -84,6 +91,27 @@
             <el-option label="VIP" value="VIP" />
             <el-option label="SVIP" value="SVIP" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="默认损耗率" prop="defaultLossRate">
+          <el-select
+            v-model="form.defaultLossRate"
+            placeholder="不设置则按 1.10 默认"
+            clearable
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in lossRateOptions"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+          <div class="form-tip">
+            下单后自动带入订单损耗率（折率，如 1.10 = 10% 损耗）；改这里不影响已有订单
+          </div>
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="form.remark" type="textarea" :rows="3" placeholder="请输入备注" />
@@ -109,6 +137,7 @@ import {
   deleteCustomer as apiDeleteCustomer,
   toggleCustomerActive as apiToggleCustomerActive
 } from '@/api/customer';
+import { dictApi } from '@/api/dict';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -136,8 +165,12 @@ const form = reactive({
   contactPhone: '',
   address: '',
   level: '普通',
+  defaultLossRate: null,
   remark: '',
 });
+
+// 损耗率可选档位（与订单编辑同一份字典；也可手输）
+const lossRateOptions = ref([]);
 
 const rules = {
   customerName: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
@@ -177,7 +210,33 @@ const resetSearch = () => {
 
 const editCustomer = (row) => {
   isEdit.value = true;
-  Object.assign(form, row);
+  Object.assign(form, {
+    customerId: row.customerId,
+    customerName: row.customerName || '',
+    contactPerson: row.contactPerson || '',
+    contactPhone: row.contactPhone || '',
+    address: row.address || '',
+    level: row.level || '普通',
+    defaultLossRate: row.defaultLossRate != null ? Number(row.defaultLossRate) : null,
+    remark: row.remark || '',
+  });
+  showAddDialog.value = true;
+};
+
+// 新增：清掉上一次编辑残留的值
+const openAdd = () => {
+  isEdit.value = false;
+  Object.assign(form, {
+    customerId: 0,
+    customerName: '',
+    contactPerson: '',
+    contactPhone: '',
+    address: '',
+    level: '普通',
+    defaultLossRate: null,
+    remark: '',
+  });
+  formRef.value?.clearValidate?.();
   showAddDialog.value = true;
 };
 
@@ -209,11 +268,19 @@ const submitForm = async () => {
     if (!valid) return;
     submitting.value = true;
     try {
+      // 损耗率：空 → null；手输字符串 → 数字
+      const payload = {
+        ...form,
+        defaultLossRate:
+          form.defaultLossRate === '' || form.defaultLossRate == null
+            ? null
+            : Number(form.defaultLossRate),
+      };
       if (isEdit.value) {
-        await apiUpdateCustomer(form);
+        await apiUpdateCustomer(payload);
         ElMessage.success('更新成功');
       } else {
-        await apiCreateCustomer(form);
+        await apiCreateCustomer(payload);
         ElMessage.success('创建成功');
       }
       showAddDialog.value = false;
@@ -226,7 +293,35 @@ const submitForm = async () => {
   });
 };
 
+const loadLossRateOptions = async () => {
+  try {
+    const res = await dictApi.getItemsByKey('lossrate');
+    lossRateOptions.value = (res?.data || [])
+      .map((item) => ({
+        label: item.itemLabel || item.itemValue,
+        value: Number(item.itemValue),
+      }))
+      .filter((x) => !Number.isNaN(x.value))
+      .sort((a, b) => b.value - a.value);
+  } catch {
+    lossRateOptions.value = [];
+  }
+};
+
 onMounted(() => {
+  loadLossRateOptions();
   loadData();
 });
 </script>
+<style scoped>
+.loss-unset {
+  color: #c0c4cc;
+  font-size: 12px;
+}
+.form-tip {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #909399;
+}
+</style>

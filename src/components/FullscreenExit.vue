@@ -31,7 +31,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   position: fixed;
   right: 28px;
   bottom: 28px;
-  z-index: 10001;
+  /* ⚠️ 只在全屏容器内部置顶，不能高过 Element Plus 弹层（2001 起），
+     否则弹框打开时这个按钮会压在遮罩/弹框上面 */
+  z-index: 300;
   display: inline-flex;
   align-items: center;
   gap: 6px;

@@ -13,6 +13,25 @@
       </div>
     </div>
 
+    <!-- ⭐ 待审金价：一天一个标签，点哪天就切到那天审核（不用再翻日期找） -->
+    <div v-if="pendingList.length" class="pending-strip">
+      <div class="ps-head">
+        <span class="ps-title">⏳ 有 {{ pendingList.length }} 天金价待你审核</span>
+        <span class="ps-sub">
+          点日期直接切到那天<template v-if="pendingOldestDays > 0"> · <b>最早已挂 {{ pendingOldestDays }} 天</b></template>
+          · 未审完下单不带价
+        </span>
+      </div>
+      <div class="ps-days">
+        <span v-for="p in pendingList" :key="p.id" class="ps-day"
+              :class="{ active: queryDate === dayOf(p.priceDate) }" @click="jumpDay(p)">
+          {{ dayOf(p.priceDate).slice(5) }}
+          <em v-if="p.version > 1">v{{ p.version }}</em>
+          <i>{{ waitDays(p.priceDate) }}天</i>
+        </span>
+      </div>
+    </div>
+
     <!-- 今日金价 -->
     <el-card shadow="never" class="today-card" v-loading="loading">
       <template #header>
@@ -263,7 +282,7 @@ import { todayStr } from '@/utils/date';
 import MultiImageUpload from '@/components/MultiImageUpload.vue';
 import {
   getPriceSheetToday, getPriceSheetList, getPriceSheetDetail,
-  savePriceSheet, auditPriceSheet, backfillPriceSheet
+  savePriceSheet, auditPriceSheet, backfillPriceSheet, getPendingPriceAudit
 } from '@/api/priceSheet';
 
 const userStore = useUserStore();
@@ -282,6 +301,10 @@ const page = ref(1);
 const pageSize = 20;
 const range = ref(null);
 const statusFilter = ref('');
+
+// ⭐ 待审金价（一天一行）
+const pendingList = ref([]);
+const pendingOldestDays = ref(0);
 
 const fillVisible = ref(false);
 const fillForm = ref({ priceDate: todayStr(), goldPrice: 0, silverPrice: 0, ptPrice: 0 });
@@ -377,10 +400,40 @@ const loadList = async () => {
 const loadAll = async () => {
   loading.value = true;
   try {
-    await Promise.all([loadToday(), loadList()]);
+    await Promise.all([loadToday(), loadList(), loadPending()]);
   } finally {
     loading.value = false;
   }
+};
+
+// ⭐ 待审金价（一天一行）：工厂审核员 / 客户审核员才有内容
+const loadPending = async () => {
+  if (!isFactoryAudit.value && !isCustomerAudit.value) {
+    pendingList.value = [];
+    return;
+  }
+  try {
+    const res = await getPendingPriceAudit();
+    pendingList.value = res?.data || [];
+    pendingOldestDays.value = Number(res?.oldestDays || 0);
+  } catch (e) {
+    pendingList.value = [];
+  }
+};
+
+const dayOf = (v) => (v ? String(v).slice(0, 10) : '');
+const waitDays = (v) => {
+  if (!v) return 0;
+  const d = new Date(dayOf(v) + 'T00:00:00');
+  const t = new Date(todayStr() + 'T00:00:00');
+  const n = Math.round((t - d) / 86400000);
+  return n > 0 ? n : 0;
+};
+
+// 点待审标签 → 切到那天的金价卡，可直接通过/驳回
+const jumpDay = async (p) => {
+  queryDate.value = dayOf(p.priceDate);
+  await loadToday();
 };
 
 // 打开填写框前先取该日期的金价单：带出价格、凭证图片和状态（是否审核中/已生效）
@@ -525,6 +578,28 @@ onMounted(loadAll);
 </script>
 
 <style scoped>
+/* ⭐ 待审金价标签条 */
+.pending-strip {
+  border: 1px solid #ffccc7; border-left: 3px solid #cf1322; background: #fff7f6;
+  border-radius: 8px; padding: 9px 12px; margin-bottom: 12px;
+}
+.ps-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ps-title { font-size: 14px; font-weight: 600; color: #a8071a; }
+.ps-sub { font-size: 12px; color: #8c6b68; }
+.ps-sub b { color: #cf1322; }
+.ps-days { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.ps-day {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+  padding: 3px 9px; border-radius: 12px; border: 1px solid #ffb3ad; background: #fff;
+  font-size: 12px; color: #a8071a; transition: all .15s;
+}
+.ps-day:hover { background: #fff1f0; border-color: #cf1322; }
+.ps-day.active { background: #cf1322; border-color: #cf1322; color: #fff; }
+.ps-day.active i { color: rgba(255, 255, 255, .8); }
+.ps-day em { font-style: normal; font-size: 10px; color: #e6a23c; }
+.ps-day.active em { color: #ffe7ba; }
+.ps-day i { font-style: normal; font-size: 10px; color: #b37f7f; }
+
 .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .page-header h2 { margin: 0; font-size: 16px; }
 .header-right { display: flex; gap: 8px; align-items: center; }

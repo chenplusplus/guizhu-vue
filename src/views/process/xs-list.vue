@@ -32,19 +32,56 @@
 
     <div class="section-divider"></div>
 
+    <!-- 🔥 有耗汇总：跨分页，按当前筛选条件（镶石没有无耗概念，全部计入），标准损耗按 95% 折算 -->
+    <div class="loss-summary">
+      <div class="ls-head">
+        🔥 镶石损耗汇总
+        <span class="ls-sub">按当前筛选，共 {{ lossSummary.recordCount }} 张单 · 标准损耗按 95% 折算</span>
+      </div>
+      <div class="ls-items">
+        <div class="ls-item">
+          <span class="ls-label">发出</span>
+          <b class="ls-val">{{ fmt2(lossSummary.sendWeightG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">回收</span>
+          <b class="ls-val">{{ fmt2(lossSummary.recycleWeightG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">实损耗</span>
+          <b class="ls-val loss">{{ fmt3(lossSummary.actualLossG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">标准损耗 ×95%</span>
+          <b class="ls-val">{{ fmt3(lossSummary.standardLossG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item" :class="{ over: lossSummary.overLossG > 0 }">
+          <span class="ls-label">超耗</span>
+          <b class="ls-val">{{ fmt3(lossSummary.overLossG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item" :class="{ over: lossSummary.overCount > 0 }">
+          <span class="ls-label">超标单数</span>
+          <b class="ls-val">{{ lossSummary.overCount }}</b><span class="ls-unit">单</span>
+        </div>
+      </div>
+      <div class="ls-hint" v-if="lossSummary.overCount > 0">
+        ⚠️ 有 {{ lossSummary.overCount }} 张单实损耗超过标准损耗，合计超 {{ fmt3(lossSummary.overLossG) }} g，表格里已标红
+      </div>
+    </div>
+
     <div class="table-section">
-      <el-table :data="tableData" border stripe v-loading="loading">
-        <el-table-column prop="receiptNo" label="单据编号" width="170" />
-        <el-table-column prop="businessDate" label="业务日期" width="110" align="center">
+      <el-table :data="tableData" border stripe v-loading="loading" :row-class-name="rowClassName">
+        <el-table-column prop="receiptNo" label="单据编号" width="160" />
+        <el-table-column prop="businessDate" label="业务日期" width="105" align="center">
           <template #default="{ row }">{{ formatDate(row.businessDate) }}</template>
         </el-table-column>
-        <el-table-column prop="subProcess" label="工序类型" width="110" align="center">
+        <el-table-column prop="subProcess" label="工序类型" width="100" align="center">
           <template #default="{ row }"><el-tag size="small">{{ row.subProcess }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="materialName" label="材质" width="90" align="center" />
+        <el-table-column prop="materialName" label="材质" width="80" align="center" />
         <el-table-column prop="sendWeightG" label="发出(g)" width="90" align="right"><template #default="{ row }">{{ row.sendWeightG?.toFixed(2) }}</template></el-table-column>
         <el-table-column prop="recycleWeightG" label="回收(g)" width="90" align="right"><template #default="{ row }">{{ row.recycleWeightG?.toFixed(2) }}</template></el-table-column>
-        <el-table-column label="钻石信息" width="180" align="center">
+        <el-table-column label="钻石信息" width="150" align="center">
           <template #default="{ row }">
             <span v-if="row.extraFields" class="diamond-info">
               微{{ row.extraFields.microCarat || 0 }}ct/{{ row.extraFields.microCount || 0 }}粒
@@ -53,23 +90,40 @@
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column label="报废(g)" width="80" align="right">
+        <el-table-column label="报废(g)" width="75" align="right">
           <template #default="{ row }"><span class="scrap-text">{{ row.extraFields?.scrapG || 0 }}</span></template>
         </el-table-column>
-        <el-table-column prop="laborFee" label="加工费(元)" width="100" align="right"><template #default="{ row }">{{ (row.laborFee || 0).toFixed(2) }}</template></el-table-column>
-        <el-table-column prop="actualLossG" label="实损耗(g)" width="95" align="right">
-          <template #default="{ row }"><span :class="row.actualLossG > 0 ? 'loss-text' : ''">{{ row.actualLossG?.toFixed(3) }}</span></template>
+        <el-table-column prop="laborFee" label="加工费(元)" width="95" align="right"><template #default="{ row }">{{ (row.laborFee || 0).toFixed(2) }}</template></el-table-column>
+        <el-table-column prop="actualLossG" label="实损耗(g)" width="90" align="right">
+          <template #default="{ row }"><span :class="row.overLossG > 0 ? 'over-loss-text' : (row.actualLossG > 0 ? 'loss-text' : '')">{{ row.actualLossG?.toFixed(3) }}</span></template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column prop="standardLossG" label="标准损耗×95%" width="100" align="right">
+          <template #default="{ row }">{{ row.standardLossG?.toFixed(3) }}</template>
+        </el-table-column>
+        <el-table-column label="超耗(g)" width="85" align="right">
+          <template #default="{ row }">
+            <span v-if="row.overLossG > 0" class="over-loss-text">+{{ Number(row.overLossG).toFixed(3) }}</span>
+            <span v-else class="ok-text">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="应回金(g)" width="100" align="right">
+          <template #default="{ row }"><span class="recycle-text">{{ (row.shouldRecycleG || 0).toFixed(3) }}</span></template>
+        </el-table-column>
+        <el-table-column label="未回金(g)" width="100" align="right">
+          <template #default="{ row }">
+            <span :class="unreturned(row) > 0 ? 'unreturned-text' : 'recycle-text'">{{ unreturned(row).toFixed(3) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="75" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : row.status === 2 ? 'danger' : 'warning'" size="small">{{ row.statusText }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="masterName" label="师傅" width="100" align="center" />
-        <el-table-column prop="productName" label="产品名称" width="120" align="center" />
-        <el-table-column prop="content" label="内容" width="140" align="center" />
-        <el-table-column prop="submitEmpName" label="经办人" width="90" align="center" />
-        <el-table-column prop="auditEmpName" label="审核人" width="90" align="center" />
+        <el-table-column prop="masterName" label="师傅" width="90" align="center" />
+        <el-table-column prop="productName" label="产品名称" width="100" align="center" />
+        <el-table-column prop="content" label="内容" width="110" align="center" />
+        <el-table-column prop="submitEmpName" label="经办人" width="80" align="center" />
+        <el-table-column prop="auditEmpName" label="审核人" width="80" align="center" />
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="$router.push(`/process/xs-detail/${row.id}`)">查看</el-button>
@@ -114,6 +168,7 @@ import { ElMessage } from 'element-plus';
 import { Plus, Refresh } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
 import { getProcessList, auditProcessReceipt, getProcessOptions } from '@/api/process';
+import { shortcutRange } from '@/utils/date';
 
 const route = useRoute();
 const router = useRouter();
@@ -125,9 +180,22 @@ const isAuditUser = computed(() => ['factoryaudit', 'admin'].includes(String(use
 const loading = ref(false);
 const tableData = ref([]);
 const total = ref(0);
+// 损耗汇总（后端按当前筛选跨分页算好，标准损耗已按 95% 折算）
+const lossSummary = reactive({
+  recordCount: 0, sendWeightG: 0, residueWaterG: 0, recycleWeightG: 0,
+  actualLossG: 0, standardLossG: 0, overCount: 0, overLossG: 0
+});
+const fmt2 = (v) => (Number(v) || 0).toFixed(2);
+const fmt3 = (v) => (Number(v) || 0).toFixed(3);
+const rowClassName = ({ row }) => (row.overLossG > 0 ? 'over-row' : '');
 const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: [] });
-const dateRange = ref([]);
-const searchForm = reactive({ keyword: '', masterName: '', materialId: null, status: null, startDate: '', endDate: '' });
+// ⭐ 日期默认本月（1 号 ~ 今天），与执模列表口径一致；审核工作台（mode=audit）默认不限
+const defaultRange = () => (route.query.mode === 'audit' ? [] : shortcutRange('month'));
+const dateRange = ref(defaultRange());
+const searchForm = reactive({
+  keyword: '', masterName: '', materialId: null, status: null,
+  startDate: dateRange.value[0] || '', endDate: dateRange.value[1] || ''
+});
 const pagination = reactive({ current: 1, pageSize: 20 });
 const auditVisible = ref(false);
 const auditRow = ref(null);
@@ -143,9 +211,17 @@ const loadData = async () => {
     const res = await getProcessList({ mainProcess: 'XS', keyword: searchForm.keyword || undefined, masterName: searchForm.masterName || undefined, materialId: searchForm.materialId || undefined, status: searchForm.status ?? undefined, startDate: searchForm.startDate || undefined, endDate: searchForm.endDate || undefined, page: pagination.current, pageSize: pagination.pageSize });
     tableData.value = res.data || [];
     total.value = res.total || 0;
+    Object.assign(lossSummary, res.lossSummary || {});
   } catch { ElMessage.error('加载失败'); } finally { loading.value = false; }
 };
-const resetSearch = () => { Object.assign(searchForm, { keyword: '', materialId: null, status: null, startDate: '', endDate: '' }); dateRange.value = []; pagination.current = 1; loadData(); };
+// 重置回「本月」，不是回到不限日期
+const resetSearch = () => {
+  const r = defaultRange();
+  Object.assign(searchForm, { keyword: '', masterName: '', materialId: null, status: null, startDate: r[0] || '', endDate: r[1] || '' });
+  dateRange.value = [...r];
+  pagination.current = 1;
+  loadData();
+};
 const openEdit = (row) => router.push(`/process/xs-input?id=${row.id}`);
 const openAudit = (row) => { auditRow.value = row; auditForm.approved = true; auditForm.auditNote = ''; auditVisible.value = true; };
 const confirmAudit = async () => {
@@ -156,6 +232,12 @@ const confirmAudit = async () => {
 };
 const loadOptions = async () => { try { const res = await getProcessOptions(); options.materials = res.data?.materials || []; options.zmSubProcesses = res.data?.zmSubProcesses || []; options.pgSubProcesses = res.data?.pgSubProcesses || []; } catch {} };
 onMounted(() => { loadOptions(); loadData(); });
+
+// 未回金 = 应回金 − 实际回金（正数=师傅还欠，负数=多交了）
+const unreturned = (row) => {
+  const v = Number(row?.shouldRecycleG || 0) - Number(row?.actualRecycleG || 0);
+  return Math.round(v * 1000) / 1000;
+};
 </script>
 
 <style scoped>
@@ -170,6 +252,29 @@ onMounted(() => { loadOptions(); loadData(); });
 .table-section { background: #fff; padding: 16px 20px; border-radius: 0 0 8px 8px; }
 .pagination { margin-top: 16px; display: flex; justify-content: flex-end; }
 .loss-text { color: #E6A23C; }
+.over-loss-text { color: #cf1322; font-weight: 700; }
+.ok-text { color: #c0c4cc; }
+:deep(.over-row) { background: #fff1f0 !important; }
+:deep(.over-row:hover > td) { background: #ffe7e5 !important; }
+
+/* ===== 损耗汇总条 ===== */
+.loss-summary { background: #fff; padding: 14px 20px; }
+.ls-head { font-size: 14px; font-weight: 700; color: #c2410c; display: flex; align-items: center; gap: 10px; }
+.ls-sub { font-size: 12px; font-weight: 400; color: #909399; }
+.ls-items { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.ls-item {
+  flex: 1 1 130px; min-width: 120px; padding: 8px 12px; border-radius: 10px;
+  background: #f8fbff; border: 1px solid #e2ecfa;
+}
+.ls-item.over { background: #fff1f0; border-color: #ffc9c4; }
+.ls-label { display: block; font-size: 12px; color: #909399; }
+.ls-val { font-size: 19px; font-weight: 800; color: #303133; }
+.ls-val.loss { color: #E6A23C; }
+.ls-item.over .ls-val { color: #cf1322; }
+.ls-unit { font-size: 11px; color: #a8abb2; margin-left: 2px; }
+.ls-hint { margin-top: 10px; font-size: 12px; color: #cf1322; background: #fff1f0; border: 1px dashed #ffb3ad; border-radius: 6px; padding: 6px 12px; }
 .scrap-text { color: #F56C6C; }
 .diamond-info { font-size: 12px; color: #606266; }
+.recycle-text { color: #67C23A; font-weight: bold; }
+.unreturned-text { color: #d4380d; font-weight: 600; }
 </style>

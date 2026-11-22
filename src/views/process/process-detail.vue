@@ -37,6 +37,10 @@
           <el-descriptions-item label="实损耗"><span class="loss">{{ detail.actualLossG?.toFixed(3) }} g</span></el-descriptions-item>
           <el-descriptions-item label="标准损耗">{{ detail.standardLossG?.toFixed(3) }} g</el-descriptions-item>
           <el-descriptions-item label="应回金"><span class="recycle">{{ detail.shouldRecycleG?.toFixed(3) }} g</span></el-descriptions-item>
+          <el-descriptions-item label="实际回金">{{ (detail.actualRecycleG || 0).toFixed(3) }} g</el-descriptions-item>
+          <el-descriptions-item label="未回金">
+            <span :class="unreturnedG > 0 ? 'unreturned' : 'recycle'">{{ unreturnedG.toFixed(3) }} g</span>
+          </el-descriptions-item>
           <el-descriptions-item label="损耗率">{{ lossRate }}%</el-descriptions-item>
           <el-descriptions-item label="标准损耗率" v-if="detail.extraFields?.lossRatePct != null">
             {{ Number(detail.extraFields.lossRatePct).toFixed(2) }}%
@@ -130,6 +134,12 @@ const title = computed(() => `${mainProcessName.value}单据详情`);
 
 const statusText = computed(() => detail.value.status === 1 ? '已审核' : detail.value.status === 2 ? '异常' : '未审核');
 const statusTagType = computed(() => detail.value.status === 1 ? 'success' : detail.value.status === 2 ? 'danger' : 'warning');
+// 未回金 = 应回金 − 实际回金（正数=师傅还欠）
+const unreturnedG = computed(() => {
+  const v = Number(detail.value.shouldRecycleG || 0) - Number(detail.value.actualRecycleG || 0);
+  return Math.round(v * 1000) / 1000;
+});
+
 const lossRate = computed(() => detail.value.sendWeightG > 0 ? ((detail.value.actualLossG / detail.value.sendWeightG) * 100).toFixed(2) : '0.00');
 
 const formatDate = (d) => d ? d.slice(0, 10) : '-';
@@ -180,4 +190,5 @@ onMounted(loadDetail);
 .recycle { color: #67C23A; font-weight: bold; }
 .rate-base { font-size: 11px; color: #a8abb2; }
 .scrap { color: #F56C6C; }
+.unreturned { color: #d4380d; font-weight: 700; }
 </style>

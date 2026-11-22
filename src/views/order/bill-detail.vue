@@ -261,13 +261,13 @@
             max-height="500"
           >
             <el-table-column prop="seqNo" label="#" width="50" align="center" />
-            <el-table-column prop="orderNo" label="订单号" width="130" fixed>
+            <el-table-column prop="orderNo" label="订单号" width="130" fixed align="center">
               <template #default="{ row }">
                 <el-link type="primary" @click="viewOrder(row.orderId)">{{ row.orderNo }}</el-link>
               </template>
             </el-table-column>
-            <el-table-column prop="productName" label="品名" min-width="120" />
-            <el-table-column prop="customerName" label="客户" width="100" />
+            <el-table-column prop="productName" label="品名" min-width="120" align="center" />
+            <el-table-column prop="customerName" label="客户" width="100" align="center" />
             <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center">
               <template #default="{ row }">{{ row.diamondLevel || '-' }}</template>
             </el-table-column>
@@ -289,22 +289,22 @@
             <el-table-column prop="size" label="手寸/长度" width="90" align="center">
               <template #default="{ row }">{{ row.size || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="totalWeight" label="总重" width="80" align="right">
+            <el-table-column prop="totalWeight" label="总重" width="80" align="center">
               <template #default="{ row }">{{ row.totalWeight || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="netWeight" label="净重" width="80" align="right" class-name="gi-col">
+            <el-table-column prop="netWeight" label="净重" width="80" align="center" class-name="gi-col">
               <template #default="{ row }">{{ fmtG(gv(row, 'netWeight')) }}</template>
             </el-table-column>
-            <el-table-column prop="lossRate" label="损耗" width="70" align="right" class-name="gi-col">
+            <el-table-column prop="lossRate" label="损耗" width="70" align="center" class-name="gi-col">
               <template #default="{ row }">{{ numOrDash(gv(row, 'lossRate')) }}</template>
             </el-table-column>
-            <el-table-column prop="addLossWeight" label="加耗重" width="80" align="right" class-name="gi-col">
+            <el-table-column prop="addLossWeight" label="加耗重" width="80" align="center" class-name="gi-col">
               <template #default="{ row }">{{ fmtG(gv(row, 'addLossWeight')) }}</template>
             </el-table-column>
-            <el-table-column prop="goldPrice" label="金价" width="80" align="right" class-name="gi-col">
+            <el-table-column prop="goldPrice" label="金价" width="80" align="center" class-name="gi-col">
               <template #default="{ row }">{{ numOrDash(gv(row, 'goldPrice')) }}</template>
             </el-table-column>
-            <el-table-column prop="goldMaterialFee" label="足金料金额" width="100" align="right" class-name="gi-col">
+            <el-table-column prop="goldMaterialFee" label="足金料金额" width="100" align="center" class-name="gi-col">
               <template #default="{ row }">{{ fmtM(gv(row, 'goldMaterialFee')) }}</template>
             </el-table-column>
             <el-table-column prop="goldMaterialWeight" label="足金料" width="100" align="center" class-name="gi-col">
@@ -318,16 +318,16 @@
               <el-table-column prop="mainStoneQty" label="粒数" width="55" align="center">
                 <template #default="{ row }">{{ row.mainStoneQty || 0 }}</template>
               </el-table-column>
-              <el-table-column prop="mainStoneWeight" label="石重(ct)" width="85" align="right">
+              <el-table-column prop="mainStoneWeight" label="石重(ct)" width="85" align="center">
                 <template #default="{ row }">{{ row.mainStoneWeight || '-' }}</template>
               </el-table-column>
-              <el-table-column prop="mainStonePrice" label="单价" width="85" align="right">
+              <el-table-column prop="mainStonePrice" label="单价" width="85" align="center">
                 <template #default="{ row }">{{ row.mainStonePrice || '-' }}</template>
               </el-table-column>
-              <el-table-column prop="mainStoneAmount" label="金额" width="95" align="right">
+              <el-table-column prop="mainStoneAmount" label="金额" width="95" align="center">
                 <template #default="{ row }">{{ row.mainStoneAmount || '-' }}</template>
               </el-table-column>
-              <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="90" align="right">
+              <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="90" align="center">
                 <template #default="{ row }">{{ row.mainStoneSettingFee || '-' }}</template>
               </el-table-column>
             </el-table-column>
@@ -337,32 +337,32 @@
               <el-table-column prop="subStoneQty" label="粒数" width="55" align="center">
                 <template #default="{ row }">{{ row.subStoneQty || 0 }}</template>
               </el-table-column>
-              <el-table-column prop="subStoneWeight" label="石重(ct)" width="85" align="right">
+              <el-table-column prop="subStoneWeight" label="石重(ct)" width="85" align="center">
                 <template #default="{ row }">{{ row.subStoneWeight || '-' }}</template>
               </el-table-column>
-              <el-table-column prop="subStonePrice" label="单价" width="85" align="right">
+              <el-table-column prop="subStonePrice" label="单价" width="85" align="center">
                 <template #default="{ row }">{{ row.subStonePrice || '-' }}</template>
               </el-table-column>
-              <el-table-column prop="subStoneAmount" label="金额" width="95" align="right">
+              <el-table-column prop="subStoneAmount" label="金额" width="95" align="center">
                 <template #default="{ row }">{{ row.subStoneAmount || '-' }}</template>
               </el-table-column>
-              <el-table-column prop="subStoneSettingFee" label="镶石工费" width="90" align="right">
+              <el-table-column prop="subStoneSettingFee" label="镶石工费" width="90" align="center">
                 <template #default="{ row }">{{ row.subStoneSettingFee || '-' }}</template>
               </el-table-column>
             </el-table-column>
 
-            <el-table-column label="包装证书邮费" width="110" align="right">
+            <el-table-column label="包装证书邮费" width="110" align="center">
               <template #default="{ row }">
                 {{ ((row.packingFee || 0) + (row.certificateFee || 0) + (row.postageFee || 0)).toFixed(2) }}
               </template>
             </el-table-column>
-            <el-table-column prop="moldFee" label="版费" width="80" align="right">
+            <el-table-column prop="moldFee" label="版费" width="80" align="center">
               <template #default="{ row }">{{ row.moldFee || '-' }}</template>
             </el-table-column>
-            <el-table-column prop="laborFee" label="工费" width="80" align="right">
+            <el-table-column prop="laborFee" label="工费" width="80" align="center">
               <template #default="{ row }">{{ row.laborFee || '-' }}</template>
             </el-table-column>
-            <el-table-column label="应收金额" width="110" align="right" fixed="right">
+            <el-table-column label="应收金额" width="110" align="center" fixed="right">
               <template #default="{ row }">
                 <span style="color:#E6A23C;font-weight:bold;font-size:14px;">
                   ¥{{ (row.totalAmount || 0).toFixed(2) }}
@@ -488,6 +488,15 @@
                 />
               </span>
               <span v-else class="value">¥{{ (billData?.receivedMoney || 0).toFixed(2) }}</span>
+              <!-- ⭐ 抵扣结算：来款金额只记现金实收，抵扣单独标出来（口径同上面「现金付款」）
+                   只在收款审核通过后显示，与 receivedMoney 的写回时机保持一致 -->
+              <span
+                v-if="billData?.receiptStatus === 'approved' && (billData?.receiptOffset || 0) > 0"
+                class="value-sub offset-sub"
+                :title="`本单收款有 ¥${Number(billData.receiptOffset || 0).toFixed(2)} 用客户来款余额抵扣，不计入实收现金；累计欠款已扣掉这部分`"
+              >
+                其中抵扣 ¥{{ Number(billData.receiptOffset || 0).toFixed(2) }}
+              </span>
             </div>
           </el-col>
           <el-col :xs="12" :sm="6">
@@ -540,14 +549,14 @@
       >
         <el-table-column type="selection" width="50" />
         <el-table-column prop="seqNo" label="#" width="46" align="center" />
-        <el-table-column prop="productName" label="品名" min-width="120" />
-        <el-table-column label="工费" width="90" align="right">
+        <el-table-column prop="productName" label="品名" min-width="120" align="center" />
+        <el-table-column label="工费" width="90" align="center">
           <template #default="{ row }">¥{{ (row.laborFee || 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="totalAmount" label="应收" width="110" align="right">
+        <el-table-column prop="totalAmount" label="应收" width="110" align="center">
           <template #default="{ row }">¥{{ (row.totalAmount || 0).toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column label="退回说明（哪个要退 / 为什么）" min-width="240">
+        <el-table-column label="退回说明（哪个要退 / 为什么）" min-width="240" align="center">
           <template #default="{ row }">
             <el-input
               v-model="returnNotes[row.id]"
@@ -596,20 +605,20 @@
 
       <el-table :data="handleRows" border stripe size="small" max-height="380">
         <el-table-column prop="seqNo" label="#" width="46" align="center" />
-        <el-table-column prop="productName" label="品名" min-width="110" />
-        <el-table-column label="应收" width="100" align="right">
+        <el-table-column prop="productName" label="品名" min-width="110" align="center" />
+        <el-table-column label="应收" width="100" align="center">
           <template #default="{ row }">¥{{ fmt2(row.totalAmount) }}</template>
         </el-table-column>
-        <el-table-column label="工费" width="90" align="right">
+        <el-table-column label="工费" width="90" align="center">
           <template #default="{ row }">¥{{ fmt2(row.laborFee) }}</template>
         </el-table-column>
-        <el-table-column label="损耗(金料)" width="120" align="right">
+        <el-table-column label="损耗(金料)" width="120" align="center">
           <template #default="{ row }">
             <div>¥{{ fmt2(lossBaseOf(row)) }}</div>
             <div class="cell-sub">{{ fmt2(row.goldMaterialWeight) }}g 足金</div>
           </template>
         </el-table-column>
-        <el-table-column label="退回方式" width="200">
+        <el-table-column label="退回方式" width="200" align="center">
           <template #default="{ row }">
             <el-radio-group v-model="row.returnType" size="small">
               <el-radio-button value="full">全退</el-radio-button>
@@ -618,7 +627,7 @@
             </el-radio-group>
           </template>
         </el-table-column>
-        <el-table-column label="保留损耗" width="130" align="right">
+        <el-table-column label="保留损耗" width="130" align="center">
           <template #default="{ row }">
             <el-input-number
               v-if="row.returnType === 'labor_loss'"
@@ -632,17 +641,17 @@
             <span v-else class="cell-sub">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="本次退回" width="110" align="right">
+        <el-table-column label="本次退回" width="110" align="center">
           <template #default="{ row }">
             <b style="color:#d64545;">¥{{ fmt2(handleReturnAmount(row)) }}</b>
           </template>
         </el-table-column>
-        <el-table-column label="处理后应收" width="110" align="right">
+        <el-table-column label="处理后应收" width="110" align="center">
           <template #default="{ row }">
             <b>¥{{ fmt2(handleKeepAmount(row)) }}</b>
           </template>
         </el-table-column>
-        <el-table-column label="客户说明" min-width="150" show-overflow-tooltip>
+        <el-table-column label="客户说明" min-width="150" show-overflow-tooltip align="center">
           <template #default="{ row }">{{ row.customerNote || '—' }}</template>
         </el-table-column>
       </el-table>
@@ -954,7 +963,8 @@ const handleConfirm = async () => {
   confirming.value = true;
   try {
     await confirmBill(billId.value);
-    ElMessage.success('账单已确认，订单已完成');
+    // ⭐ LR 在账单最终确认时由后端自动生成
+    ElMessage.success('账单已确认，订单已完成，LR 表已自动生成');
     loadData();
   } catch {
     ElMessage.error('确认失败');
@@ -1545,6 +1555,11 @@ onMounted(async () => {
   margin-top: 2px;
   font-size: 11px;
   color: #1f9254;
+}
+/* ⭐ 抵扣说明（蓝色）：来款金额里不含抵扣，单独标注 */
+.summary-item .value-sub.offset-sub {
+  color: #1d63c9;
+  font-weight: 600;
 }
 .summary-item :deep(.el-input-number) {
   width: 100px;

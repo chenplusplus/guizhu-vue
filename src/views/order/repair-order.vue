@@ -38,6 +38,17 @@
           class="copy-notice no-print"
           @close="copyNotice = ''"
         />
+        <!-- ⭐ 从历史维修单带入费用：除订单固定信息外，CNC 费及之前的每一项都带，带入后可手改 -->
+        <div class="fee-bring-bar no-print">
+          <span class="fb-title">历史带入</span>
+          <span class="fb-cond">
+            客户 <b>{{ customerName }}</b> ｜ 品名 <b>{{ form.productName || '未填' }}</b>
+          </span>
+          <el-button size="small" type="primary" :loading="feeBringLoading" @click="handleBringFees">
+            从历史带入
+          </el-button>
+          <span class="fb-hint" :class="{ 'is-ok': feeBringOk }">{{ feeBringHint }}</span>
+        </div>
         <!-- ⭐ 历史钻石带入：同客户 + 同钻石级别，只带钻石部分（石重 / 粒数 / 价格 / 工费） -->
         <div class="diamond-bring-bar no-print">
           <span class="db-level">钻石级别：<b>{{ form.diamondLevel || '未填' }}</b></span>
@@ -80,15 +91,15 @@
                 </td>
                 <td class="label-td">订单日期</td>
                 <td colspan="2" class="order-field">
-                  <span v-if="isOrderLoaded" class="readonly-value">{{ form.orderDate || '-' }}</span>
+                  <span v-if="isOrderLoaded" class="readonly-value">{{ fmtDate(form.orderDate) }}</span>
                   <el-date-picker v-else v-model="form.orderDate" type="date" value-format="YYYY-MM-DD" style="width:100%" size="small"/>
                 </td>
                 <td class="label-td">出货日期</td>
                 <td colspan="2" class="order-field">
-                  <span v-if="isOrderLoaded" class="readonly-value">{{ form.deliveryDate || '-' }}</span>
+                  <span v-if="isOrderLoaded" class="readonly-value">{{ fmtDate(form.deliveryDate) }}</span>
                   <el-date-picker v-else v-model="form.deliveryDate" type="date" value-format="YYYY-MM-DD" style="width:100%" size="small"/>
                 </td>
-                <td class="label-td">流水单号：</td>
+                <td class="label-td">流水单号</td>
                 <td colspan="2" class="order-field">
                   <span v-if="isOrderLoaded" class="readonly-value">{{ form.serialNo || '-' }}</span>
                   <el-input v-else v-model="form.serialNo" size="small"/>
@@ -98,9 +109,9 @@
               <!-- 第4行：数量 | 颜色 | 宽/厚度 | 出蜡 | 钻石级别 | 工费 -->
               <tr>
                 <td class="label-td">数量</td>
-                <td class="order-field">
+                <td class="order-field num-cell">
                   <span v-if="isOrderLoaded" class="readonly-value">{{ form.quantity }}</span>
-                  <el-input-number v-else v-model="form.quantity" :min="1" style="width:100%" size="small"/>
+                  <el-input v-else class="cell-num" size="small" :model-value="numDisp('quantity')" @update:model-value="v => numInput('quantity', v)" @blur="numBlur('quantity', 0)"/>
                 </td>
                 <td class="label-td">颜色</td>
                 <td class="order-field">
@@ -108,9 +119,9 @@
                   <el-input v-else v-model="form.color" size="small"/>
                 </td>
                 <td class="label-td">宽/厚度</td>
-                <td class="order-field">
+                <td class="order-field num-cell">
                   <span v-if="isOrderLoaded" class="readonly-value">{{ form.widthThick ?? '-' }}</span>
-                  <el-input-number v-else v-model="form.widthThick" :min="0" :precision="2" style="width:100%" size="small"/>
+                  <el-input v-else class="cell-num" size="small" :model-value="numDisp('widthThick')" @update:model-value="v => numInput('widthThick', v)" @blur="numBlur('widthThick', 2)"/>
                 </td>
                 <td class="label-td">出蜡</td>
                 <td>
@@ -124,8 +135,8 @@
                   </el-select>
                 </td>
                 <td class="red-text label-td">工费</td>
-                <td>
-                  <el-input-number v-model="form.laborFee" :min="0" :precision="2" style="width:100%" size="small"/>
+                <td class="num-cell">
+                  <el-input class="cell-num" size="small" :model-value="numDisp('laborFee')" @update:model-value="v => numInput('laborFee', v)" @blur="numBlur('laborFee', 2)"/>
                 </td>
               </tr>
 
@@ -150,12 +161,12 @@
                   <el-date-picker v-model="form.waxOutTime" type="datetime" value-format="YYYY-MM-DDTHH:mm:ss" style="width:100%" size="small"/>
                 </td>
                 <td class="label-td">主石石重(ct)</td>
-                <td>
-                  <el-input-number v-model="form.mainStoneWeight" :min="0" :precision="2" style="width:100%" size="small"/>
+                <td class="num-cell">
+                  <el-input class="cell-num" size="small" :model-value="numDisp('mainStoneWeight')" @update:model-value="v => numInput('mainStoneWeight', v)" @blur="numBlur('mainStoneWeight', 2)"/>
                 </td>
                 <td class="label-td">钻石价格</td>
-                <td>
-                  <el-input-number v-model="form.diamondPrice" :min="0" :precision="2" style="width:100%" size="small"/>
+                <td class="num-cell">
+                  <el-input class="cell-num" size="small" :model-value="numDisp('diamondPrice')" @update:model-value="v => numInput('diamondPrice', v)" @blur="numBlur('diamondPrice', 2)"/>
                 </td>
               </tr>
 
@@ -170,16 +181,16 @@
                   <el-input v-model="form.clasp" size="small"/>
                 </td>
                 <td class="label-td">版费</td>
-                <td>
-                  <el-input-number v-model="form.claspFee" :min="0" :precision="2" style="width:100%" size="small"/>
+                <td class="num-cell">
+                  <el-input class="cell-num" size="small" :model-value="numDisp('claspFee')" @update:model-value="v => numInput('claspFee', v)" @blur="numBlur('claspFee', 2)"/>
                 </td>
                 <td class="label-td">主石粒数</td>
-                <td>
-                  <el-input-number v-model="form.mainStoneCount" :min="0" style="width:100%" size="small"/>
+                <td class="num-cell">
+                  <el-input class="cell-num" size="small" :model-value="numDisp('mainStoneCount')" @update:model-value="v => numInput('mainStoneCount', v)" @blur="numBlur('mainStoneCount', 0)"/>
                 </td>
                 <td class="label-td">主石工费</td>
-                <td>
-                  <el-input-number v-model="form.mainStoneLaborFee" :min="0" :precision="2" style="width:100%" size="small"/>
+                <td class="num-cell">
+                  <el-input class="cell-num" size="small" :model-value="numDisp('mainStoneLaborFee')" @update:model-value="v => numInput('mainStoneLaborFee', v)" @blur="numBlur('mainStoneLaborFee', 2)"/>
                 </td>
               </tr>
 
@@ -218,27 +229,27 @@
                 <td class="label-td">链条型号</td>
                 <td><el-input v-model="form.chainModel" size="small"/></td>
                 <td class="label-td">倒模重</td>
-                <td><el-input-number v-model="form.moldWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('moldWeight')" @update:model-value="v => numInput('moldWeight', v)" @blur="numBlur('moldWeight', 2)"/></td>
                 <td class="label-td">副石石重(ct)</td>
-                <td><el-input-number v-model="form.sideStoneWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('sideStoneWeight')" @update:model-value="v => numInput('sideStoneWeight', v)" @blur="numBlur('sideStoneWeight', 2)"/></td>
                 <td class="label-td">副石价格</td>
-                <td><el-input-number v-model="form.sideStonePrice" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('sideStonePrice')" @update:model-value="v => numInput('sideStonePrice', v)" @blur="numBlur('sideStonePrice', 2)"/></td>
               </tr>
 
               <tr>
                 <td class="label-td">钢片重</td>
-                <td><el-input-number v-model="form.steelWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('steelWeight')" @update:model-value="v => numInput('steelWeight', v)" @blur="numBlur('steelWeight', 2)"/></td>
                 <td class="label-td">倒模工费</td>
-                <td><el-input-number v-model="form.moldFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('moldFee')" @update:model-value="v => numInput('moldFee', v)" @blur="numBlur('moldFee', 2)"/></td>
                 <td class="label-td">副石粒数</td>
-                <td><el-input-number v-model="form.sideStoneCount" :min="0" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('sideStoneCount')" @update:model-value="v => numInput('sideStoneCount', v)" @blur="numBlur('sideStoneCount', 0)"/></td>
                 <td class="label-td">副石工费</td>
-                <td><el-input-number v-model="form.sideStoneLaborFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('sideStoneLaborFee')" @update:model-value="v => numInput('sideStoneLaborFee', v)" @blur="numBlur('sideStoneLaborFee', 2)"/></td>
               </tr>
 
               <tr>
                 <td class="label-td">客来石重</td>
-                <td><el-input-number v-model="form.customerStoneWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('customerStoneWeight')" @update:model-value="v => numInput('customerStoneWeight', v)" @blur="numBlur('customerStoneWeight', 2)"/></td>
                 <td colspan="6" class="label-td note-cell">
                   <div>注意：</div>
                   <el-input v-model="form.note" type="textarea" :rows="2" size="small"/>
@@ -247,7 +258,7 @@
 
               <tr>
                 <td class="label-td">客来金重</td>
-                <td><el-input-number v-model="form.customerGoldWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('customerGoldWeight')" @update:model-value="v => numInput('customerGoldWeight', v)" @blur="numBlur('customerGoldWeight', 2)"/></td>
                 <td colspan="6" rowspan="2" class="remark-cell">
                   <div class="remark-title">备注</div>
                   <el-input v-model="form.remark" type="textarea" :rows="5" size="small"/>
@@ -256,19 +267,19 @@
 
               <tr>
                 <td class="label-td">贝金托重</td>
-                <td><el-input-number v-model="form.bezelWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('bezelWeight')" @update:model-value="v => numInput('bezelWeight', v)" @blur="numBlur('bezelWeight', 2)"/></td>
               </tr>
 
               <!-- 第12行：磨贝重 | 出蜡费 | 磨贝/其他费 | CNC费 -->
               <tr>
                 <td class="label-td">磨贝重</td>
-                <td><el-input-number v-model="form.polishWeight" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('polishWeight')" @update:model-value="v => numInput('polishWeight', v)" @blur="numBlur('polishWeight', 2)"/></td>
                 <td class="label-td">出蜡费</td>
-                <td><el-input-number v-model="form.waxOutFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('waxOutFee')" @update:model-value="v => numInput('waxOutFee', v)" @blur="numBlur('waxOutFee', 2)"/></td>
                 <td class="label-td">磨贝/其他费</td>
-                <td><el-input-number v-model="form.polishOtherFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('polishOtherFee')" @update:model-value="v => numInput('polishOtherFee', v)" @blur="numBlur('polishOtherFee', 2)"/></td>
                 <td class="label-td">CNC费</td>
-                <td><el-input-number v-model="form.cncFee" :min="0" :precision="2" style="width:100%" size="small"/></td>
+                <td class="num-cell"><el-input class="cell-num" size="small" :model-value="numDisp('cncFee')" @update:model-value="v => numInput('cncFee', v)" @blur="numBlur('cncFee', 2)"/></td>
               </tr>
             </tbody>
           </table>
@@ -343,7 +354,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { CopyDocument } from '@element-plus/icons-vue'
-import { createRepair, updateRepair, getRepairDetail, getRepairByOrderId } from '../../api/repair'
+import { createRepair, updateRepair, getRepairDetail, getRepairByOrderId, getRepairHistoryBring } from '../../api/repair'
 import { getCustomerList } from '../../api/customer'
 import { getDiamondBring } from '../../api/order'
 import { dictApi } from '../../api/dict'
@@ -367,6 +378,13 @@ const customerName = computed(() => {
   return customer?.customerName || form.customerId || '-'
 })
 
+// ⭐ 订单带出的日期是 ISO（2026-11-19T00:00:00），打印时只需要日期部分
+const fmtDate = (v) => {
+  if (!v) return '-'
+  const s = String(v)
+  return s.length > 10 ? s.slice(0, 10) : s
+}
+
 // ⭐ 图片地址（从订单带入）
 const imageUrls = reactive({
   product: '',
@@ -385,6 +403,91 @@ const diamondBringLoading = ref(false)
 const diamondBringOk = ref(false)
 const DIAMOND_BRING_TIP = '按同客户 + 同钻石级别匹配历史订单，只带主石/副石石重、粒数、价格、工费'
 const diamondBringHint = ref(DIAMOND_BRING_TIP)
+
+// ⭐ 历史费用带入：除订单固定信息外的每一项（工费 → CNC 费），带过来照样能手改
+const feeBringLoading = ref(false)
+const feeBringOk = ref(false)
+const FEE_BRING_TIP = '按同客户 + 同品名找最近一张维修单，带入工费、主石/副石、链重、倒模、钢片、客来石金、贝金托、磨贝、出蜡、CNC 费等（客户/品名/日期/手寸等订单固定信息不动）'
+const feeBringHint = ref(FEE_BRING_TIP)
+
+// ⚠️ 这里只列「费用/工厂填写」字段；订单固定信息（客户、品名、日期、流水号、数量、颜色、
+//    宽/厚度、手寸、克重要求、钻石级别、字印要求）以及备注、注意都不在带入范围
+const FEE_BRING_KEYS = [
+  'laborFee',
+  'mainStoneWeight', 'diamondPrice', 'mainStoneCount', 'mainStoneLaborFee',
+  'clasp', 'claspFee',
+  'chainWeight', 'waxOut', 'waxOutTime', 'chainModel',
+  'moldWeight', 'moldFee', 'steelWeight',
+  'sideStoneWeight', 'sideStonePrice', 'sideStoneCount', 'sideStoneLaborFee',
+  'customerStoneWeight', 'customerGoldWeight', 'bezelWeight',
+  'polishWeight', 'waxOutFee', 'polishOtherFee', 'cncFee'
+]
+
+const handleBringFees = async () => {
+  const customerId = Number(form.customerId || 0)
+  if (!customerId) {
+    ElMessage.warning('请先选择客户，才能匹配历史维修单')
+    return
+  }
+
+  // 已填过费用先确认：带入会按历史单覆盖，但覆盖后仍然能改
+  const hasData = FEE_BRING_KEYS.some(k => {
+    const v = form[k]
+    return v !== null && v !== undefined && String(v).trim() !== ''
+  })
+  if (hasData) {
+    try {
+      await ElMessageBox.confirm(
+        '当前维修单已填了费用，带入会用历史单的值覆盖（带入后仍可手改），继续吗？',
+        '从历史带入费用',
+        { type: 'warning', confirmButtonText: '覆盖带入', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+  }
+
+  feeBringLoading.value = true
+  feeBringOk.value = false
+  try {
+    const res = await getRepairHistoryBring({
+      customerId,
+      productName: (form.productName || '').trim() || undefined,
+      excludeId: form.id || undefined
+    })
+    const d = res?.data || res || {}
+    if (!d.found) {
+      feeBringHint.value = d.message || '没有找到可带入的历史维修单'
+      ElMessage.info(feeBringHint.value)
+      return
+    }
+
+    // ⭐ 只覆盖历史里有值的项：历史空着的字段不冲掉当前已填的内容
+    clearNumDraft()
+    const items = d.items || {}
+    let n = 0
+    FEE_BRING_KEYS.forEach(k => {
+      const v = items[k]
+      if (v === null || v === undefined) return
+      if (typeof v === 'string' && v.trim() === '') return
+      form[k] = v
+      n++
+    })
+
+    feeBringOk.value = true
+    const srcDate = d.sourceOrderDate ? `（${d.sourceOrderDate}）` : ''
+    const scope = d.sameProduct
+      ? '同客户同品名'
+      : `同客户最近一单，品名：${d.sourceProductName || '—'}`
+    feeBringHint.value = `已带入 ${d.sourceRepairNo || d.sourceId}${srcDate} 的 ${n} 项费用 · ${scope}`
+    ElMessage.success(`已带入 ${n} 项费用，可直接修改`)
+  } catch (e) {
+    feeBringHint.value = e?.message || '带入失败，请重试'
+    ElMessage.error(feeBringHint.value)
+  } finally {
+    feeBringLoading.value = false
+  }
+}
 
 const handleBringDiamond = async () => {
   const level = String(form.diamondLevel || '').trim()
@@ -425,6 +528,7 @@ const handleBringDiamond = async () => {
     }
 
     // ⭐ 只写钻石部分：主石（石重/粒数/单价/工费）、副石（石重/粒数/单价/工费）
+    clearNumDraft()
     const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
     form.mainStoneWeight = num(d.mainStoneWeight)
     form.mainStoneCount = num(d.mainStoneQty)
@@ -512,6 +616,49 @@ const form = reactive({
   remark2: '',
 })
 
+// ============================================================
+// ⭐ 数字格改用纯文本框直填（原来的 el-input-number 带 +/- 控件，
+//    格子一窄 ± 就把输入区挤没了，数字看不见）
+//    - 输入过程中保留原文（能正常打小数点、负号）
+//    - 只有解析成数字才写回 form，保证提交给后端仍是数值
+//    - 失焦时按位数规整（金额/重量 2 位，粒数/数量取整）
+// ============================================================
+const numDraft = reactive({})
+const numDisp = (k) => {
+  const d = numDraft[k]
+  if (d !== undefined) return d
+  const v = form[k]
+  return v === null || v === undefined ? '' : String(v)
+}
+const numInput = (k, raw) => {
+  const t = String(raw ?? '').replace(/[^\d.\-]/g, '')
+  numDraft[k] = t
+  const s = t.trim()
+  if (s === '') { form[k] = null; return }
+  if (!/^-?\d*(?:\.\d*)?$/.test(s)) return
+  const n = Number(s)
+  if (!Number.isNaN(n)) form[k] = n
+}
+const numBlur = (k, digits = 2) => {
+  // ⚠️ 只是路过（没输入过）就失焦：不能动原值，否则会把已填的数字清空
+  if (!(k in numDraft)) return
+  const raw = String(numDraft[k] ?? '')
+  delete numDraft[k]
+  const s = raw.trim()
+  if (s === '') { form[k] = null; return }
+  let n = Number(s)
+  if (Number.isNaN(n)) n = parseFloat(s)
+  if (Number.isNaN(n)) { form[k] = null; return }
+  if (digits === 0) {
+    form[k] = Math.round(n)
+  } else {
+    const p = Math.pow(10, digits)
+    form[k] = Math.round(n * p) / p
+  }
+}
+// 程序化回填（订单预填 / 历史带入）时清掉输入草稿，避免显示旧文本
+const clearNumDraft = () => { Object.keys(numDraft).forEach(k => delete numDraft[k]) }
+
 const rules = {
   customerId: [{ required: true, message: '请选择客户', trigger: 'change' }],
   productName: [{ required: true, message: '请输入品名', trigger: 'blur' }]
@@ -519,6 +666,7 @@ const rules = {
 
 // ⭐ 订单预填（复制单切换「带出/不带出」时会再跑一遍，所以单独抽出来）
 const applyOrderPrefill = (data) => {
+  clearNumDraft()
   // ⭐ 只带 12 个字段
   form.orderId = data.orderId || orderId.value
   form.customerId = data.customerId
@@ -763,7 +911,10 @@ const handlePrint = () => {
           @page { size: A4 portrait; margin: 8mm 6mm; }
           * { box-sizing: border-box; }
           html, body {
-            margin: 0; padding: 0;
+            margin: 0 auto; padding: 0;
+            /* ⭐ 锁定 A4 可用宽度（210 − 6×2 = 198mm）：屏幕上看到的就是打印出来的宽度，
+               这样才能准确算出「还差多少才打满整页」 */
+            width: 198mm;
             font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
             font-size: 12px; color: #000; background: #fff;
           }
@@ -784,22 +935,29 @@ const handlePrint = () => {
           }
           table.repair-table td {
             border: 1px solid #000;
-            padding: 3px 5px;
-            height: 24px;
+            padding: 4px 5px;
+            height: 32px;
             vertical-align: middle;
-            font-size: 11px;
+            font-size: 11.5px;
             word-break: break-all;
           }
+          /* ⭐ 主表：留白靠行高撑，写起来才不挤 */
+          .main-table td { height: 32px; }
           .label-td {
             text-align: center;
             font-weight: 500;
-            white-space: nowrap;
+            /* ⭐ A4 打满后列宽随之固定，长标签（主石石重(ct)、磨贝/其他费）允许折成两行，
+               不然会压到隔壁格子里 */
+            white-space: normal;
+            line-height: 1.2;
+            word-break: break-all;
           }
           .title-cell {
-            font-size: 16px;
+            font-size: 20px;
             font-weight: bold;
             text-align: center;
-            letter-spacing: 6px;
+            letter-spacing: 8px;
+            padding: 6px 0 !important;
           }
           .red-text { color: #ff0000 !important; }
           .red-bg {
@@ -821,12 +979,16 @@ const handlePrint = () => {
           .plain-text {
             display: block;
             width: 100%;
-            font-size: 11px;
+            font-size: 11.5px;
             color: inherit;
             white-space: pre-wrap;
             word-break: break-all;
             min-height: 16px;
           }
+
+          /* 数字格：与屏幕一致居中 */
+          .num-cell { padding: 3px 4px; }
+          .num-cell .plain-text { text-align: center; }
 
           /* ===== 图片 =====
              ⚠️ 打印窗口是新开的空白页，没有引入 Element Plus 的 CSS，
@@ -840,11 +1002,12 @@ const handlePrint = () => {
           .preview-img,
           .preview-img .el-image__inner {
             display: block !important;
-            width: 200px !important;
+            width: 220px !important;
             min-width: 0 !important;
-            max-width: 200px !important;
-            height: 70px !important;
-            max-height: 70px !important;
+            max-width: 220px !important;
+            /* ⭐ 高度由脚本按「图片区剩余空间」反算（A4 打满时图片跟着放大） */
+            height: var(--img-h, 88px) !important;
+            max-height: var(--img-h, 88px) !important;
             object-fit: cover !important;
             overflow: hidden !important;
             border: 1px solid #000;
@@ -861,29 +1024,75 @@ const handlePrint = () => {
           }
 
           /* ===== 打印表格 ===== */
-          .print-gap { height: 0 !important; margin: 0 !important; }
+          .print-gap { height: 3px !important; margin: 0 !important; }
           .print-table .process-header td {
             background: #f0f0f0 !important;
             font-weight: 600;
             text-align: center;
-            padding: 2px !important;
+            padding: 3px 2px !important;
+            height: 30px !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
           .print-table .process-detail-header td {
             background: #f7f7f7 !important;
             text-align: center;
-            padding: 2px !important;
+            padding: 3px 2px !important;
+            height: 26px !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
           }
-          .print-table .check-row td { height: 18px !important; padding: 0 !important; }
-          .print-table .process-row td { height: 22px !important; padding: 1px 3px !important; }
+          .print-table .check-row td { height: 32px !important; padding: 0 !important; }
+          .print-table .process-row td { height: 34px !important; padding: 2px 4px !important; }
 
           tr { page-break-inside: avoid; }
         </style>
       </head>
-      <body>${clone.outerHTML}</body>
+      <body>${clone.outerHTML}
+        <script>
+          /* ⭐ A4 打满：量一下表格实际占多高，把剩余空间均分到每行，
+             行高上去了下面就不会空一大截；内容超页时反过来压一点（有下限）。 */
+          (function () {
+            var MM = 96 / 25.4;                            // 1mm ≈ 3.78px
+            var AVAIL = Math.floor((297 - 16) * MM) - 8;    // A4 可用高度 ≈ 1054px
+
+            function rowList() {
+              return Array.prototype.slice.call(document.querySelectorAll(
+                '.main-table > tbody > tr, .print-table > tbody > tr'
+              ));
+            }
+
+            function fillA4() {
+              var wrap = document.querySelector('.table-wrap');
+              if (!wrap) return;
+              var rows = rowList();
+              if (!rows.length) return;
+
+              var extra = AVAIL - wrap.getBoundingClientRect().height;
+              if (Math.abs(extra) > 6) {
+                var per = extra / rows.length;
+                rows.forEach(function (tr) {
+                  var cur = parseFloat(window.getComputedStyle(tr).height) || 0;
+                  tr.style.height = Math.max(18, cur + per) + 'px';
+                });
+              }
+
+              // 图片区：行高变高后，把两张图跟着放大，别让左上角空着
+              var cell = document.querySelector('.main-table .img-cell');
+              if (cell) {
+                var h = cell.getBoundingClientRect().height;
+                var imgH = Math.floor((h - 56) / 2);
+                if (imgH > 70) {
+                  document.documentElement.style.setProperty('--img-h', Math.min(imgH, 150) + 'px');
+                }
+              }
+            }
+
+            fillA4();
+            window.addEventListener('load', fillA4);
+          })();
+        <\/script>
+      </body>
     </html>
   `);
 
@@ -977,6 +1186,30 @@ onMounted(() => {
 }
 .copy-bar .copy-switch-label { font-weight: 600; }
 .copy-bar .copy-hint { color: #909399; font-size: 12px; }
+
+/* ⭐ 历史费用带入条（维修单顶部，蓝色；与橙色钻石条区分） */
+.fee-bring-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 14px;
+  margin-bottom: 10px;
+  background: #f0f7ff;
+  border: 1px solid #b9d8f8;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #303133;
+}
+.fee-bring-bar .fb-title {
+  font-weight: 700;
+  color: #1f6feb;
+  padding-right: 2px;
+}
+.fee-bring-bar .fb-cond { color: #606266; }
+.fee-bring-bar .fb-cond b { color: #1d2129; font-weight: 600; }
+.fee-bring-bar .fb-hint { color: #909399; font-size: 12px; }
+.fee-bring-bar .fb-hint.is-ok { color: #67c23a; }
 
 /* ⭐ 历史钻石带入条（维修单顶部） */
 .diamond-bring-bar {
@@ -1140,6 +1373,78 @@ onMounted(() => {
   border: none;
 }
 
+/* ============================================================
+   ⭐ 可填写单元格：淡蓝细边框 = 这里能填（打印时全部去掉）
+   ============================================================ */
+.main-table :deep(.el-input__wrapper),
+.main-table :deep(.el-select__wrapper),
+.main-table :deep(.el-textarea__inner) {
+  /* 用 inset 阴影代替 border：不占布局空间，边框正好压在格子内侧 */
+  box-shadow: inset 0 0 0 1px #c3ddf5;
+  background: #fbfdff;
+  border-radius: 2px;
+  padding: 0 5px;
+  min-height: 24px;
+}
+
+.main-table :deep(.el-input__wrapper:hover),
+.main-table :deep(.el-select__wrapper:hover),
+.main-table :deep(.el-textarea__inner:hover) {
+  box-shadow: inset 0 0 0 1px #86c0ee;
+  background: #f6fbff;
+}
+
+.main-table :deep(.el-input__wrapper.is-focus),
+.main-table :deep(.el-select__wrapper.is-focused),
+.main-table :deep(.el-textarea__inner:focus) {
+  box-shadow: inset 0 0 0 1.5px #409eff;
+  background: #f0f7ff;
+}
+
+/* ⭐ 主表每格再挤一点内边距，把能填的面积让给输入框 */
+.main-table td {
+  padding: 3px 4px;
+}
+
+/* ⭐ 数字格：文本框铺满整格（不再有 ± 控件），只留 2px 让淡蓝框露出来 */
+.main-table td.num-cell {
+  padding: 2px !important;
+}
+
+.main-table td.num-cell :deep(.el-input) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.main-table td.num-cell :deep(.el-input__wrapper) {
+  height: 100%;
+  min-height: 22px;
+  padding: 0 2px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px #a8cff0;
+  background: #f5faff;
+}
+
+.main-table td.num-cell :deep(.el-input__wrapper:hover) {
+  background: #eef7ff;
+}
+
+.main-table td.num-cell :deep(.el-input__wrapper.is-focus) {
+  box-shadow: inset 0 0 0 2px #409eff;
+  background: #f0f7ff;
+}
+
+.main-table td.num-cell :deep(.el-input__inner) {
+  text-align: center;
+  padding: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.main-table td.num-cell .readonly-value {
+  padding: 0 4px;
+}
+
 /* 打印区域样式（屏幕上也显示） */
   .print-gap {
     height: 0;
@@ -1157,11 +1462,11 @@ onMounted(() => {
 }
 
 .print-table .process-row td {
-  height: 28px;
+  height: 32px;
 }
 
 .print-table .check-row td {
-  height: 24px;
+  height: 28px;
 }
 
 /* ============================================================

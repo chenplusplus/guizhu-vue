@@ -87,26 +87,26 @@
             <el-table :data="detailsOf(row)" border size="small" class="detail-table"
               :scrollbar-always-on="true"
             >
-              <el-table-column prop="orderNo" label="订单号" width="150" show-overflow-tooltip />
-              <el-table-column prop="productName" label="品名" min-width="140" show-overflow-tooltip />
+              <el-table-column prop="orderNo" label="订单号" width="150" show-overflow-tooltip align="center" />
+              <el-table-column prop="productName" label="品名" min-width="140" show-overflow-tooltip align="center" />
               <el-table-column label="成色" width="70" align="center">
                 <template #default="{ row }">
                   <PurityCell :label="row.purityLabel" :color="row.color" />
                 </template>
               </el-table-column>
-              <el-table-column label="数量" width="60" align="right">
+              <el-table-column label="数量" width="60" align="center">
                 <template #default="{ row: d }">{{ d.quantity || 0 }}</template>
               </el-table-column>
-              <el-table-column label="应收" width="100" align="right">
+              <el-table-column label="应收" width="100" align="center">
                 <template #default="{ row: d }">¥{{ money(d.totalAmount) }}</template>
               </el-table-column>
-              <el-table-column label="实收 / 抵扣" width="150" align="right">
+              <el-table-column label="实收 / 抵扣" width="150" align="center">
                 <template #default="{ row: d }">
                   <span v-if="d.isOffset" class="tag-offset">抵扣 ¥{{ money(d.offsetAmount) }}</span>
                   <span v-else class="tag-received">¥{{ money(d.actualReceipt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="费用构成" min-width="260">
+              <el-table-column label="费用构成" min-width="260" align="center">
                 <template #default="{ row: d }">
                   <span class="fee-line">{{ feeText(d) }}</span>
                 </template>
@@ -117,7 +117,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="到账时间" width="168">
+      <el-table-column label="到账时间" width="168" align="center">
         <template #default="{ row }">
           <div class="time-cell">
             <span class="time-main">{{ fmtDate(row.receivedAt) }}</span>
@@ -126,7 +126,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="账单" width="170">
+      <el-table-column label="账单" width="170" align="center">
         <template #default="{ row }">
           <div class="bill-cell">
             <span class="bill-no">{{ row.billNo }}</span>
@@ -135,18 +135,18 @@
         </template>
       </el-table-column>
 
-      <el-table-column prop="customerName" label="客户" min-width="120" show-overflow-tooltip />
+      <el-table-column prop="customerName" label="客户" min-width="120" show-overflow-tooltip align="center" />
 
       <el-table-column label="订单" width="70" align="center">
         <template #default="{ row }">{{ row.orderCount || 0 }} 单</template>
       </el-table-column>
 
-      <el-table-column label="应收" width="110" align="right">
+      <el-table-column label="应收" width="110" align="center">
         <template #default="{ row }">¥{{ money(row.receivable) }}</template>
       </el-table-column>
 
       <!-- ⭐ 已收 = 实收 + 抵扣：紧跟在应收后面，加粗绿色一眼看到钱到账没有 -->
-      <el-table-column label="已收" width="140" align="right">
+      <el-table-column label="已收" width="140" align="center">
         <template #default="{ row }">
           <div class="received-cell">
             <b class="money-received">¥{{ money(receivedOf(row)) }}</b>
@@ -157,7 +157,7 @@
         </template>
       </el-table-column>
 
-      <el-table-column label="差额" width="100" align="right">
+      <el-table-column label="差额" width="100" align="center">
         <template #default="{ row }">
           <span :class="{ 'money-diff': Math.abs(Number(row.diffAmount) || 0) > 0.001 }">¥{{ money(row.diffAmount) }}</span>
         </template>

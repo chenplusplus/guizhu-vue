@@ -33,10 +33,11 @@
             <th rowspan="2">品名</th>
             <th rowspan="2">客户</th>
             <th rowspan="2">钻石级别</th>
-            <th rowspan="2">颜色</th>
             <th rowspan="2">件数</th>
             <th rowspan="2">手寸/长度</th>
             <th rowspan="2">总重</th>
+            <!-- ⭐ 成色紧挨金料列：放在总重之后、净重之前，多成色展开时成色与净重/损耗/加耗连成一组 -->
+            <th rowspan="2">成色</th>
             <th rowspan="2">净重</th>
             <th rowspan="2">损耗</th>
             <th rowspan="2">加耗重</th>
@@ -64,61 +65,55 @@
           </tr>
         </thead>
         <tbody>
+          <!-- ⭐ 一件货多成色：与账单一致 —— 每种成色单独一行，
+               成色 / 净重 / 损耗 / 加耗重 / 金价 / 足金料 各成色一行，
+               其余列（流水号、品名、件数、钻石、工费、应收、利润）纵向合并 -->
           <tr
-            v-for="(row, idx) in previewRows"
+            v-for="(row, idx) in displayRows"
             :key="idx"
-            :class="row.rowType === 'sale' ? 'sale-row' : 'cost-row'"
+            :class="[row.rowType === 'sale' ? 'sale-row' : 'cost-row', row.__glast ? 'group-end' : '']"
           >
-            <td class="text-center">{{ row.serialNo || '' }}</td>
-            <td class="text-center">
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-center">{{ row.serialNo || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-center">
               <span :class="row.rowType === 'sale' ? 'seq sale-seq' : 'seq cost-seq'">{{ row.seqDisplay || row.seqNo }}</span>
             </td>
-            <td class="text-left">{{ row.productName || '' }}</td>
-            <td class="text-center">{{ row.customerName || '' }}</td>
-            <td class="text-center">{{ row.diamondLevel || '' }}</td>
-            <td class="text-center">{{ row.color || '' }}</td>
-            <td class="text-right">{{ row.quantity || '' }}</td>
-            <td class="text-center">{{ row.size || '' }}</td>
-            <td class="text-right">{{ row.totalWeight || '' }}</td>
-            <!-- ⭐ 一件货多成色：净重下面附一行分色明细（单色不显示） -->
-            <td class="text-right">
-              <template v-if="goldList(row).length > 1">
-                <div class="gi-net-total">{{ row.netWeight || '' }}</div>
-                <div class="gi-net-split">
-                  <span v-for="(it, i) in goldList(row)" :key="i" class="gi-net-item">
-                    {{ shortPurity(it.purityName) }} {{ n2(it.netWeight) }}
-                  </span>
-                </div>
-              </template>
-              <template v-else>{{ row.netWeight || '' }}</template>
-            </td>
-            <td class="text-right">{{ row.lossRate || '' }}</td>
-            <td class="text-right red-text">{{ row.addLossWeight || '' }}</td>
-            <td class="text-right" :title="goldTitle(row)">{{ row.goldPrice || '' }}</td>
-            <td class="text-right">{{ row.goldMaterialFee || '' }}</td>
-            <td class="text-right">{{ row.stoneQty || '' }}</td>
-            <td class="text-right">{{ row.stoneWeight || '' }}</td>
-            <td class="text-right">{{ row.stonePrice || '' }}</td>
-            <td class="text-right red-text">{{ row.stoneAmount || '' }}</td>
-            <td class="text-right">{{ row.stoneSettingFee || '' }}</td>
-            <td class="text-right">{{ row.subStoneQty || '' }}</td>
-            <td class="text-right">{{ row.subStoneWeight || '' }}</td>
-            <td class="text-right">{{ row.subStonePrice || '' }}</td>
-            <td class="text-right red-text">{{ row.subStoneAmount || '' }}</td>
-            <td class="text-right">{{ row.subStoneSettingFee || '' }}</td>
-            <td class="text-right">{{ row.packingFee || '' }}</td>
-            <td class="text-right">{{ row.moldFee || '' }}</td>
-            <td class="text-right">{{ row.laborFee || '' }}</td>
-            <td class="text-right red-text bold">{{ toMoney(row.totalAmount) }}</td>
-            <td class="text-right profit-cell">
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-left">{{ row.productName || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-center">{{ row.customerName || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-center">{{ row.diamondLevel || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.quantity || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-center">{{ row.size || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.totalWeight || '' }}</td>
+            <!-- 成色：多成色时每行一种（18K金 / 14K金），单色行显示该行成色；紧跟净重之前 -->
+            <td class="text-center purity-cell">{{ purityText(row) || '' }}</td>
+            <td class="text-right">{{ gv(row, 'netWeight') || '' }}</td>
+            <td class="text-right">{{ gv(row, 'lossRate') || '' }}</td>
+            <td class="text-right red-text">{{ gv(row, 'addLossWeight') || '' }}</td>
+            <td class="text-right" :title="goldTitle(row)">{{ gv(row, 'goldPrice') || '' }}</td>
+            <td class="text-right">{{ gv(row, 'goldMaterialFee', 'amount') || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.stoneQty || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.stoneWeight || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.stonePrice || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right red-text">{{ row.stoneAmount || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.stoneSettingFee || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.subStoneQty || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.subStoneWeight || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.subStonePrice || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right red-text">{{ row.subStoneAmount || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.subStoneSettingFee || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.packingFee || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.moldFee || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right">{{ row.laborFee || '' }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right red-text bold">{{ toMoney(row.totalAmount) }}</td>
+            <td v-if="row.__gfirst" :rowspan="row.__gspan" class="text-right profit-cell">
               <template v-if="row.rowType === 'cost'">{{ toMoney(groupProfit(row.seqNo)) }}</template>
             </td>
           </tr>
           <tr class="total-row">
-            <td colspan="6" class="text-left">合计（{{ saleRowCount }} 组）</td>
+            <td colspan="5" class="text-left">合计（{{ saleRowCount }} 组）</td>
             <td class="text-right bold">{{ previewTotal.qty }}</td>
             <td></td>
             <td class="text-right">{{ previewTotal.totalWeight }}</td>
+            <td></td>
             <td class="text-right">{{ previewTotal.netWeight }}</td>
             <td></td>
             <td class="text-right red-text">{{ previewTotal.addLossWeight }}</td>
@@ -373,20 +368,11 @@ const goldList = (row) =>
   (row && Array.isArray(row.goldItemList) ? row.goldItemList : [])
     .filter((x) => Number(x.netWeight) > 0);
 
-// '18K金' → '18K'，'足金999' 保持原样，标签更短一行放得下
-const shortPurity = (name) => {
-  const s = String(name || '').trim();
-  if (!s) return '';
-  return /^\d+(\.\d+)?K金$/i.test(s) ? s.replace(/金$/, '') : s;
-};
-
-// 多成色时金价是加权反算值，悬停给出各成色单价
+// 多成色展开后每行就是一种成色，悬停给出这一段的换算过程// 多成色展开后每行就是一种成色，悬停给出这一段的换算过程
 const goldTitle = (row) => {
-  const list = goldList(row);
-  if (list.length <= 1) return '';
-  return list
-    .map((it) => `${it.purityName || '-'}：${n2(it.netWeight)}g × 损耗 ${it.lossRate} = ${n2(it.addLossWeight)}g，折足 ${n2(it.foldWeight)}g，金价 ${n2(it.goldPrice)}，金额 ${n2(it.amount)}`)
-    .join('\n');
+  const it = row.__gi;
+  if (!it || row.__gspan <= 1) return '';
+  return `${it.purityName || '-'}：净重 ${n2(it.netWeight)}g × 损耗 ${it.lossRate} = 加耗 ${n2(it.addLossWeight)}g，折足 ${n2(it.foldWeight)}g，金价 ${n2(it.goldPrice)}，金额 ${n2(it.amount)}`;
 };
 
 const deliveryDateText = computed(() => {
@@ -424,6 +410,54 @@ const previewRows = computed(() => {
 });
 
 const saleRowCount = computed(() => previewRows.value.filter(r => r.rowType === 'sale').length);
+
+// ===== ⭐ 一件货多成色：显示行 = 每种成色单独一行（与账单一致）=====
+// 只影响渲染，previewRows 仍保留「一行一货」，合计/利润/汇总都按原行算，不会重复累计
+const displayRows = computed(() => {
+  const out = [];
+  previewRows.value.forEach((row, i) => {
+    const items = goldList(row);
+    // 快照与行净重对不上（编辑页刚改过还没重算分色）时不展开，避免出现两套数
+    const splitNet = items.reduce((s, x) => s + (Number(x.netWeight) || 0), 0);
+    const inSync = items.length > 1 && Math.abs(splitNet - (Number(row.netWeight) || 0)) <= 0.02;
+    if (!inSync) {
+      out.push({ ...row, __gid: i, __gi: items.length === 1 ? items[0] : null, __gspan: 1, __gfirst: true, __gidx: 0, __glast: true });
+      return;
+    }
+    items.forEach((it, j) => {
+      out.push({
+        ...row,
+        __gid: i,
+        __gi: it,
+        __gspan: items.length,
+        __gfirst: j === 0,
+        __gidx: j,
+        __glast: j === items.length - 1
+      });
+    });
+  });
+  return out;
+});
+
+// 展开行取当前成色那一段的值；单色行沿用整行汇总值
+// 老快照可能没记金价（0），此时回退整行金价，避免展开后金价列变空
+const gv = (row, key, giKey) => {
+  if (row.__gspan > 1 && row.__gi) {
+    const v = row.__gi[giKey || key];
+    if (key === 'goldPrice' && (!v || Number(v) <= 0)) return row.goldPrice;
+    return v;
+  }
+  return row[key];
+};
+
+// 成色列：展开行显示该段成色；单色行显示成色标签，老数据回退 color
+const purityText = (row) => {
+  const it = row.__gi;
+  if (it && it.purityName) return it.purityName;
+  const pl = String(row.purityLabel || '').trim();
+  if (pl) return pl.split('+')[0];
+  return row.color || '';
+};
 
 // 本组利润 = 销售应收 - 成本应收
 const groupProfit = (seqNo) => {
@@ -721,22 +755,8 @@ defineExpose({ loadData, doExport, previewInfo });
   white-space: nowrap;
 }
 
-/* ⭐ 一件货多成色：净重格里的分色小字 */
-.gi-net-total {
-  line-height: 1.15;
-}
-.gi-net-split {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-top: 1px;
-  line-height: 1.15;
-}
-.gi-net-item {
-  font-size: 9.5px;
-  color: #6b7280;
-  letter-spacing: 0;
-}
+/* ⭐ 一件货多成色：成色列（展开后每行一种成色） */
+.purity-cell { font-weight: 500; }
 .excel-title {
   font-size: 18px;
   font-weight: bold;
@@ -773,8 +793,8 @@ defineExpose({ loadData, doExport, previewInfo });
 .cost-row { background: #eaf2fb; }
 .cost-row td { color: #0b3d66; }
 
-/* ⭐ 每组结束：2px 红线分隔 */
-.cost-row td {
+/* ⭐ 每组结束：2px 红线分隔（多成色展开后只画在成本行组末，不会每行都画） */
+.cost-row.group-end td {
   border-bottom: 2px solid #d64545;
 }
 

@@ -316,6 +316,20 @@ const routes = [
         meta: { title: '收款审核', roles: ['factoryAudit', 'admin'] }
       },
       {
+        // ⭐ 来款登记（客户打款台账：操作员登记 → 审核员审核 → 账单抵扣从这里扣）
+        path: 'order/bill/receipt-in',
+        name: 'ReceiptIn',
+        component: () => import('@/views/order/receipt-in.vue'),
+        meta: { title: '来款登记', roles: ['factoryOrder', 'admin'] }
+      },
+      {
+        // ⭐ 来款审核（工厂审核员）
+        path: 'order/bill/receipt-in-audit',
+        name: 'ReceiptInAudit',
+        component: () => import('@/views/order/receipt-in-audit.vue'),
+        meta: { title: '来款审核', roles: ['factoryAudit', 'admin'] }
+      },
+      {
         path: 'order/bill/detail/:id',
         name: 'BillDetail',
         component: () => import('@/views/order/bill-detail.vue'),
@@ -325,13 +339,14 @@ const routes = [
         path: 'order/bill/export-detail',
         name: 'BillExportDetail',
         component: () => import('@/views/order/bill-export-detail.vue'),
-        meta: { title: '出货明细', hidden: true }
+        meta: { title: '出货明细', hidden: true, roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
         path: 'order/bill/tree',
         name: 'BillTreeView',
         component: () => import('@/views/order/bill-tree-view.vue'),
-        meta: { title: '树形汇总' }
+        // ⭐ 树形汇总含金价/工费/损耗等工厂成本口径，只给工厂侧
+        meta: { title: '树形汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
 
       // 维修单
@@ -489,17 +504,11 @@ const routes = [
         redirect: { path: '/inout/list' }
       },
       {
-        path: 'inout/report/counterparty',
-        name: 'CounterpartySummary',
-        component: () => import('@/views/inout/counterparty-summary.vue'),
-        meta: { title: '往来单位汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
-      },
-      {
-        // 供应商对账单：汇总 / 按成色汇总 / 明细（欠料 + 欠款）
+        // 往来单位对账单（当前实现为供应商侧：欠料 / 欠款）
         path: 'inout/report/statement',
         name: 'StatementReport',
         component: () => import('@/views/inout/statement.vue'),
-        meta: { title: '供应商对账单', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+        meta: { title: '往来单位对账单', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
         // 收入结构：工费 / 镶石 / 钻石卖出（月度统计，老板视角）
@@ -529,12 +538,7 @@ const routes = [
         meta: { title: '全工厂汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
-        path: 'transaction/counterpart-summary',
-        name: 'CounterpartSummary',
-        component: () => import('@/views/transaction/counterpart-summary.vue'),
-        meta: { title: '往来单位汇总', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
-      },
-      {
+        // 往来单位汇总页已下线，入口统一走「往来单位对账单」(/inout/report/statement)
         path: 'transaction/operating-dashboard',
         name: 'OperatingDashboard',
         component: () => import('@/views/transaction/operating-dashboard.vue'),

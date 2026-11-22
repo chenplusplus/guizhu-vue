@@ -5,6 +5,9 @@
       <div class="header-left"><h2>🔧 执模单据列表</h2><el-tag type="info">共 {{ total }} 条</el-tag></div>
       <div class="header-right">
         <el-button v-if="!auditOnly" type="primary" @click="$router.push({ path: '/process/zm-input', query: { master: searchForm.masterName || undefined } })"><el-icon><Plus /></el-icon> 录入</el-button>
+        <el-button type="success" plain :disabled="!selectedRows.length" @click="openPrintDialog">
+          <el-icon><Printer /></el-icon> 打印小票{{ selectedRows.length ? `(${selectedRows.length})` : '' }}
+        </el-button>
         <el-button @click="loadData"><el-icon><Refresh /></el-icon> 刷新</el-button>
       </div>
     </div>
@@ -43,41 +46,101 @@
 
     <div class="section-divider"></div>
 
+    <!-- 🔥 有耗汇总：跨分页，按当前筛选条件（只统计「有耗」单） -->
+    <div class="loss-summary">
+      <div class="ls-head">
+        🔥 有耗汇总
+        <span class="ls-sub">按当前筛选，共 {{ lossSummary.recordCount }} 张有耗单（不含无耗）· 标准损耗按 95% 折算</span>
+      </div>
+      <div class="ls-items">
+        <div class="ls-item">
+          <span class="ls-label">发出</span>
+          <b class="ls-val">{{ fmt2(lossSummary.sendWeightG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">水口</span>
+          <b class="ls-val">{{ fmt2(lossSummary.residueWaterG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">回收</span>
+          <b class="ls-val">{{ fmt2(lossSummary.recycleWeightG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">实损耗</span>
+          <b class="ls-val loss">{{ fmt3(lossSummary.actualLossG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
+          <span class="ls-label">标准损耗 ×95%</span>
+          <b class="ls-val">{{ fmt3(lossSummary.standardLossG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item" :class="{ over: lossSummary.overLossG > 0 }">
+          <span class="ls-label">超耗</span>
+          <b class="ls-val">{{ fmt3(lossSummary.overLossG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item" :class="{ over: lossSummary.overCount > 0 }">
+          <span class="ls-label">超标单数</span>
+          <b class="ls-val">{{ lossSummary.overCount }}</b><span class="ls-unit">单</span>
+        </div>
+      </div>
+      <div class="ls-hint" v-if="lossSummary.overCount > 0">
+        ⚠️ 有 {{ lossSummary.overCount }} 张单实损耗超过标准损耗，合计超 {{ fmt3(lossSummary.overLossG) }} g，表格里已标红
+      </div>
+    </div>
+
     <div class="table-section">
-      <el-table :data="tableData" border stripe v-loading="loading" @sort-change="onSort">
-        <el-table-column prop="receiptNo" label="单据编号" width="170" />
-        <el-table-column prop="businessDate" label="业务日期" width="110" align="center">
+      <el-table ref="tableRef" :data="tableData" border stripe v-loading="loading" row-key="id" :row-class-name="rowClassName" @sort-change="onSort" @selection-change="onSelectionChange">
+        <el-table-column type="selection" width="44" fixed="left" reserve-selection />
+        <el-table-column prop="receiptNo" label="单据编号" width="160" />
+        <el-table-column prop="businessDate" label="业务日期" width="105" align="center">
           <template #default="{ row }">{{ formatDate(row.businessDate) }}</template>
         </el-table-column>
-        <el-table-column prop="subProcess" label="工序类型" width="110" align="center">
+        <el-table-column prop="subProcess" label="工序类型" width="100" align="center">
           <template #default="{ row }"><el-tag size="small">{{ row.subProcess }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="materialName" label="材质" width="90" align="center" />
-        <el-table-column prop="sendWeightG" label="发出(g)" width="90" align="right">
+        <el-table-column prop="materialName" label="材质" width="80" align="center" />
+        <el-table-column prop="sendWeightG" label="发出(g)" width="85" align="right">
           <template #default="{ row }">{{ row.sendWeightG?.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="recycleWeightG" label="回收(g)" width="90" align="right">
+        <el-table-column prop="residueWaterG" label="水口(g)" width="80" align="right">
+          <template #default="{ row }">
+            <span :class="{ 'water-text': Number(row.residueWaterG) > 0 }">{{ (Number(row.residueWaterG) || 0).toFixed(2) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="recycleWeightG" label="回收(g)" width="85" align="right">
           <template #default="{ row }">{{ row.recycleWeightG?.toFixed(2) }}</template>
         </el-table-column>
-        <el-table-column prop="actualLossG" label="实损耗(g)" width="95" align="right">
-          <template #default="{ row }"><span :class="row.actualLossG > 0 ? 'loss-text' : ''">{{ row.actualLossG?.toFixed(3) }}</span></template>
+        <el-table-column prop="actualLossG" label="实损耗(g)" width="90" align="right">
+          <template #default="{ row }">
+            <span :class="row.overLossG > 0 ? 'over-text' : (row.actualLossG > 0 ? 'loss-text' : '')">{{ row.actualLossG?.toFixed(3) }}</span>
+          </template>
         </el-table-column>
-        <el-table-column prop="standardLossG" label="标准损耗(g)" width="100" align="right">
+        <el-table-column prop="standardLossG" label="标准损耗×95%" width="100" align="right">
           <template #default="{ row }">{{ row.standardLossG?.toFixed(3) }}</template>
         </el-table-column>
-        <el-table-column prop="shouldRecycleG" label="应回金(g)" width="100" align="right">
+        <el-table-column label="超耗(g)" width="85" align="right">
+          <template #default="{ row }">
+            <span v-if="row.overLossG > 0" class="over-text">+{{ Number(row.overLossG).toFixed(3) }}</span>
+            <span v-else class="ok-text">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="shouldRecycleG" label="应回金(g)" width="90" align="right">
           <template #default="{ row }"><span class="recycle-text">{{ row.shouldRecycleG?.toFixed(3) }}</span></template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="80" align="center">
+        <el-table-column label="未回金(g)" width="90" align="right">
+          <template #default="{ row }">
+            <span :class="unreturned(row) > 0 ? 'unreturned-text' : 'recycle-text'">{{ unreturned(row).toFixed(3) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="75" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : row.status === 2 ? 'danger' : 'warning'" size="small">{{ row.statusText }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="masterName" label="师傅" width="100" align="center" />
-        <el-table-column prop="productName" label="产品名称" width="120" align="center" />
-        <el-table-column prop="content" label="内容" width="140" align="center" />
-        <el-table-column prop="submitEmpName" label="经办人" width="90" align="center" />
-        <el-table-column prop="auditEmpName" label="审核人" width="90" align="center" />
+        <el-table-column prop="masterName" label="师傅" width="90" align="center" />
+        <el-table-column prop="productName" label="产品名称" width="100" align="center" />
+        <el-table-column prop="content" label="内容" width="110" align="center" />
+        <el-table-column prop="submitEmpName" label="经办人" width="80" align="center" />
+        <el-table-column prop="auditEmpName" label="审核人" width="80" align="center" />
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template #default="{ row }">
             <el-button size="small" type="primary" link @click="$router.push(`/process/zm-detail/${row.id}`)">查看</el-button>
@@ -113,6 +176,31 @@
         <el-button type="primary" @click="confirmAudit" :loading="auditLoading">确认</el-button>
       </template>
     </el-dialog>
+
+    <!-- 打印小票（A5 横向） -->
+    <el-dialog v-model="printVisible" title="打印执模结算小票" width="520px" destroy-on-close>
+      <div class="print-summary">
+        <div class="ps-item"><span>已选单据</span><b>{{ selectedRows.length }} 张</b></div>
+        <div class="ps-item"><span>涉及师傅</span><b>{{ printMasterCount }} 位</b></div>
+        <div class="ps-item"><span>纸张</span><b>A5 横向 210×148</b></div>
+      </div>
+
+      <div class="pm-label">打印方式</div>
+      <el-radio-group v-model="printMode">
+        <el-radio value="merge">合并成一张（同师傅合并）</el-radio>
+        <el-radio value="single">一单一页</el-radio>
+      </el-radio-group>
+      <div class="pm-hint">{{ printHint }}</div>
+
+      <div class="print-warn" v-if="pendingSelected > 0">
+        勾选中有 {{ pendingSelected }} 张未审核单据，会一并打印。
+      </div>
+
+      <template #footer>
+        <el-button @click="printVisible = false">取消</el-button>
+        <el-button type="primary" :loading="printing" @click="doPrint">打印</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -120,9 +208,11 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Plus, Refresh } from '@element-plus/icons-vue';
+import { Plus, Refresh, Printer } from '@element-plus/icons-vue';
 import { useUserStore } from '@/stores/user';
-import { getProcessList, auditProcessReceipt, getProcessOptions } from '@/api/process';
+import { getProcessList, auditProcessReceipt, getProcessOptions, getMasterLastTotal } from '@/api/process';
+import { shortcutRange } from '@/utils/date';
+import { buildProcessTicketHtml, printHtml, shiftDate, TICKET_PAGE_ROWS } from '@/utils/process-ticket';
 
 const route = useRoute();
 const router = useRouter();
@@ -135,23 +225,22 @@ const isAuditUser = computed(() => ['factoryaudit', 'admin'].includes(String(use
 const loading = ref(false);
 const tableData = ref([]);
 const total = ref(0);
+// 有耗汇总（后端按当前筛选跨分页算好，只统计有耗单）
+const lossSummary = reactive({
+  recordCount: 0, sendWeightG: 0, residueWaterG: 0, recycleWeightG: 0,
+  actualLossG: 0, standardLossG: 0, overCount: 0, overLossG: 0
+});
+const fmt2 = (v) => (Number(v) || 0).toFixed(2);
+const fmt3 = (v) => (Number(v) || 0).toFixed(3);
+// 超耗行整行淡红底，一眼能扫到
+const rowClassName = ({ row }) => (row.overLossG > 0 ? 'over-row' : '');
 const options = reactive({ materials: [], zmSubProcesses: [], pgSubProcesses: [], zmContents: [] });
 const subProcesses = computed(() => options.zmSubProcesses);
 // 「内容」下拉：字典 zm_content（倒模货 / 水口 / 其他 / 金线 …）
 const contentOptions = computed(() => options.zmContents);
 
-// ⭐ 查询时间默认本月（1 号 → 今天）
-const monthStart = () => {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-01`;
-};
-const todayText = () => {
-  const d = new Date();
-  const p = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
-};
-const defaultRange = () => [monthStart(), todayText()];
+// ⭐ 查询时间默认本月（1 号 → 今天）；审核工作台进来（mode=audit）默认不限，避免往期待审被藏掉
+const defaultRange = () => (route.query.mode === 'audit' ? [] : shortcutRange('month'));
 
 const dateRange = ref(defaultRange());
 const searchForm = reactive({
@@ -188,6 +277,7 @@ const loadData = async () => {
     });
     tableData.value = res.data || [];
     total.value = res.total || 0;
+    Object.assign(lossSummary, res.lossSummary || {});
   } catch { ElMessage.error('加载失败'); }
   finally { loading.value = false; }
 };
@@ -198,6 +288,7 @@ const resetSearch = () => {
   Object.assign(searchForm, { keyword: '', masterName: '', processDictId: null, materialId: null, status: null, content: '', startDate: r[0], endDate: r[1] });
   dateRange.value = [...r];
   pagination.current = 1;
+  tableRef.value?.clearSelection?.();
   loadData();
 };
 
@@ -228,6 +319,80 @@ const loadOptions = async () => {
 };
 
 onMounted(() => { loadOptions(); loadData(); });
+
+// 未回金 = 应回金 − 实际回金（正数=师傅还欠，负数=多交了）
+const unreturned = (row) => {
+  const v = Number(row?.shouldRecycleG || 0) - Number(row?.actualRecycleG || 0);
+  return Math.round(v * 1000) / 1000;
+};
+
+// ============ 打印小票（A5 横向，一单/多单合并） ============
+const tableRef = ref(null);
+const selectedRows = ref([]);
+const printVisible = ref(false);
+const printMode = ref('merge');
+const printing = ref(false);
+const onSelectionChange = (rows) => { selectedRows.value = rows; };
+const printMasterCount = computed(() => new Set(selectedRows.value.map((r) => r.masterName || '未填师傅')).size);
+const pendingSelected = computed(() => selectedRows.value.filter((r) => r.status === 0).length);
+const printHint = computed(() => (printMode.value === 'merge'
+  ? `同一位师傅的勾选单排在同一张小票上，未填师傅的合并为一张；每页最多 ${TICKET_PAGE_ROWS} 行明细，超出自动续页并重复表头。`
+  : '每张单据单独一张小票，方便师傅逐单签字。'));
+
+const openPrintDialog = () => {
+  if (!selectedRows.value.length) { ElMessage.warning('请先勾选要打印的单据'); return; }
+  printVisible.value = true;
+};
+
+const doPrint = async () => {
+  if (!selectedRows.value.length) return;
+  printing.value = true;
+  try {
+    let groups;
+    if (printMode.value === 'single') {
+      // 一单一页：每条单据单独一组
+      groups = selectedRows.value.map((r) => ({ masterName: r.masterName || '未填师傅', rows: [r], prevUnreturnedG: 0 }));
+    } else {
+      const map = new Map();
+      selectedRows.value.forEach((r) => {
+        const k = r.masterName || '未填师傅';
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(r);
+      });
+      groups = [...map].map(([masterName, rows]) => ({ masterName, rows, prevUnreturnedG: 0 }));
+    }
+
+    // 上单累计欠料 = 该师傅在本批最早单据「之前」的未回金（接口按 BusinessDate <= 日期统计，所以取前一天）
+    await Promise.all(groups.map(async (g) => {
+      if (g.masterName === '未填师傅') return;
+      const earliest = g.rows.map((r) => String(r.businessDate || '').slice(0, 10)).filter(Boolean).sort()[0];
+      if (!earliest) return;
+      try {
+        const res = await getMasterLastTotal({
+          mainProcess: 'ZM',
+          masterName: g.masterName,
+          businessDate: shiftDate(earliest, -1)
+        });
+        g.prevUnreturnedG = Number(res?.data?.unreturnedG || 0);
+      } catch { g.prevUnreturnedG = 0; }
+    }));
+
+    const html = buildProcessTicketHtml({
+      mainProcess: 'ZM',
+      groups,
+      printedBy: userStore.realName || userStore.userName || ''
+    });
+    if (!printHtml(html, '执模结算单')) {
+      ElMessage.error('浏览器拦截了打印窗口，请允许本站弹出窗口后重试');
+      return;
+    }
+    printVisible.value = false;
+  } catch (e) {
+    ElMessage.error(e?.message || '打印失败');
+  } finally {
+    printing.value = false;
+  }
+};
 </script>
 
 <style scoped>
@@ -243,4 +408,37 @@ onMounted(() => { loadOptions(); loadData(); });
 .pagination { margin-top: 16px; display: flex; justify-content: flex-end; }
 .loss-text { color: #E6A23C; }
 .recycle-text { color: #67C23A; font-weight: bold; }
+.unreturned-text { color: #d4380d; font-weight: 600; }
+/* 超耗：深红加粗 + 整行淡红底 */
+.over-text { color: #cf1322; font-weight: 700; }
+.ok-text { color: #c0c4cc; }
+.water-text { color: #c2410c; font-weight: 600; }
+:deep(.over-row) { background: #fff1f0 !important; }
+:deep(.over-row:hover > td) { background: #ffe7e5 !important; }
+
+/* ===== 有耗汇总条 ===== */
+.loss-summary { background: #fff; padding: 14px 20px; }
+.ls-head { font-size: 14px; font-weight: 700; color: #c2410c; display: flex; align-items: center; gap: 10px; }
+.ls-sub { font-size: 12px; font-weight: 400; color: #909399; }
+.ls-items { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+.ls-item {
+  flex: 1 1 130px; min-width: 120px; padding: 8px 12px; border-radius: 10px;
+  background: #f8fbff; border: 1px solid #e2ecfa;
+}
+.ls-item.over { background: #fff1f0; border-color: #ffc9c4; }
+.ls-label { display: block; font-size: 12px; color: #909399; }
+.ls-val { font-size: 19px; font-weight: 800; color: #303133; }
+.ls-val.loss { color: #E6A23C; }
+.ls-item.over .ls-val { color: #cf1322; }
+.ls-unit { font-size: 11px; color: #a8abb2; margin-left: 2px; }
+.ls-hint { margin-top: 10px; font-size: 12px; color: #cf1322; background: #fff1f0; border: 1px dashed #ffb3ad; border-radius: 6px; padding: 6px 12px; }
+
+/* ===== 打印小票弹窗 ===== */
+.print-summary { display: flex; gap: 10px; margin-bottom: 16px; }
+.ps-item { flex: 1; background: #f8fbff; border: 1px solid #e2ecfa; border-radius: 8px; padding: 8px 12px; }
+.ps-item span { display: block; font-size: 12px; color: #909399; }
+.ps-item b { font-size: 16px; color: #303133; }
+.pm-label { font-size: 13px; color: #606266; margin-bottom: 8px; }
+.pm-hint { margin-top: 8px; font-size: 12px; color: #909399; line-height: 1.6; }
+.print-warn { margin-top: 12px; font-size: 12px; color: #b45309; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 6px; padding: 6px 12px; }
 </style>

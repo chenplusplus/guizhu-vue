@@ -268,11 +268,8 @@
         </el-table-column>
 
         <el-table-column label="毛利" align="center" label-class-name="hdr-profit">
-          <el-table-column prop="profit" label="合计" align="right" width="126">
-            <template #default="{ row }"><b :class="profitClass(row.profit)">{{ fmtMoney(row.profit) }}</b></template>
-          </el-table-column>
-          <el-table-column prop="goldProfit" label="金利润" align="right" width="126">
-            <template #default="{ row }"><span :class="profitClass(row.goldProfit)">{{ fmtMoney(row.goldProfit) }}</span></template>
+          <el-table-column prop="goldProfit" label="金利润" align="right" width="150">
+            <template #default="{ row }"><b :class="profitClass(row.goldProfit)">{{ fmtMoney(row.goldProfit) }}</b></template>
           </el-table-column>
         </el-table-column>
       </el-table>
@@ -436,12 +433,12 @@ const colorSummary = ({ columns, data }) => {
   const sums = [];
   columns.forEach((col, i) => {
     if (i === 0) { sums[i] = '合计'; return; }
-    if (['saleAmount', 'costAmount', 'profit', 'goldProfit'].includes(col.property)) {
-      sums[i] = Math.round(data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0) * 100) / 100;
+    if (['saleAmount', 'costAmount', 'goldProfit'].includes(col.property)) {
+      sums[i] = fmtMoney(data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0));
       return;
     }
     if (['netWeight', 'addLossWeight', 'foldedWeight', 'costNetWeight', 'costFoldedWeight'].includes(col.property)) {
-      sums[i] = Math.round(data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0) * 1000) / 1000;
+      sums[i] = data.reduce((s, r) => s + (Number(r[col.property]) || 0), 0).toFixed(2);
       return;
     }
     sums[i] = '';

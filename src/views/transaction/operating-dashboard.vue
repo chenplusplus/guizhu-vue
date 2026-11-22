@@ -8,6 +8,7 @@
       </div>
       <div class="toolbar-right">
         <el-radio-group v-model="rangeType" @change="onRangeChange">
+          <el-radio-button value="today">今天</el-radio-button>
           <el-radio-button value="month">本月</el-radio-button>
           <el-radio-button value="all">全部</el-radio-button>
         </el-radio-group>
@@ -120,64 +121,9 @@
       </div>
     </div>
 
-    <!-- 收入分项占比（按 4 项） -->
-    <div class="panel" v-if="data.income">
-      <div class="panel-title">收入分项占比</div>
-      <div class="share-bars">
-        <div class="share-item" v-for="it in incomeShare" :key="it.label">
-          <div class="share-head">
-            <span class="share-label">{{ it.label }}</span>
-            <span class="share-val">¥{{ fmtMoney(it.value) }}<em>（{{ it.pct }}%）</em></span>
-          </div>
-          <el-progress :percentage="it.pct" :color="it.color" :stroke-width="12" :show-text="false" />
-        </div>
-      </div>
-    </div>
+    <!-- 收入分项占比已移除（2026-11-20）：占比信息在「收入构成」里已有金额，单独占一块太占地方 -->
 
-
-    <!-- 费用支出分类 -->
-    <div class="panel" v-if="data.expenseByCategory && data.expenseByCategory.length">
-      <div class="panel-title">费用支出分类明细</div>
-      <el-table :data="data.expenseByCategory" stripe border size="small">
-        <el-table-column prop="category" label="费用类别" min-width="160" />
-        <el-table-column label="金额" align="right" width="200">
-          <template #default="{ row }">
-            <span class="expense">¥{{ fmtMoney(row.amount) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column label="占比" width="240">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="pct(row.amount, data.expenseDetail?.expenseOut)"
-              :color="'#f56c6c'"
-              :stroke-width="14"
-            />
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
-    <!-- 月度趋势 -->
-    <div class="panel">
-      <div class="panel-title">近12个月经营趋势</div>
-      <div class="trend-chart" v-loading="loading">
-        <div class="trend-bars">
-          <div class="trend-bar-group" v-for="t in data.trend" :key="t.month">
-            <div class="bar-stack">
-              <div class="bar income-bar" :style="{ height: barHeight(t.income) }" :title="incomeTip(t)"></div>
-              <div class="bar expense-bar" :style="{ height: barHeight(t.expense) }" :title="expenseTip(t)"></div>
-            </div>
-            <div class="bar-label">{{ shortMonth(t.month) }}</div>
-            <div class="bar-profit" :class="t.profit >= 0 ? 'income' : 'expense'">{{ t.profit >= 0 ? '+' : '' }}{{ fmtMoneyShort(t.profit) }}</div>
-          </div>
-        </div>
-        <div class="trend-legend">
-          <span class="lg-item"><i class="dot income-dot"></i>收入</span>
-          <span class="lg-item"><i class="dot expense-dot"></i>支出</span>
-          <span class="lg-item"><i class="dot profit-dot"></i>盈亏</span>
-        </div>
-      </div>
-    </div>
+    <!-- 月度趋势（已移到底部与支出饼图并排） -->
 
     <!-- ⭐ LR 汇总（2026-11-15 从「LR 表管理」页迁过来）
          左：进销存（本范围内）／右：累计 KPI + 按成色（上单 / 本单 / 累计） -->
@@ -185,20 +131,61 @@
       <div class="lr-wrap-h">
         <span class="t">LR 汇总</span>
         <span class="s">
-          来自 LR 表（订单制作审核通过时生成）与进销存单据 ·
-          「本单」= {{ rangeLabel }} · 「累计」为全公司历史，不受范围影响
+          数据源：LR 表（账单最终确认时生成）+ 进销存单据 ·
+          「本单」= {{ rangeLabel }} · 「累计」= 全公司历史，不受范围影响
         </span>
       </div>
-      <LrSummaryPanels :sheet="lrSheet" :range-label="rangeLabel" />
+      <LrSummaryPanels :sheet="lrSheet" :range-label="rangeLabel" :day-book="dayBook" />
+    </div>
+
+    <!-- ⭐ 页面最底部一排：左 支出分类饼图（紧凑，不再用表格占地方）／右 近12个月经营趋势 -->
+    <div class="bottom-row">
+      <div class="panel chart-panel">
+        <div class="panel-title">
+          支出分类
+          <span class="panel-sub" v-if="expensePieTotal > 0">合计 ¥{{ fmtMoney(expensePieTotal) }}</span>
+        </div>
+        <div class="pie-box" v-loading="loading">
+          <div ref="pieRef" class="pie-canvas"></div>
+          <div v-if="!expensePieTotal && !loading" class="pie-empty">本期没有支出</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">
+          近12个月经营趋势
+          <span class="panel-sub">柱：收入 / 支出 · 柱下数字：当月盈亏</span>
+        </div>
+        <div class="trend-chart" v-loading="loading">
+          <div class="trend-bars">
+            <div class="trend-bar-group" v-for="t in data.trend" :key="t.month">
+              <div class="bar-stack">
+                <div class="bar income-bar" :style="{ height: barHeight(t.income) }" :title="incomeTip(t)"></div>
+                <div class="bar expense-bar" :style="{ height: barHeight(t.expense) }" :title="expenseTip(t)"></div>
+              </div>
+              <div class="bar-label">{{ shortMonth(t.month) }}</div>
+              <div class="bar-profit" :class="t.profit >= 0 ? 'income' : 'expense'">
+                <template v-if="Math.abs(Number(t.profit || 0)) >= 1">{{ t.profit >= 0 ? '+' : '' }}{{ fmtMoneyShort(t.profit) }}</template>
+              </div>
+            </div>
+          </div>
+          <div class="trend-legend">
+            <span class="lg-item"><i class="dot income-dot"></i>收入</span>
+            <span class="lg-item"><i class="dot expense-dot"></i>支出</span>
+            <span class="lg-item"><i class="dot profit-dot"></i>盈亏</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
+import * as echarts from 'echarts';
 import { getOperatingDashboardSummary } from '@/api/operating-dashboard';
 import { getLrSheet } from '@/api/lr';
 import LrSummaryPanels from '@/components/LrSummaryPanels.vue';
@@ -207,11 +194,13 @@ const route = useRoute();
 const router = useRouter();
 
 const month = ref(route.query.month || new Date().toISOString().slice(0, 7));
-const rangeType = ref(route.query.rangeType === 'all' ? 'all' : 'month');
+const rangeType = ref(['today', 'all'].includes(route.query.rangeType) ? route.query.rangeType : 'month');
 const loading = ref(false);
 // LR 汇总（进销存 + 累计 / 按成色）
 const lrSheet = ref(null);
 const lrLoading = ref(false);
+// ⭐ 2026-11-20 日结：上单（本月1号~昨天）/ 本单（今天）/ 累计（本月至今）
+const dayBook = ref(null);
 
 const data = reactive({
   income: 0,
@@ -224,42 +213,94 @@ const data = reactive({
   trend: []
 });
 
-const rangeLabel = computed(() => rangeType.value === 'all' ? '全部' : (month.value || ''));
+const rangeLabel = computed(() => {
+  if (rangeType.value === 'all') return '全部';
+  if (rangeType.value === 'today') return '今天';
+  return month.value || '';
+});
 
 const expenseRatio = computed(() => {
   if (!data.income) return '—';
   return (data.expense / data.income).toFixed(2) + ' 倍';
 });
 
-// 收入分项占比：账单 / 金 / 钻 / 费用（最大余数法，保证合计 100%）
-const incomeShare = computed(() => {
-  const total = Number(data.income || 0);
-  const items = [
-    { label: '账单收入', value: Number(data.incomeDetail?.billAmount || 0), color: '#409eff' },
-    { label: '金出库', value: Number(data.incomeDetail?.goldOut || 0), color: '#e6a23c' },
-    { label: '钻石出库', value: Number(data.incomeDetail?.diamondOut || 0), color: '#7a5af8' },
-    { label: '费用收入', value: Number(data.incomeDetail?.feeIn || 0), color: '#67c23a' }
-  ];
-  if (!total) return items.map(it => ({ ...it, pct: 0 }));
+// ⭐ 支出分类饼图（2026-11-20）：原来是一张「费用支出分类明细」表格，占地方
+//    口径 = 金入库 + 钻石入库 + 各费用类别，合计与顶部「总支出」一致
+const PIE_COLORS = ['#c9a227', '#7a5af8', '#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#36cfc9', '#909399'];
+const pieRef = ref(null);
+let pieChart = null;
 
-  const raw = items.map(it => (it.value / total) * 100);
-  const floor = raw.map(v => Math.floor(v));
-  let rest = 100 - floor.reduce((a, b) => a + b, 0);
-  // 余数大的先补
-  raw.map((v, i) => ({ i, r: v - Math.floor(v) }))
-     .sort((a, b) => b.r - a.r)
-     .forEach(o => { if (rest > 0) { floor[o.i] += 1; rest -= 1; } });
+const expensePieData = computed(() => {
+  const list = [];
+  const goldIn = Number(data.expenseDetail?.goldIn || 0);
+  const diaIn = Number(data.expenseDetail?.diamondIn || 0);
+  if (goldIn > 0) list.push({ name: '金入库', value: goldIn });
+  if (diaIn > 0) list.push({ name: '钻石入库', value: diaIn });
 
-  // 有金额但不足 1% 的项显示 1%，从占比最大的项匀回来，保证合计仍为 100%
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].value > 0 && floor[i] === 0) {
-      const maxIdx = floor.indexOf(Math.max(...floor));
-      if (maxIdx !== i && floor[maxIdx] > 1) { floor[maxIdx] -= 1; floor[i] = 1; }
-    }
+  const cats = (data.expenseByCategory || [])
+    .map(c => ({ name: (c.category || '未分类').trim(), value: Number(c.amount || 0) }))
+    .filter(c => c.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  // 费用类别过多时，尾部合并成「其他费用」，避免饼图碎片化
+  if (cats.length > 6) {
+    const tail = cats.slice(5);
+    list.push(...cats.slice(0, 5));
+    list.push({ name: `其他费用（${tail.length} 类）`, value: tail.reduce((s, x) => s + x.value, 0) });
+  } else {
+    list.push(...cats);
   }
-
-  return items.map((it, i) => ({ ...it, pct: floor[i] }));
+  return list;
 });
+const expensePieTotal = computed(() => expensePieData.value.reduce((s, x) => s + x.value, 0));
+
+const renderPie = () => {
+  if (!pieRef.value) return;
+  const items = expensePieData.value;
+  if (!items.length) {
+    if (pieChart) { pieChart.clear(); }
+    return;
+  }
+  if (!pieChart) pieChart = echarts.init(pieRef.value);
+  pieChart.setOption({
+    color: PIE_COLORS,
+    tooltip: {
+      trigger: 'item',
+      formatter: (p) => `${p.name}<br/>¥${fmtMoney(p.value)}　${p.percent}%`
+    },
+    legend: {
+      // 图例竖排在右，带金额，一眼看清每类多少钱
+      type: 'scroll',
+      orient: 'vertical',
+      right: 4,
+      top: 'middle',
+      itemWidth: 9,
+      itemHeight: 9,
+      itemGap: 8,
+      textStyle: { fontSize: 11, color: '#606266' },
+      formatter: (name) => {
+        const it = items.find(x => x.name === name);
+        if (!it) return name;
+        const p = expensePieTotal.value > 0 ? (it.value / expensePieTotal.value) * 100 : 0;
+        return `${name} ${p >= 10 ? p.toFixed(0) : p.toFixed(1)}%`;
+      }
+    },
+    series: [{
+      type: 'pie',
+      radius: ['44%', '76%'],
+      center: ['30%', '50%'],
+      avoidLabelOverlap: true,
+      itemStyle: { borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      labelLine: { show: false },
+      emphasis: { scale: true, scaleSize: 4, label: { show: false } },
+      data: items
+    }]
+  }, true);
+  pieChart.resize();
+};
+
+const onPieResize = () => pieChart && pieChart.resize();
 
 const fmtMoney = (v) => {
   const n = Number(v || 0);
@@ -271,13 +312,6 @@ const fmtMoneyShort = (v) => {
   const a = Math.abs(n);
   if (a >= 10000) return (n / 10000).toFixed(1) + 'w';
   return n.toFixed(0);
-};
-
-const pct = (val, total) => {
-  const t = Number(total || 0);
-  const v = Number(val || 0);
-  if (!t) return 0;
-  return Math.round((v / t) * 100);
 };
 
 const shortMonth = (m) => {
@@ -302,10 +336,11 @@ const barHeight = (v) => {
 const loadData = async () => {
   loading.value = true;
   try {
-    const ym = rangeType.value === 'all' ? 'all' : month.value;
+    const ym = rangeType.value === 'all' ? 'all' : (rangeType.value === 'today' ? 'today' : month.value);
     const res = await getOperatingDashboardSummary(ym);
     // 响应拦截器已解包一层（return response.data），故业务数据在 res.data
     const d = res?.data || {};
+    dayBook.value = res?.dayBook || null;
     data.income = d.income || 0;
     data.expense = d.expense || 0;
     data.profit = d.profit || 0;
@@ -319,6 +354,9 @@ const loadData = async () => {
   } finally {
     loading.value = false;
   }
+  // ⭐ 底部饼图依赖 data.expenseByCategory / expenseDetail，等 DOM 更新后再画
+  await nextTick();
+  renderPie();
   loadLrSummary();
 };
 
@@ -338,6 +376,12 @@ const loadLrSummary = async () => {
     let params = { summaryOnly: 1 };
     if (rangeType.value === 'all') {
       params.dateType = 'all';
+    } else if (rangeType.value === 'today') {
+      // 「今天」= 当天单日，按成色的「本单」就只统计今天
+      const now = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      const d = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      params = { ...params, dateType: 'custom', startDate: d, endDate: d };
     } else {
       const r = monthRange(month.value);
       if (!r) { lrSheet.value = null; return; }
@@ -369,7 +413,14 @@ const onRangeChange = () => {
   loadData();
 };
 
-onMounted(loadData);
+onMounted(() => {
+  loadData();
+  window.addEventListener('resize', onPieResize);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onPieResize);
+  if (pieChart) { pieChart.dispose(); pieChart = null; }
+});
 </script>
 
 <style scoped>
@@ -479,26 +530,41 @@ onMounted(loadData);
 .bd-item.total-row .bd-label { color: #303133; }
 .bd-item.net-row { margin-top: 2px; border-top: 1px solid #eef1f6; }
 
-/* 收入分项占比 */
-.share-bars { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 28px; }
-.share-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; }
-.share-label { color: #606266; }
-.share-val { font-weight: 600; color: #303133; }
-.share-val em { font-style: normal; font-weight: 400; color: #909399; margin-left: 4px; }
+/* ⭐ 底部一排：左 支出饼图（固定窄栏，不占地方）／右 12 个月趋势 */
+.bottom-row {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.72fr) 1.28fr;
+  gap: 16px;
+  background: #fff;
+  padding: 16px 24px 20px;
+  border-top: 1px solid #eef1f6;
+}
+.bottom-row .panel { border: 1px solid #eef1f6; border-radius: 10px; padding: 14px 18px; }
+.panel-title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.panel-sub { font-size: 11px; font-weight: 400; color: #909399; }
+
+/* 支出分类饼图 */
+.pie-box { position: relative; height: 190px; }
+.pie-canvas { width: 100%; height: 100%; }
+.pie-empty {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: #c0c4cc;
+}
 
 /* 趋势图 */
-.trend-chart { padding: 10px 0; }
+.trend-chart { padding: 4px 0 0; }
 .trend-bars {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
-  height: 200px;
-  padding: 10px 8px 0;
+  gap: 10px;
+  height: 158px;
+  padding: 6px 4px 0;
   overflow-x: auto;
 }
 .trend-bar-group {
   flex: 1;
-  min-width: 48px;
+  min-width: 44px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -509,20 +575,20 @@ onMounted(loadData);
   display: flex;
   align-items: flex-end;
   gap: 3px;
-  height: 140px;
+  height: 104px;
 }
-.bar { width: 16px; border-radius: 4px 4px 0 0; transition: height 0.3s; }
+.bar { width: 14px; border-radius: 4px 4px 0 0; transition: height 0.3s; }
 .income-bar { background: #409eff; }
 .expense-bar { background: #f56c6c; }
 .bar-label { font-size: 11px; color: #909399; margin-top: 6px; }
-.bar-profit { font-size: 11px; margin-top: 2px; }
+.bar-profit { font-size: 10px; line-height: 14px; min-height: 14px; margin-top: 2px; white-space: nowrap; }
 .bar-profit.income { color: #67c23a; }
 .bar-profit.expense { color: #f56c6c; }
 
 .trend-legend {
   display: flex;
   gap: 20px;
-  padding: 10px 8px;
+  padding: 6px 4px 0;
   font-size: 12px;
   color: #606266;
 }
@@ -532,6 +598,10 @@ onMounted(loadData);
 .expense-dot { background: #f56c6c; }
 .profit-dot { background: #67c23a; }
 
+@media (max-width: 1100px) {
+  .bottom-row { grid-template-columns: 1fr; }
+  .pie-box { height: 210px; }
+}
 @media (max-width: 768px) {
   .core-cards { grid-template-columns: 1fr; }
   .detail-row { grid-template-columns: 1fr; }

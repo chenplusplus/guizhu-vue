@@ -91,7 +91,7 @@
     <!-- ===== 范围条 ===== -->
     <div class="hint-bar">
       <el-icon><InfoFilled /></el-icon>
-      <span>LR 表由订单制作审核通过时自动生成，内容只读；明细按「销售行 + 成本行」成组，每组末尾红线分隔。</span>
+      <span>LR 表在<b>账单最终确认</b>后自动生成（一张账单一份），内容只读；明细按「销售行 + 成本行」成组，每组末尾红线分隔。</span>
       <span class="hint-count">
         范围 <b>{{ rangeText }}</b>　｜　共 <b>{{ lrCount }}</b> 份 LR、<b>{{ groupCount }}</b> 组
       </span>
@@ -204,7 +204,7 @@
 
     <el-empty
       v-else
-      :description="search.dateType === 'today' ? '今天还没有 LR 表（订单制作审核通过后自动生成）' : '该范围内没有 LR 表'"
+      :description="search.dateType === 'today' ? '今天还没有 LR 表（账单最终确认后自动生成）' : '该范围内没有 LR 表'"
     />
 
 

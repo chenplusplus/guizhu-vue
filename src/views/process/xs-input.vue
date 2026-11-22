@@ -43,23 +43,9 @@
               </el-form-item>
             </el-col>
             <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="工序子类型">
-                <el-select v-model="form.processDictId" placeholder="正常镶石" style="width:100%;">
-                  <el-option v-for="p in subProcesses" :key="p.id" :label="p.itemLabel" :value="p.id" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="材质" prop="materialId">
                 <el-select v-model="form.materialId" placeholder="请选择" style="width:100%;">
                   <el-option v-for="m in options.materials" :key="m.id" :label="m.itemLabel" :value="m.id" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="师傅名称">
-                <el-select v-model="form.masterName" filterable allow-create default-first-option placeholder="选择或输入师傅" style="width:100%;" @change="loadMasterTotal">
-                  <el-option v-for="m in options.masters" :key="m.id" :label="m.itemLabel" :value="m.itemValue" />
                 </el-select>
               </el-form-item>
             </el-col>
@@ -72,6 +58,45 @@
               <el-form-item label="内容"><el-input v-model="form.content" placeholder="请输入内容" /></el-form-item>
             </el-col>
           </el-row>
+        </div>
+
+        <!-- 镶石类型：手镶 / 微镶（决定填哪套钻石数据、损耗扣哪个卡重） -->
+        <div class="form-section">
+          <div class="section-title">💎 镶石类型</div>
+          <div class="process-cards">
+            <div
+              v-for="t in inlayTypes" :key="t.value"
+              class="process-card" :class="[t.theme, { active: form.extraFields.inlayType === t.value }]"
+              @click="pickInlayType(t.value)">
+              <div class="pc-bg"></div>
+              <div class="pc-icon">{{ t.icon }}</div>
+              <div class="pc-body">
+                <div class="pc-label">{{ t.label }}</div>
+                <div class="pc-desc">{{ t.desc }}</div>
+              </div>
+              <div class="pc-check" v-if="form.extraFields.inlayType === t.value">✓</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 师傅：单独一行，大号醒目（与执模录入页一致） -->
+        <div class="form-section master-picker-section">
+          <div class="mp-icon">👤</div>
+          <div class="mp-main">
+            <div class="mp-label">镶石师傅</div>
+            <el-select
+              v-model="form.masterName" filterable allow-create default-first-option clearable
+              placeholder="请选择或输入师傅姓名" class="mp-select" @change="loadMasterTotal">
+              <el-option v-for="m in options.masters" :key="m.id" :label="m.itemLabel" :value="m.itemValue" />
+            </el-select>
+          </div>
+          <div class="mp-side" v-if="form.masterName">
+            <template v-if="masterTotal.recordCount > 0">
+              <div class="mp-side-num">{{ masterTotal.recordCount }}</div>
+              <div class="mp-side-txt">已生效单数</div>
+            </template>
+            <div class="mp-side-empty" v-else>暂无历史单</div>
+          </div>
         </div>
 
         <!-- 收发数据 -->
@@ -95,16 +120,38 @@
         <div class="form-section calc-section">
           <div class="section-title">📐 自动计算</div>
           <el-row :gutter="20">
-            <el-col :xs="24" :sm="8">
+            <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="实损耗 (g)"><el-input :model-value="form.actualLossG.toFixed(3)" readonly class="calc-input" /></el-form-item>
             </el-col>
-            <el-col :xs="24" :sm="8">
+            <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="标准损耗 (g)"><el-input :model-value="form.standardLossG.toFixed(3)" readonly class="calc-input" /></el-form-item>
             </el-col>
-            <el-col :xs="24" :sm="8">
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="标准损耗率 (%)">
+                <el-input-number
+                  v-model="form.lossRatePct" :min="0" :max="100" :precision="2" :step="0.5" :controls="false"
+                  style="width:100%;" @change="calcAuto" />
+              </el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="8">
               <el-form-item label="应回金 (g)"><el-input :model-value="form.shouldRecycleG.toFixed(3)" readonly class="calc-input" /></el-form-item>
             </el-col>
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="实际回金 (g)">
+                <el-input-number v-model="form.actualRecycleG" :min="0" :precision="3" :controls="false" style="width:100%;" />
+              </el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="未回金 (g)">
+                <el-input :model-value="unreturnedG.toFixed(3)" readonly
+                  class="calc-input" :class="{ 'unreturned-warn': unreturnedG > 0 }" />
+              </el-form-item>
+            </el-col>
           </el-row>
+          <div class="rate-hint">
+            标准损耗 = <b>（发出 − 回收 − 钻石克重）× 损耗率</b>（默认 2% = 0.02，可手填），钻石克重 = 卡重 × 0.2（本单 {{ diamondGram.toFixed(3) }} g）；
+            实损耗 = 发出 − 回收；应回金 = 实损耗 − 标准损耗；<b>未回金 = 应回金 − 实际回金</b>
+          </div>
         </div>
 
         <!-- 师傅累计（上单累计 → 本单 → 累计） -->
@@ -139,45 +186,54 @@
           <div class="master-hint">
             <b>上单累计</b>：该师傅截至业务日期、已生效的镶石单合计（不含正在录入的这一单）。<br>
             <b>本单</b>：上面填的发货 / 回收重量实时算出的值，改一个数下面三行跟着变。<br>
-            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗；镶石标准损耗固定为 0。
+            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗（标准损耗 =（发出−回收−钻石克重）× 损耗率）；
+            <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
+            老单没录会按全额未给算，累计数会偏大。
           </div>
         </div>
 
-        <!-- 镶石专属：钻石字段 -->
+        <!-- 镶石专属：钻石字段（跟上面选的类型走，另一套数据仍保留、切回去还在） -->
         <div class="form-section">
-          <div class="section-title">💎 镶石专属字段（钻石信息）</div>
+          <div class="section-title">💎 {{ inlayTypeLabel }}钻石信息</div>
           <el-row :gutter="20">
+            <template v-if="form.extraFields.inlayType === 'hand'">
+              <el-col :xs="24" :sm="6">
+                <el-form-item label="手镶钻石重量 (ct)">
+                  <el-input-number v-model="form.extraFields.handCarat" :min="0" :precision="3" :controls="false" style="width:100%;" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="6">
+                <el-form-item label="手镶粒数">
+                  <el-input-number v-model="form.extraFields.handCount" :min="0" :precision="0" :controls="false" style="width:100%;" />
+                </el-form-item>
+              </el-col>
+            </template>
+            <template v-else>
+              <el-col :xs="24" :sm="6">
+                <el-form-item label="微镶钻石重量 (ct)">
+                  <el-input-number v-model="form.extraFields.microCarat" :min="0" :precision="3" :controls="false" style="width:100%;" />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="6">
+                <el-form-item label="微镶粒数">
+                  <el-input-number v-model="form.extraFields.microCount" :min="0" :precision="0" :controls="false" style="width:100%;" />
+                </el-form-item>
+              </el-col>
+            </template>
             <el-col :xs="24" :sm="6">
-              <el-form-item label="微镶钻石重量 (ct)">
-                <el-input-number v-model="form.extraFields.microCarat" :min="0" :precision="3" :controls="false" style="width:100%;" />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="6">
-              <el-form-item label="微镶粒数">
-                <el-input-number v-model="form.extraFields.microCount" :min="0" :precision="0" :controls="false" style="width:100%;" />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="6">
-              <el-form-item label="手镶钻石重量 (ct)">
-                <el-input-number v-model="form.extraFields.handCarat" :min="0" :precision="3" :controls="false" style="width:100%;" />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="6">
-              <el-form-item label="手镶粒数">
-                <el-input-number v-model="form.extraFields.handCount" :min="0" :precision="0" :controls="false" style="width:100%;" />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="8">
               <el-form-item label="报废重量 (g)">
                 <el-input-number v-model="form.extraFields.scrapG" :min="0" :precision="2" :controls="false" style="width:100%;" />
               </el-form-item>
             </el-col>
-            <el-col :xs="24" :sm="8">
+            <el-col :xs="24" :sm="6">
               <el-form-item label="加工费 (元)">
                 <el-input-number v-model="form.laborFee" :min="0" :precision="2" :controls="false" style="width:100%;" />
               </el-form-item>
             </el-col>
           </el-row>
+          <div class="stone-hint">
+            标准损耗按<b>当前类型</b>的卡重扣钻石克重（卡重 × 0.2）；切类型不会清空另一套数据，切回去还在。
+          </div>
         </div>
 
         <!-- 备注 -->
@@ -224,6 +280,16 @@ const subProcesses = [{ id: 0, itemKey: '正常镶石', itemValue: '正常镶石
 const round3 = (v) => Math.round(Number(v || 0) * 1000) / 1000;
 const fmt3 = (v) => round3(v).toFixed(3);
 
+// ⭐ 镶石类型：手镶 / 微镶（决定填哪套钻石数据、损耗扣哪个卡重）
+const inlayTypes = [
+  { value: 'micro', label: '微镶', icon: '💠', desc: '小钻密集镶，按微镶卡重扣钻石克重', theme: 'cool' },
+  { value: 'hand', label: '手镶', icon: '💎', desc: '手工镶主石，按手镶卡重扣钻石克重', theme: 'warm' }
+];
+const pickInlayType = (v) => {
+  form.extraFields.inlayType = v;
+  calcAuto();
+};
+
 const form = reactive({
   receiptNo: '',
   businessDate: todayStr(),
@@ -233,8 +299,10 @@ const form = reactive({
   recycleWeightG: 0,
   actualLossG: 0,
   standardLossG: 0,
+  lossRatePct: 2,                  // 标准损耗率（%，默认 2 = 0.02，可手填）
   shouldRecycleG: 0,
-  extraFields: { microCarat: 0, microCount: 0, handCarat: 0, handCount: 0, scrapG: 0 },
+  actualRecycleG: 0,
+  extraFields: { microCarat: 0, microCount: 0, handCarat: 0, handCount: 0, scrapG: 0, inlayType: 'micro' },
   masterName: '',
   productName: '',
   content: '',
@@ -249,28 +317,46 @@ const rules = {
   recycleWeightG: [{ required: true, message: '请输入回收重量' }],
 };
 
+// ⭐ 钻石克重：按当前镶石类型取卡重 × 0.2（1ct = 0.2g）
+const diamondGram = computed(() => {
+  const ef = form.extraFields || {};
+  const carat = ef.inlayType === 'hand' ? Number(ef.handCarat || 0) : Number(ef.microCarat || 0);
+  return round3(Math.max(0, carat) * 0.2);
+});
+
+const inlayTypeLabel = computed(() => (form.extraFields?.inlayType === 'hand' ? '手镶' : '微镶'));
+
+// 未回金 = 应回金 − 实际回金（正数=师傅还欠，负数=多交了）
+const unreturnedG = computed(() => round3((form.shouldRecycleG || 0) - (form.actualRecycleG || 0)));
+
 const calcAuto = () => {
   const send = form.sendWeightG || 0;
   const recycle = form.recycleWeightG || 0;
-  // ⚠️ 与后端 CreateAsync 一致：实损耗 = 发货 − 回收，标准损耗镶石固定 0
+  const ratePct = Number(form.lossRatePct) || 0;
   form.actualLossG = round3(send - recycle);
-  form.standardLossG = 0;
+  // ⭐ 镶石标准损耗 =（发出 − 回收 − 钻石克重）× 损耗率（默认 2%），与后端 ProcessService 口径一致
+  const base = send - recycle - diamondGram.value;
+  form.standardLossG = round3(Math.max(0, base) * ratePct / 100);
   form.shouldRecycleG = round3(form.actualLossG - form.standardLossG);
 };
 
-// 重量一变就重算，上方自动计算和下方本单/累计同时动
-watch(() => [form.sendWeightG, form.recycleWeightG], () => {
+// 重量、钻石卡重或损耗率一变就重算，上方自动计算和下方本单/累计同时动
+watch(() => [
+  form.sendWeightG, form.recycleWeightG,
+  form.extraFields?.inlayType, form.extraFields?.microCarat, form.extraFields?.handCarat,
+  form.lossRatePct
+], () => {
   if (!lockCalc) calcAuto();
 });
 
 // ===== 师傅累计（上单累计 / 本单 / 累计）=====
 const masterTotal = reactive({
-  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0
+  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0
 });
 
 const loadMasterTotal = async () => {
   if (!form.masterName) {
-    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0 });
+    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
     return;
   }
   try {
@@ -304,17 +390,24 @@ const loadDetail = async () => {
     form.actualLossG = Number(d.actualLossG) || 0;
     form.standardLossG = Number(d.standardLossG) || 0;
     form.shouldRecycleG = Number(d.shouldRecycleG) || 0;
+    form.actualRecycleG = Number(d.actualRecycleG) || 0;
     form.masterName = d.masterName || '';
     form.productName = d.productName || '';
     form.content = d.content || '';
     form.laborFee = Number(d.laborFee) || 0;
     form.remark = d.remark || '';
+    const ef = d.extraFields || {};
+    // ⭐ 损耗率：老单没存过就回默认 2%（= 0.02）
+    const savedRate = ef.lossRatePct;
+    form.lossRatePct = savedRate != null && savedRate !== '' && Number.isFinite(Number(savedRate)) ? Number(savedRate) : 2;
     form.extraFields = {
-      microCarat: Number(d.extraFields?.microCarat) || 0,
-      microCount: Number(d.extraFields?.microCount) || 0,
-      handCarat: Number(d.extraFields?.handCarat) || 0,
-      handCount: Number(d.extraFields?.handCount) || 0,
-      scrapG: Number(d.extraFields?.scrapG) || 0
+      microCarat: Number(ef.microCarat) || 0,
+      microCount: Number(ef.microCount) || 0,
+      handCarat: Number(ef.handCarat) || 0,
+      handCount: Number(ef.handCount) || 0,
+      scrapG: Number(ef.scrapG) || 0,
+      // 老单没存类型：手镶有数、微镶没数就当手镶，其余按微镶
+      inlayType: ef.inlayType || ((Number(ef.handCarat) || 0) > 0 && !(Number(ef.microCarat) || 0) ? 'hand' : 'micro')
     };
     // 镶石子工序固定「正常镶石」(id=0)；材质按名称兜底匹配
     form.processDictId = d.processDictId || subProcesses[0].id;
@@ -340,7 +433,9 @@ const masterRows = computed(() => {
     recycleWeightG: form.recycleWeightG || 0,
     actualLossG: form.actualLossG || 0,
     standardLossG: form.standardLossG || 0,
-    shouldRecycleG: form.shouldRecycleG || 0
+    shouldRecycleG: form.shouldRecycleG || 0,
+    actualRecycleG: form.actualRecycleG || 0,
+    unreturnedG: unreturnedG.value
   };
   const mk = (label, sub, key, cls) => ({
     label, sub, key,
@@ -353,8 +448,10 @@ const masterRows = computed(() => {
     mk('发货重量', '发出给师傅', 'sendWeightG'),
     mk('回收重量', '师傅交回', 'recycleWeightG'),
     mk('实损耗', '发货 − 回收', 'actualLossG', 'loss-cls'),
-    mk('标准损耗', '镶石固定为 0', 'standardLossG'),
-    mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls')
+    mk('标准损耗', `（发出−回收−石重）× ${Number(form.lossRatePct) || 0}%`, 'standardLossG'),
+    mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls'),
+    mk('实际回金', '师傅已经交回', 'actualRecycleG', 'recycle-cls'),
+    mk('未回金', '应回金 − 实际回金', 'unreturnedG', 'unreturned-cls')
   ];
 });
 
@@ -372,6 +469,8 @@ const handleSave = async () => {
         businessDate: form.businessDate,
         sendWeightG: form.sendWeightG,
         recycleWeightG: form.recycleWeightG,
+        actualRecycleG: form.actualRecycleG || 0,
+        lossRatePct: Number(form.lossRatePct) || 0,
         extraFields: form.extraFields,
         masterName: form.masterName,
         productName: form.productName,
@@ -385,7 +484,8 @@ const handleSave = async () => {
         router.push('/process/xs-list');
       } else {
         const res = await createProcessReceipt(payload);
-        form.receiptNo = res.data?.receiptNo || '';
+        // 接口把 receiptNo 放在最外层（res.data 里没有），两个都兜一下
+        form.receiptNo = res?.receiptNo || res?.data?.receiptNo || '';
         ElMessage.success('保存成功，单据号：' + form.receiptNo);
         await loadMasterTotal();
       }
@@ -408,14 +508,16 @@ const handleReset = async () => {
   form.recycleWeightG = 0;
   form.actualLossG = 0;
   form.standardLossG = 0;
+  form.lossRatePct = 2;
   form.shouldRecycleG = 0;
-  form.extraFields = { microCarat: 0, microCount: 0, handCarat: 0, handCount: 0, scrapG: 0 };
+  form.actualRecycleG = 0;
+  form.extraFields = { microCarat: 0, microCount: 0, handCarat: 0, handCount: 0, scrapG: 0, inlayType: 'micro' };
   form.masterName = '';
   form.productName = '';
   form.content = '';
   form.laborFee = 0;
   form.remark = '';
-  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0 });
+  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
 };
 
 const loadOptions = async () => {
@@ -469,4 +571,82 @@ onMounted(async () => {
 .u { font-size: 11px; color: #a8abb2; margin-left: 2px; }
 .master-hint { font-size: 12px; color: #909399; line-height: 1.9; margin-top: 10px; padding: 8px 12px; background: #fff; border-radius: 6px; }
 .master-hint b { color: #606266; }
+
+/* ⭐ 未回金：正数=师傅还欠（橙红），负数/0 不醒目 */
+.total-val.unreturned-cls { color: #d4380d; }
+.unreturned-warn :deep(.el-input__wrapper) { background: #fff2e8; }
+.unreturned-warn :deep(.el-input__inner) { color: #d4380d; font-weight: 700; }
+
+/* ===== 师傅：单独一行，大号醒目（与执模录入页一模一样）===== */
+.master-picker-section {
+  display: flex; align-items: center; gap: 18px;
+  background: linear-gradient(120deg, #fffaf0 0%, #fff4dc 55%, #fdf0d0 100%);
+  border: 2px solid #f3d9a4; border-radius: 14px; padding: 16px 22px;
+  box-shadow: 0 4px 16px rgba(202, 138, 4, .10);
+}
+.mp-icon { font-size: 34px; line-height: 1; }
+.mp-main { flex: 1; min-width: 0; }
+.mp-label { font-size: 16px; font-weight: 800; color: #a16207; letter-spacing: 2px; margin-bottom: 8px; }
+.mp-select { width: 100%; }
+.mp-select :deep(.el-select__wrapper) {
+  min-height: 56px; padding: 2px 16px; border-radius: 10px;
+  background: #fff; border: 2px solid #eab308;
+  box-shadow: 0 2px 10px rgba(234, 179, 8, .18);
+}
+.mp-select :deep(.el-select__wrapper.is-focused) { border-color: #ca8a04; box-shadow: 0 0 0 3px rgba(234, 179, 8, .22); }
+.mp-select :deep(.el-select__placeholder) { font-size: 22px; font-weight: 800; color: #b45309 !important; letter-spacing: 1px; }
+.mp-select :deep(.el-select__placeholder.is-transparent) { font-size: 17px; font-weight: 500; color: #c8a44e !important; letter-spacing: 0; }
+.mp-select :deep(.el-select__selected-item) { color: #b45309; }
+.mp-side { text-align: center; padding-left: 18px; border-left: 1px dashed #e7c886; min-width: 96px; }
+.mp-side-num { font-size: 28px; font-weight: 800; color: #b45309; line-height: 1.1; }
+.mp-side-txt { font-size: 12px; color: #a16207; margin-top: 2px; }
+.mp-side-empty { font-size: 12px; color: #c9a227; line-height: 1.5; }
+
+/* ===== 镶石类型卡片：手镶 / 微镶 ===== */
+.process-cards { display: flex; gap: 16px; flex-wrap: wrap; width: 100%; }
+.process-card {
+  position: relative; overflow: hidden; flex: 1 1 280px; max-width: 400px; min-height: 100px;
+  display: flex; align-items: center; gap: 16px; padding: 18px 24px;
+  border-radius: 14px; border: 2px solid transparent; cursor: pointer;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.process-card:hover { transform: translateY(-2px); }
+.process-card .pc-bg { position: absolute; inset: 0; pointer-events: none; opacity: .6; }
+.process-card.warm { border-color: #f6c7a1; background: linear-gradient(135deg, #fff7ef, #ffe7d2); }
+.process-card.warm .pc-bg {
+  background-image: repeating-linear-gradient(135deg, rgba(240, 138, 59, .10) 0 12px, transparent 12px 24px);
+}
+.process-card.warm.active {
+  border-color: #f08a3b; background: linear-gradient(135deg, #ffefdf, #ffd7b4);
+  box-shadow: 0 8px 20px rgba(240, 138, 59, .28);
+}
+.process-card.cool { border-color: #b6dcf6; background: linear-gradient(135deg, #f2f9ff, #dceeff); }
+.process-card.cool .pc-bg {
+  background-image: radial-gradient(rgba(56, 140, 220, .16) 1.4px, transparent 1.4px);
+  background-size: 12px 12px;
+}
+.process-card.cool.active {
+  border-color: #2f8fdc; background: linear-gradient(135deg, #e8f4ff, #c6e4ff);
+  box-shadow: 0 8px 20px rgba(47, 143, 220, .26);
+}
+.pc-icon { position: relative; z-index: 1; font-size: 30px; line-height: 1; }
+.pc-body { position: relative; z-index: 1; flex: 1; }
+.pc-label { font-size: 20px; font-weight: 800; letter-spacing: 1px; }
+.warm .pc-label { color: #c2410c; }
+.cool .pc-label { color: #0b6bbd; }
+.pc-desc { font-size: 12px; margin-top: 5px; color: #a1745a; }
+.cool .pc-desc { color: #5b7d99; }
+.pc-check {
+  position: absolute; z-index: 2; top: 10px; right: 12px;
+  width: 22px; height: 22px; border-radius: 50%; color: #fff;
+  display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700;
+}
+.warm.active .pc-check { background: #f08a3b; }
+.cool.active .pc-check { background: #2f8fdc; }
+
+/* 公式说明 / 钻石字段提示 */
+.rate-hint { font-size: 12px; color: #909399; margin-top: 4px; line-height: 1.8; }
+.rate-hint b { color: #606266; }
+.stone-hint { font-size: 12px; color: #909399; margin-top: 4px; line-height: 1.8; }
+.stone-hint b { color: #606266; }
 </style>

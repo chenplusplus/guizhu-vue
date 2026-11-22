@@ -51,20 +51,6 @@
               </el-form-item>
             </el-col>
           </el-row>
-          <el-row :gutter="20">
-            <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="产品名称"><el-input v-model="form.productName" placeholder="请输入产品名称" /></el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="12" :md="8">
-              <el-form-item label="内容">
-                <el-select
-                  v-model="form.content" placeholder="请选择内容" clearable filterable
-                  allow-create default-first-option style="width:100%;" class="content-select">
-                  <el-option v-for="c in contentOptions" :key="c.itemValue" :label="c.itemLabel" :value="c.itemValue" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
         </div>
 
         <!-- 师傅：单独一行，大号醒目 -->
@@ -111,7 +97,24 @@
           </el-form-item>
         </div>
 
-        <!-- 第二行：核心数据（发出 / 回收 两张不同底色的卡） -->
+        <!-- 成品信息：跟在有耗/无耗下面（类型定了才知道内容能选什么） -->
+        <div class="form-section">
+          <div class="section-title">🏷️ 成品信息</div>
+          <el-row :gutter="20">
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="成品名称"><el-input v-model="form.productName" placeholder="请输入成品名称" /></el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="内容">
+                <el-select
+                  v-model="form.content" placeholder="请选择内容" clearable filterable
+                  allow-create default-first-option style="width:100%;" class="content-select">
+                  <el-option v-for="c in contentOptions" :key="c.itemValue" :label="c.itemLabel" :value="c.itemValue" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </div>
         <div class="form-section">
           <div class="section-title">⚖️ 收发数据</div>
           <div class="io-cards">
@@ -146,6 +149,14 @@
               </div>
             </el-form-item>
           </div>
+          <!-- 无耗执模的余料发线：和收发重量放一起 -->
+          <el-row :gutter="20" v-if="currentSubProcess === '无耗执模'" style="margin-top: 16px;">
+            <el-col :xs="24" :sm="12" :md="8">
+              <el-form-item label="余料发线重量 (g)">
+                <el-input-number v-model="form.extraFields.residueWireG" :min="0" :precision="2" :controls="false" style="width:100%;" />
+              </el-form-item>
+            </el-col>
+          </el-row>
         </div>
 
         <!-- 第三行：自动计算 -->
@@ -162,6 +173,14 @@
                 </div>
               </el-form-item>
             </el-col>
+            <el-col :xs="24" :sm="12" :md="6" v-if="isLossySelected">
+              <el-form-item label="余料水口 (g)">
+                <el-input-number v-model="form.extraFields.residueWaterG" :min="0" :precision="2" :controls="false" style="width:100%;" @change="calcAuto" />
+                <div class="water-hint" v-if="Number(form.extraFields.residueWaterG) > 0">
+                  已从损耗基数中扣除
+                </div>
+              </el-form-item>
+            </el-col>
             <el-col :xs="24" :sm="12" :md="6">
               <el-form-item label="实损耗 (g)"><el-input :model-value="form.actualLossG.toFixed(3)" readonly class="calc-input" /></el-form-item>
             </el-col>
@@ -171,9 +190,20 @@
             <el-col :xs="24" :sm="12" :md="6">
               <el-form-item label="应回金 (g)"><el-input :model-value="form.shouldRecycleG.toFixed(3)" readonly class="calc-input" /></el-form-item>
             </el-col>
+            <el-col :xs="24" :sm="12" :md="6">
+              <el-form-item label="实际回金 (g)">
+                <el-input-number v-model="form.actualRecycleG" :min="0" :precision="3" :controls="false" style="width:100%;" />
+              </el-form-item>
+            </el-col>
+            <el-col :xs="24" :sm="12" :md="6">
+              <el-form-item label="未回金 (g)">
+                <el-input :model-value="unreturnedG.toFixed(3)" readonly
+                  class="calc-input" :class="{ 'unreturned-warn': unreturnedG > 0 }" />
+              </el-form-item>
+            </el-col>
           </el-row>
           <div class="rate-hint" v-if="isLossySelected">
-            标准损耗 = <b>回收重量 × 损耗率</b>（默认 2.5%，可手填）；实损耗 = 发出 − 回收
+            标准损耗 = <b>（发出 − 余料水口）× 损耗率</b>（损耗率默认 2.5% = 0.025，可手填）；实损耗 = 发出 − 回收
           </div>
           <div class="rate-hint" v-else-if="form.processDictId">
             无耗执模不扣损耗，实损耗即应回金
@@ -187,7 +217,13 @@
           </el-alert>
         </div>
 
-        <!-- 第三行半：师傅累计（上单累计 → 本单 → 累计） -->
+        <!-- 第三行半：备注（放在师傅累计上面） -->
+        <div class="form-section">
+          <div class="section-title">📝 备注</div>
+          <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" show-word-limit /></el-form-item>
+        </div>
+
+        <!-- 第四行：师傅累计（上单累计 → 本单 → 累计） -->
         <div class="form-section master-section">
           <div class="section-title">
             👤 该师傅累计（截至 {{ form.businessDate || '今天' }}）
@@ -219,37 +255,12 @@
           <div class="master-hint">
             <b>上单累计</b>：该师傅截至业务日期、已生效单据的合计（不含正在录入的这一单）。<br>
             <b>本单</b>：上面填的发货 / 回收重量实时算出的值，改一个数下面三行跟着变。<br>
-            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗；标准损耗 = 回收重量 × 损耗率。
+            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗；标准损耗 =（发出 − 余料水口）× 损耗率。<br>
+            <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
+            老单没录会按全额未给算，累计数会偏大。
           </div>
         </div>
 
-        <!-- 第四行：执模独有字段 -->
-        <div class="form-section" v-if="form.processDictId">
-          <div class="section-title">🔩 执模专属字段</div>
-          <el-row :gutter="20">
-            <!-- 有耗执模：水口（按 95% 折料，仅作回收重量参考，不参与实损耗公式） -->
-            <el-col :xs="24" :sm="8" v-if="currentSubProcess === '有耗执模'">
-              <el-form-item label="余料水口重量 (g)">
-                <el-input-number v-model="form.extraFields.residueWaterG" :min="0" :precision="2" :controls="false" style="width:100%;" />
-                <div class="water-hint" v-if="Number(form.extraFields.residueWaterG) > 0">
-                  按 95% 折料：<b>{{ fmt3(Number(form.extraFields.residueWaterG) * 0.95) }}</b> g（回收重量可照此填）
-                </div>
-              </el-form-item>
-            </el-col>
-            <!-- 无耗执模：发线 -->
-            <el-col :xs="24" :sm="8" v-if="currentSubProcess === '无耗执模'">
-              <el-form-item label="余料发线重量 (g)">
-                <el-input-number v-model="form.extraFields.residueWireG" :min="0" :precision="2" :controls="false" style="width:100%;" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </div>
-
-        <!-- 备注 -->
-        <div class="form-section">
-          <div class="section-title">📝 备注</div>
-          <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" show-word-limit /></el-form-item>
-        </div>
       </el-form>
     </div>
   </div>
@@ -293,7 +304,7 @@ const currentSubProcess = computed(() => {
   return p?.itemValue || '';
 });
 
-// ⭐ 有耗执模才扣损耗；标准损耗率默认 2.5%（可手填）
+// ⭐ 有耗执模才扣损耗；标准损耗率默认 2.5% = 0.025（可手填）
 const DEFAULT_LOSS_RATE_PCT = 2.5;
 const isLossySelected = computed(() => currentSubProcess.value.includes('有耗'));
 
@@ -319,6 +330,7 @@ const form = reactive({
   actualLossG: 0,
   standardLossG: 0,
   shouldRecycleG: 0,
+  actualRecycleG: 0,               // 实际回金（师傅已交回）
   extraFields: { residueWaterG: 0, residueWireG: 0 },
   masterName: '',
   productName: '',
@@ -338,12 +350,17 @@ const calcAuto = () => {
   const send = form.sendWeightG || 0;
   const recycle = form.recycleWeightG || 0;
   const ratePct = isLossySelected.value ? (Number(form.lossRatePct) || 0) : 0;
-  // ⚠️ 与后端 CreateAsync/UpdateAsync 完全一致，否则保存后数字会变
-  //    标准损耗 = 回收重量 × 损耗率；实损耗 = 发出 − 回收；应回金 = 实损耗 − 标准损耗
+  // ⚠️ 与后端 CalcStandardLoss 完全一致，否则保存后数字会变
+  //    执模标准损耗 =（发出 − 余料水口）× 损耗率；实损耗 = 发出 − 回收；应回金 = 实损耗 − 标准损耗
+  const water = isLossySelected.value ? (Number(form.extraFields.residueWaterG) || 0) : 0;
+  const net = Math.max(0, send - water);
   form.actualLossG = round3(send - recycle);
-  form.standardLossG = round3(recycle * ratePct / 100);
+  form.standardLossG = round3(net * ratePct / 100);
   form.shouldRecycleG = round3(form.actualLossG - form.standardLossG);
 };
+
+// 未回金 = 应回金 − 实际回金（正数=师傅还欠，负数=多交了）
+const unreturnedG = computed(() => round3((form.shouldRecycleG || 0) - (form.actualRecycleG || 0)));
 
 // 实损耗超出标准损耗多少（只在有耗时判断；> 0 就是超耗）
 const overLossG = computed(() => {
@@ -359,7 +376,7 @@ const stripBrackets = (s) => String(s || '').replace(/[（(][^）)]*[）)]/g, ''
 const cardTitle = (p) => stripBrackets(p.itemValue || p.itemLabel) || '未命名';
 const cardDesc = (p) => {
   const v = String(p.itemValue || '');
-  if (v.includes('有耗')) return `标准损耗率默认 ${DEFAULT_LOSS_RATE_PCT}%，可手填`;
+  if (v.includes('有耗')) return `标准损耗率默认 ${DEFAULT_LOSS_RATE_PCT}%（= 0.025），可手填`;
   if (v.includes('无耗')) return '不扣损耗，实损耗即应回金';
   return stripBrackets(p.itemLabel);
 };
@@ -382,19 +399,20 @@ const pickSubProcess = (p) => {
   onSubProcessChange();
 };
 
-// 重量/工序一变就重算，上方自动计算和下方本单/累计同时动（不依赖 change 事件）
-watch(() => [form.sendWeightG, form.recycleWeightG, form.processDictId], () => {
+// 重量/工序/水口一变就重算，上方自动计算和下方本单/累计同时动（不依赖 change 事件）
+watch(() => [form.sendWeightG, form.recycleWeightG, form.processDictId, form.extraFields.residueWaterG, form.lossRatePct], () => {
   if (!lockCalc) calcAuto();
 });
 
 // ===== 师傅累计（上单累计 / 本单 / 累计）=====
 const masterTotal = reactive({
-  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0
+  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0,
+  actualRecycleG: 0, unreturnedG: 0
 });
 
 const loadMasterTotal = async () => {
   if (!form.masterName) {
-    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0 });
+    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
     return;
   }
   try {
@@ -428,6 +446,7 @@ const loadDetail = async () => {
     form.actualLossG = Number(d.actualLossG) || 0;
     form.standardLossG = Number(d.standardLossG) || 0;
     form.shouldRecycleG = Number(d.shouldRecycleG) || 0;
+    form.actualRecycleG = Number(d.actualRecycleG) || 0;
     form.masterName = d.masterName || '';
     form.productName = d.productName || '';
     form.content = d.content || '';
@@ -436,14 +455,13 @@ const loadDetail = async () => {
       residueWaterG: Number(d.extraFields?.residueWaterG) || 0,
       residueWireG: Number(d.extraFields?.residueWireG) || 0
     };
-    // ⭐ 标准损耗率：新单据存在 extraFields.lossRatePct；老单据没存，按 标准损耗 ÷ 回收 反算
+    // ⭐ 标准损耗率：新单据存在 extraFields.lossRatePct；
+    //    老单据没存（当年按旧口径算，回算出来的 20% 是错的），直接回到默认值
     const savedRate = Number(d.extraFields?.lossRatePct);
     if (Number.isFinite(savedRate) && savedRate > 0) {
       form.lossRatePct = savedRate;
-    } else if (Number(d.recycleWeightG) > 0 && Number(d.standardLossG) > 0) {
-      form.lossRatePct = Math.round((Number(d.standardLossG) / Number(d.recycleWeightG)) * 10000) / 100;
     } else {
-      form.lossRatePct = 0;
+      form.lossRatePct = String(d.subProcess || '').includes('有耗') ? DEFAULT_LOSS_RATE_PCT : 0;
     }
     // 字典ID后端已按名称反查；查不到再按名称兜底匹配一次
     form.processDictId = d.processDictId || subProcesses.value.find(p => p.itemValue === d.subProcess)?.id || null;
@@ -471,7 +489,9 @@ const masterRows = computed(() => {
     recycleWeightG: form.recycleWeightG || 0,
     actualLossG: form.actualLossG || 0,
     standardLossG: form.standardLossG || 0,
-    shouldRecycleG: form.shouldRecycleG || 0
+    shouldRecycleG: form.shouldRecycleG || 0,
+    actualRecycleG: form.actualRecycleG || 0,
+    unreturnedG: unreturnedG.value
   };
   const mk = (label, sub, key, cls) => ({
     label, sub, key,
@@ -484,8 +504,10 @@ const masterRows = computed(() => {
     mk('发货重量', '发出给师傅', 'sendWeightG'),
     mk('回收重量', '师傅交回', 'recycleWeightG'),
     mk('实损耗', '发货 − 回收', 'actualLossG', 'loss-cls'),
-    mk('标准损耗', '回收 × 损耗率', 'standardLossG'),
-    mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls')
+    mk('标准损耗', '（发出−水口）×损耗率', 'standardLossG'),
+    mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls'),
+    mk('实际回金', '师傅已经交回', 'actualRecycleG', 'recycle-cls'),
+    mk('未回金', '应回金 − 实际回金', 'unreturnedG', 'unreturned-cls')
   ];
 });
 
@@ -514,6 +536,7 @@ const handleSave = async () => {
         sendWeightG: form.sendWeightG,
         recycleWeightG: form.recycleWeightG,
         lossRatePct: isLossySelected.value ? (Number(form.lossRatePct) || 0) : 0,
+        actualRecycleG: form.actualRecycleG || 0,
         extraFields: form.extraFields,
         masterName: form.masterName,
         productName: form.productName,
@@ -526,7 +549,8 @@ const handleSave = async () => {
         router.push('/process/zm-list');
       } else {
         const res = await createProcessReceipt(payload);
-        form.receiptNo = res.data?.receiptNo || '';
+        // 接口把 receiptNo 放在最外层（res.data 里没有），两个都兜一下
+        form.receiptNo = res?.receiptNo || res?.data?.receiptNo || '';
         ElMessage.success('保存成功，单据号：' + form.receiptNo);
         await loadMasterTotal();
       }
@@ -551,12 +575,13 @@ const handleReset = async () => {
   form.actualLossG = 0;
   form.standardLossG = 0;
   form.shouldRecycleG = 0;
+  form.actualRecycleG = 0;
   form.extraFields = { residueWaterG: 0, residueWireG: 0 };
   form.masterName = '';
   form.productName = '';
   form.content = '';
   form.remark = '';
-  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0 });
+  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
 };
 
 const loadOptions = async () => {
@@ -752,6 +777,10 @@ onMounted(async () => {
 .total-val { font-size: 15px; color: #303133; }
 .total-val.loss-cls { color: #E6A23C; }
 .total-val.recycle-cls { color: #2f6fd0; }
+/* 未回金：正数=师傅还欠（橙红） */
+.total-val.unreturned-cls { color: #d4380d; }
+.unreturned-warn :deep(.el-input__wrapper) { background: #fff2e8; }
+.unreturned-warn :deep(.el-input__inner) { color: #d4380d; font-weight: 700; }
 .cur-strong { font-weight: 600; color: #303133; }
 .u { font-size: 11px; color: #a8abb2; margin-left: 2px; }
 .master-hint { font-size: 12px; color: #909399; line-height: 1.9; margin-top: 10px; padding: 8px 12px; background: #fff; border-radius: 6px; }

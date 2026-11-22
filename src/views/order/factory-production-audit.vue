@@ -430,29 +430,17 @@ const handleAudit = (row, approved) => {
   auditDialogVisible.value = true;
 };
 
-// ⭐ 审核通过后统一处理：自动生成账单 + LR 表（LR 成本行取自订单编辑里录入的成本）
+// ⭐ 审核通过后统一处理：自动生成账单
+//    ⭐ 2026-11-20 起：LR 不再在这里生成，改为「账单最终确认」时自动生成
 const afterProductionApproved = async (orderId) => {
   try {
     const r = await autoCreateBill(orderId);
     const d = r?.data || r;
-    const billId = d?.billId;
 
     if (d?.skipped) {
       ElMessage.info('账单：' + (d.message || '当天已有待审账单，未重复生成'));
     } else if (d?.billNo) {
       ElMessage.success('已自动生成账单 ' + d.billNo + (d.orderCount ? `（含 ${d.orderCount} 个订单）` : ''));
-    }
-
-    // 新建成功才生成 LR（跳过时该账单可能早已生成过）
-    if (billId && !d?.skipped) {
-      try {
-        const lr = await generateLr({ billId });
-        if (lr?.success !== false) ElMessage.success('已自动生成 LR 表');
-        else ElMessage.warning('LR 表生成提示：' + (lr?.message || '请到 LR 表管理查看'));
-      } catch (e2) {
-        console.warn('自动生成 LR 失败:', e2);
-        ElMessage.warning('账单已生成，但 LR 表自动生成失败，可在 LR 表管理手动生成');
-      }
     }
   } catch (e) {
     console.warn('自动生成账单失败:', e);
@@ -582,7 +570,8 @@ onUnmounted(() => {
 .page-container.is-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  /* ⚠️ 低于 Element Plus 弹层层级（2000 起），否则全屏时弹框/提示看不到 */
+  z-index: 1999;
   background: #fff;
   padding: 16px 20px;
   overflow: auto;

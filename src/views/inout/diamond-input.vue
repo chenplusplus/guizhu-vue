@@ -130,9 +130,11 @@
         </el-form-item>
 
         <el-form-item style="margin-top:16px;">
-          <el-button type="primary" :loading="submitting" @click="handleSubmit">{{ isEdit ? '保存修改' : '提交录入' }}</el-button>
+          <el-button :loading="saving" @click="handleSave">{{ isEdit ? '保存修改' : '保存草稿' }}</el-button>
+          <el-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="handleSubmit">提交审核</el-button>
           <el-button v-if="isEdit" @click="router.push('/inout/diamond-list')">取消</el-button>
           <el-button v-else @click="handleReset">重置</el-button>
+          <span class="action-tip">保存＝存草稿（还能改）；提交＝直接送审（提交后不可编辑）</span>
         </el-form-item>
       </el-form>
     </el-card>
@@ -143,7 +145,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { createDiamond, updateDiamond, getDiamondLastTotal, getDiamondById, getInoutFormOptions } from '@/api/inout'
+import { createDiamond, updateDiamond, submitDiamond, getDiamondLastTotal, getDiamondById, getInoutFormOptions } from '@/api/inout'
 import MultiImageUpload from '@/components/MultiImageUpload.vue'
 import InoutCumBlock from '@/components/InoutCumBlock.vue'
 import { DIAMOND_CONTENT_OPTIONS, DIAMOND_GRADE_OPTIONS, DIAMOND_MATERIAL_OPTIONS } from '@/constants/inoutOptions'
@@ -164,6 +166,7 @@ const gradeOptions = ref([...DIAMOND_GRADE_OPTIONS])
 const form = reactive({
   recordDate: todayStr(),
   direction: 1,
+  status: '', // 草稿 / 待审 / 生效 / 驳回（编辑时由后端带回）
   counterpartyId: null,
   counterpartyName: '',
   diamondType: '',
@@ -355,29 +358,75 @@ const onCounterpartyChange = (name) => {
   loadLastTotal()
 }
 
+// ==================== 保存 / 提交 ====================
+// ⭐ 两个动作分开：保存 = 存草稿（状态 draft，还能改）；提交 = 存库后立刻送审（pending）
+const saving = ref(false)
+const savedId = ref(null)
+const recordId = computed(() => savedId.value || route.query.id || null)
+const canSubmit = computed(() => !form.status || form.status === 'draft' || form.status === 'rejected')
+
+// 只读字段不回传（status 由后端 / 提交动作控制）
+const restForm = () => {
+  const o = { ...form }
+  delete o.status
+  return o
+}
+
+const buildPayload = () => ({
+  ...restForm(),
+  counterpartyId: form.counterpartyName ? (nameToId.value[form.counterpartyName] ?? null) : null,
+  counterpartyName: form.counterpartyName || '',
+  images: serializeImages(imageList.value)
+})
+
+const saveRecord = async () => {
+  const payload = buildPayload()
+  if (recordId.value) {
+    await updateDiamond(recordId.value, payload)
+    return recordId.value
+  }
+  const res = await createDiamond(payload)
+  const id = res?.data?.id ?? res?.id
+  if (!id) throw new Error(res?.message || '保存失败')
+  savedId.value = id
+  return id
+}
+
+// 保存：只落库，不送审，留在本页可继续改
+const handleSave = async () => {
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return
+    saving.value = true
+    try {
+      const id = await saveRecord()
+      // ⭐ 存过之后转成编辑态：再点保存走更新，不会重复建单
+      if (!route.query.id) {
+        router.replace({ path: route.path, query: { ...route.query, id } })
+      }
+      if (!form.status) form.status = 'draft'
+      ElMessage.success('已保存为草稿：可在列表继续提交，也可直接点「提交审核」')
+      loadLastTotal()
+    } catch (e) {
+      ElMessage.error(e?.message || '保存失败')
+    } finally {
+      saving.value = false
+    }
+  })
+}
+
+// 提交：保存 + 立刻提交审核，成功后回列表
 const handleSubmit = async () => {
   await formRef.value.validate(async (valid) => {
     if (!valid) return
     submitting.value = true
     try {
-      const payload = {
-        ...form,
-        counterpartyId: form.counterpartyName ? (nameToId.value[form.counterpartyName] ?? null) : null,
-        counterpartyName: form.counterpartyName || '',
-        images: serializeImages(imageList.value)
-      }
-      // ⭐ 带 id 进来就是编辑：走 PUT 更新，避免重复建单
-      const editId = route.query.id
-      const res = editId ? await updateDiamond(editId, payload) : await createDiamond(payload)
-      if (res.success) {
-        ElMessage.success(editId ? '修改成功' : '钻石录入成功')
-        if (editId) { router.push('/inout/diamond-list'); return }
-        handleReset()
-        loadLastTotal()
-        loadFormOptions()
-      }
+      const id = await saveRecord()
+      const res = await submitDiamond(id)
+      if (res?.success === false) throw new Error(res.message || '提交失败')
+      ElMessage.success('已提交审核')
+      router.push('/inout/diamond-list')
     } catch (e) {
-      ElMessage.error('提交失败')
+      ElMessage.error(e?.message || '提交失败')
     } finally {
       submitting.value = false
     }
@@ -430,6 +479,8 @@ watch(() => route.fullPath, () => {
 .inout-input-page { padding: 16px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; font-size: 16px; }
+/* 保存 / 提交 说明 */
+.action-tip { margin-left: 12px; font-size: 12px; color: #a8abb2; }
 .dir-tag { font-size: 14px; padding: 0 12px; height: 32px; line-height: 32px; }
 .dir-hint { margin-left: 8px; font-size: 12px; color: #a8abb2; }
 .opt-tag { float: right; margin-left: 10px; font-size: 12px; color: #a8abb2; }

@@ -95,6 +95,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ArrowLeft, Check, Select } from '@element-plus/icons-vue';
 import { createInout, updateInout, getInoutDetail, submitInout, getInoutOptions } from '@/api/inout';
 import { getCounterpartyAll } from '@/api/counterparty';
+import { todayStr } from '@/utils/date'
 
 const route = useRoute();
 const router = useRouter();
@@ -108,7 +109,7 @@ const dictOptions = reactive({ directions: [], categories: [], colors: [] });
 const cpList = ref([]);
 
 const form = reactive({
-  recordDate: new Date().toISOString().split('T')[0],
+  recordDate: todayStr(),
   direction: 'in',
   category: '',
   color: '',

@@ -45,21 +45,21 @@
       <el-table :data="summaryList" stripe border size="small" v-loading="loading" @row-click="openDrawer" highlight-current-row
         :scrollbar-always-on="true"
       >
-        <el-table-column prop="customerName" label="客户" min-width="130" fixed />
+        <el-table-column prop="customerName" label="客户" min-width="130" fixed align="center" />
 
         <!-- 本月金额：应收 / 已收 / 未收 -->
         <el-table-column label="本月金额(元)" align="center">
           <template #default><span style="color:#909399;font-size:12px;">应收 / 已收 / 未收</span></template>
         </el-table-column>
-        <el-table-column prop="monthReceivableAmount" label="本月应收" align="right" min-width="120">
+        <el-table-column prop="monthReceivableAmount" label="本月应收" align="center" min-width="120">
           <template #default="{row}">{{ fmtMoney(row.monthReceivableAmount) }}</template>
         </el-table-column>
-        <el-table-column prop="monthReceivedMoney" label="本月已收" align="right" min-width="120">
+        <el-table-column prop="monthReceivedMoney" label="本月已收" align="center" min-width="120">
           <template #default="{row}">
             <span class="recv-pos">{{ fmtMoney(row.monthReceivedMoney) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="本月未收" align="right" min-width="120">
+        <el-table-column label="本月未收" align="center" min-width="120">
           <template #default="{row}">
             <span :class="unpaidClass(row.monthReceivableAmount - row.monthReceivedMoney)">
               {{ fmtMoney((row.monthReceivableAmount || 0) - (row.monthReceivedMoney || 0)) }}
@@ -68,15 +68,15 @@
         </el-table-column>
 
         <!-- 本月金料：应收 / 已收 / 未收 -->
-        <el-table-column prop="monthGoldMaterialWeight" label="本月应收料(g)" align="right" min-width="125">
+        <el-table-column prop="monthGoldMaterialWeight" label="本月应收料(g)" align="center" min-width="125">
           <template #default="{row}">{{ fmtWeight(row.monthGoldMaterialWeight) }}</template>
         </el-table-column>
-        <el-table-column prop="monthReceivedMaterial" label="本月已收料(g)" align="right" min-width="125">
+        <el-table-column prop="monthReceivedMaterial" label="本月已收料(g)" align="center" min-width="125">
           <template #default="{row}">
             <span class="recv-pos">{{ fmtWeight(row.monthReceivedMaterial) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="本月未收料(g)" align="right" min-width="125">
+        <el-table-column label="本月未收料(g)" align="center" min-width="125">
           <template #default="{row}">
             <span :class="unpaidClass((row.monthGoldMaterialWeight || 0) - (row.monthReceivedMaterial || 0))">
               {{ fmtWeight((row.monthGoldMaterialWeight || 0) - (row.monthReceivedMaterial || 0)) }}
@@ -85,34 +85,34 @@
         </el-table-column>
 
         <!-- 累计：应收 / 已收 / 未收 -->
-        <el-table-column prop="totalReceivableMoney" label="累计应收(元)" align="right" min-width="130">
+        <el-table-column prop="totalReceivableMoney" label="累计应收(元)" align="center" min-width="130">
           <template #default="{row}">{{ fmtMoney(row.totalReceivableMoney) }}</template>
         </el-table-column>
-        <el-table-column prop="totalReceivedMoney" label="累计已收(元)" align="right" min-width="130">
+        <el-table-column prop="totalReceivedMoney" label="累计已收(元)" align="center" min-width="130">
           <template #default="{row}">
             <span class="recv-pos">{{ fmtMoney(row.totalReceivedMoney) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="totalDebtMoney" label="累计未收(元)" align="right" min-width="130">
+        <el-table-column prop="totalDebtMoney" label="累计未收(元)" align="center" min-width="130">
           <template #default="{row}">
             <span :class="unpaidClass(row.totalDebtMoney)">{{ fmtMoney(row.totalDebtMoney) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="totalReceivableMaterial" label="累计应收料(g)" align="right" min-width="130">
+        <el-table-column prop="totalReceivableMaterial" label="累计应收料(g)" align="center" min-width="130">
           <template #default="{row}">{{ fmtWeight(row.totalReceivableMaterial) }}</template>
         </el-table-column>
-        <el-table-column prop="totalReceivedMaterial" label="累计已收料(g)" align="right" min-width="130">
+        <el-table-column prop="totalReceivedMaterial" label="累计已收料(g)" align="center" min-width="130">
           <template #default="{row}">
             <span class="recv-pos">{{ fmtWeight(row.totalReceivedMaterial) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="totalDebtMaterial" label="累计未收料(g)" align="right" min-width="130">
+        <el-table-column prop="totalDebtMaterial" label="累计未收料(g)" align="center" min-width="130">
           <template #default="{row}">
             <span :class="unpaidClass(row.totalDebtMaterial)">{{ fmtWeight(row.totalDebtMaterial) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="170" fixed="right" align="center">
           <template #default="{row}">
             <el-button type="primary" link size="small" @click.stop="openDrawer(row)">账单明细</el-button>
             <el-button type="success" link size="small" @click.stop="openPaymentDetail(row)">收款明细</el-button>
@@ -132,25 +132,25 @@
       <el-table :data="payDetailList" border stripe size="small" v-loading="payDetailLoading" max-height="420"
         :scrollbar-always-on="true"
       >
-        <el-table-column prop="recordDate" label="日期" width="110">
+        <el-table-column prop="recordDate" label="日期" width="110" align="center">
           <template #default="{row}">{{ fmtDate(row.recordDate) }}</template>
         </el-table-column>
         <el-table-column label="方式" width="100" align="center">
           <template #default="{row}">{{ methodText(row.paymentMethod) }}</template>
         </el-table-column>
-        <el-table-column prop="billNo" label="关联账单" min-width="130" show-overflow-tooltip>
+        <el-table-column prop="billNo" label="关联账单" min-width="130" show-overflow-tooltip align="center">
           <template #default="{row}">{{ row.billNo || '散收' }}</template>
         </el-table-column>
-        <el-table-column prop="goldMaterial" label="收金料(g)" width="110" align="right">
+        <el-table-column prop="goldMaterial" label="收金料(g)" width="110" align="center">
           <template #default="{row}">{{ fmtWeight(row.goldMaterial) }}</template>
         </el-table-column>
-        <el-table-column prop="amount" label="收金额(元)" width="130" align="right">
+        <el-table-column prop="amount" label="收金额(元)" width="130" align="center">
           <template #default="{row}">
             <span class="recv-pos">{{ fmtMoney(row.amount) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="createdByName" label="经办人" width="90" />
-        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="createdByName" label="经办人" width="90" align="center" />
+        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip align="center" />
         <el-table-column label="操作" width="110" fixed="right" align="center">
           <template #default="{row}">
             <el-button type="primary" link size="small" @click="openEditPayment(row)">编辑</el-button>
@@ -287,11 +287,11 @@
         :scrollbar-always-on="true"
       >
         <el-table-column type="selection" width="40" />
-        <el-table-column prop="orderNo" label="订单号" width="130" />
-        <el-table-column prop="billNo" label="账单号" width="130" />
-        <el-table-column prop="customerName" label="客户" min-width="100" show-overflow-tooltip />
-        <el-table-column prop="salesman" label="销售" width="80" />
-        <el-table-column prop="productName" label="品名" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="orderNo" label="订单号" width="130" align="center" />
+        <el-table-column prop="billNo" label="账单号" width="130" align="center" />
+        <el-table-column prop="customerName" label="客户" min-width="100" show-overflow-tooltip align="center" />
+        <el-table-column prop="salesman" label="销售" width="80" align="center" />
+        <el-table-column prop="productName" label="品名" min-width="120" show-overflow-tooltip align="center" />
         <el-table-column label="成色" width="70" align="center">
           <template #default="{ row }">
             <PurityCell :label="row.purityLabel" :color="row.color" />
@@ -301,31 +301,31 @@
           <template #default="{ row }">{{ resolveGemColor(row) || '-' }}</template>
         </el-table-column>
         <el-table-column prop="quantity" label="数量" width="55" align="center" />
-        <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="90" align="right">
+        <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="90" align="center">
           <template #default="{row}">{{ fmtWeight(row.goldMaterialWeight) }}</template>
         </el-table-column>
-        <el-table-column label="足金料费" width="95" align="right">
+        <el-table-column label="足金料费" width="95" align="center">
           <template #default="{row}">
             <span v-if="row.isMaterial" class="muted">来料 ¥0.00</span>
             <span v-else>{{ fmtMoney(row.goldMaterialFee) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="钻石(元)" width="110" align="right">
+        <el-table-column label="钻石(元)" width="110" align="center">
           <template #default="{row}">
             {{ fmtMoney((row.mainStoneAmount || 0) + (row.subStoneAmount || 0)) }}
           </template>
         </el-table-column>
-        <el-table-column label="镶石费(元)" width="95" align="right">
+        <el-table-column label="镶石费(元)" width="95" align="center">
           <template #default="{row}">
             {{ fmtMoney((row.mainStoneSettingFee || 0) + (row.subStoneSettingFee || 0)) }}
           </template>
         </el-table-column>
-        <el-table-column label="包证邮(元)" width="95" align="right">
+        <el-table-column label="包证邮(元)" width="95" align="center">
           <template #default="{row}">
             {{ fmtMoney((row.packingFee || 0) + (row.certificateFee || 0) + (row.postageFee || 0)) }}
           </template>
         </el-table-column>
-        <el-table-column label="版费+工费(元)" width="110" align="right">
+        <el-table-column label="版费+工费(元)" width="110" align="center">
           <template #default="{row}">
             {{ fmtMoney((row.moldFee || 0) + (row.laborFee || 0)) }}
           </template>
@@ -354,7 +354,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="收款金额(元)" width="130" align="right" fixed="right">
+        <el-table-column label="收款金额(元)" width="130" align="center" fixed="right">
           <template #default="{row}">
             <el-input-number
               v-model="row.collectAmount"

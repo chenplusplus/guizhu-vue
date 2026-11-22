@@ -56,7 +56,7 @@
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
         <el-button v-if="!isConfirmMode" type="primary" :loading="exporting" @click="handleExport">
-          <el-icon><Download /></el-icon> 导出
+          <el-icon><Download /></el-icon> 导出{{ selectedIds.length ? `（${selectedIds.length}）` : '' }}
         </el-button>
       </div>
     </div>
@@ -166,13 +166,37 @@
     </div>
 
     <!-- ⭐ 搜索无结果时不用再叠一个空态插画（上面 .search-empty 已经说明原因） -->
-    <el-empty v-if="!appliedKeyword && !loading && bills.length === 0"
-      :description="isGenerateMode ? '当前范围内没有待提交/待审核的账单'
-        : (isConfirmMode ? '当前没有待你处理的账单，业务员确认后的账单请到「我的账单」查看'
-        : (isReceiptMode ? '当前范围内没有待收款的账单（收款完成或还没确认的不在这里）'
-        : (isPaymentMode ? '当前没有待付款的账单，已付清的请到「我的账单」查看'
-        : '当前范围内没有业务已确认的账单')))"
-      :image-size="90" />
+    <el-empty v-if="!appliedKeyword && !loading && bills.length === 0" :image-size="90">
+      <template #description>
+        <div>
+          {{ isGenerateMode ? '当前范围内没有待提交/待审核的账单'
+            : (isConfirmMode ? '当前没有待你处理的账单，业务员确认后的账单请到「我的账单」查看'
+            : (isReceiptMode ? '当前范围内没有待收款的账单（收款完成或还没确认的不在这里）'
+            : (isPaymentMode ? '当前没有待付款的账单，已付清的请到「我的账单」查看'
+            : '当前范围内没有业务已确认的账单'))) }}
+        </div>
+        <!-- ⭐ 提交审核后的账单会离开本页，这里直接指路，避免「账单不见了」的误解 -->
+        <div v-if="isGenerateMode" class="empty-tip">
+          已提交审核的账单会转入【账单状态】页，可在那里查看"待审核 / 待客户审核"进度
+        </div>
+      </template>
+      <el-button v-if="isGenerateMode" type="primary" plain @click="router.push('/order/bill/list')">
+        去【账单状态】查看
+      </el-button>
+    </el-empty>
+
+    <!-- ⭐ 导出勾选条：默认全选当前查询结果，取消勾选的不会导出 -->
+    <div v-if="bills.length && !isConfirmMode" class="export-bar">
+      <el-checkbox
+        :model-value="allChecked"
+        :indeterminate="partChecked"
+        @change="toggleAll"
+      >全选</el-checkbox>
+      <span class="export-count">
+        已选 <b>{{ selectedIds.length }}</b> / {{ bills.length }} 张
+      </span>
+      <span class="export-tip">导出为一个 Excel：选中的账单从上往下排，一张接一张，中间空 3 行</span>
+    </div>
 
     <!-- ⭐ 我的账单：按日期一天一天排下来，同一天内按客户排序（所有角色一致） -->
     <template v-for="g in dayGroups" :key="g.key">
@@ -183,8 +207,15 @@
         <span class="day-amount">{{ isPaymentMode ? '待付' : (isCustomerView ? '应付' : '应收') }} ¥{{ dayTotal(g.list).toLocaleString() }}</span>
       </div>
 
-      <div v-for="b in g.list" :key="b.billId" class="bill-block">
+      <div v-for="b in g.list" :key="b.billId" class="bill-block" :class="{ 'is-unchecked': !isChecked(b.billId) }">
       <div class="bill-caption">
+        <el-checkbox
+          v-if="!isConfirmMode"
+          class="bill-check"
+          :model-value="isChecked(b.billId)"
+          @change="(v) => toggleCheck(b.billId, v)"
+          @click.stop
+        />
         <span class="cap-no">{{ b.billData.billNo }}</span>
         <span class="cap-item">客户：{{ b.billData.customerName || '—' }}</span>
         <span class="cap-item">销售：{{ b.billData.operatorName || '—' }}</span>
@@ -285,6 +316,16 @@
               </b>
             </span>
             <span>已处理 <b>{{ b._receipt?.settledCount || 0 }}/{{ b._receipt?.totalCount || 0 }}</b> 行</span>
+            <!-- ⭐ 客户来款余额：勾「抵扣」时就从这里扣，不够会标红提示 -->
+            <span
+              v-if="isReceiptMode"
+              class="avail"
+              :class="{ low: availableOf(b) + 0.004 < (b._receipt?.offset || 0) }"
+              :title="'客户已审核通过的来款余额；本单抵扣 ¥' + (b._receipt?.offset || 0).toFixed(2) + ' 会从这里扣'"
+            >
+              可用来款 <b>¥{{ availableOf(b).toFixed(2) }}</b>
+              <em v-if="availableOf(b) + 0.004 < (b._receipt?.offset || 0)">余额不足</em>
+            </span>
           </template>
         </div>
         <div class="rb-right">
@@ -339,8 +380,10 @@ import {
   saveBillReceipt, submitBillReceipt,
   submitBillAudit, generateMissingBills,
   confirmBill, customerAuditBill,
+  exportBills,
 } from '@/api/bill';
 import BillPreviewSheet from '@/components/BillPreviewSheet.vue';
+import { getReceiptInBalances } from '@/api/customerReceipt';
 import { useUserStore } from '@/stores/user';
 
 const route = useRoute();
@@ -372,6 +415,23 @@ const range = ref([]);           // [start, end]  YYYY-MM-DD
 const keyword = ref('');
 const appliedKeyword = ref('');
 const bills = ref([]);
+// ⭐ 导出勾选：默认全选当前查询结果（改日期/搜索后会重新全选）
+const selectedIds = ref([]);
+const isChecked = (id) => selectedIds.value.includes(id);
+const toggleCheck = (id, checked) => {
+  if (checked) {
+    if (!selectedIds.value.includes(id)) selectedIds.value = [...selectedIds.value, id];
+  } else {
+    selectedIds.value = selectedIds.value.filter(x => x !== id);
+  }
+};
+const allChecked = computed(() =>
+  bills.value.length > 0 && selectedIds.value.length === bills.value.length);
+const partChecked = computed(() =>
+  selectedIds.value.length > 0 && selectedIds.value.length < bills.value.length);
+const toggleAll = (val) => {
+  selectedIds.value = val ? bills.value.map(b => b.billId) : [];
+};
 const loading = ref(false);
 const exporting = ref(false);
 const fixing = ref(false);
@@ -539,6 +599,21 @@ const canReturnBill = (b) => {
 // ===== 收款（客户侧只读展示）=====
 // 收款方式（客户「收款记录」里展示这笔怎么收的）
 const RECEIPT_METHODS = ['银行卡', '支付宝', '微信', '现金', '抵扣', '其他'];
+
+// ⭐ 客户可用「来款余额」：账单收款勾「抵扣」时的钱就从这里扣
+//    （来自款登记页登记的来款，审核通过后生效）
+const customerBalances = ref({});
+const loadCustomerBalances = async () => {
+  if (isCustomerView.value) return;      // 客户侧不需要看工厂的来款池
+  try {
+    const res = await getReceiptInBalances();
+    customerBalances.value = res?.data || {};
+  } catch {
+    customerBalances.value = {};
+  }
+};
+const availableOf = (b) => Number(customerBalances.value?.[b?.billData?.customerId]?.balance || 0);
+
 const unpaidOf = (b) => {
   const r = b?._receipt || {};
   return Math.max(0, round2((r.receivable || 0) - (r.actual || 0) - (r.offset || 0)));
@@ -824,6 +899,8 @@ const loadData = async () => {
     if (detailFailed > 0) {
       ElMessage.warning(`${detailFailed} 张账单明细加载失败，请点「刷新」重试`);
     }
+    // ⭐ 导出默认全选本次查询结果
+    selectedIds.value = bills.value.map(b => b.billId);
   } catch (e) {
     if (seq !== loadSeq) return;
     console.error('加载账单失败:', e);
@@ -1023,7 +1100,8 @@ const confirmOne = async (b) => {
   try {
     const res = await confirmBill(b.billId);
     if (res.success) {
-      ElMessage.success(res.message || '账单已确认');
+      // ⭐ LR 在账单最终确认时由后端自动生成，这里明确告知，避免业务员以为还要手动生成
+      ElMessage.success((res.message || '账单已确认') + '，LR 表已自动生成');
       await loadData();
     } else {
       ElMessage.error(res.message || '确认失败');
@@ -1040,30 +1118,47 @@ const returnOne = (b) => {
   router.push({ name: 'BillDetail', params: { id: b.billId }, query: { return: '1' } });
 };
 
-// ===== 导出：一天一天的导 =====
+// ===== 导出：选中的账单合并成一个 Excel，一张接一张往下排 =====
 const handleExport = async () => {
-  if (range.value.length !== 2) { ElMessage.warning('导出按天进行，请先选择「今天 / 本月 / 自定义」日期范围'); return; }
-  const [s, e] = range.value;
-  const days = [];
-  const cur = new Date(s + 'T00:00:00');
-  const end = new Date(e + 'T00:00:00');
-  while (cur <= end) { days.push(fmt(cur)); cur.setDate(cur.getDate() + 1); }
+  // 默认全选；用户取消勾选后只导勾上的
+  const ids = selectedIds.value.length
+    ? selectedIds.value
+    : bills.value.map(b => b.billId);
 
-  if (days.length > 62) { ElMessage.warning('导出范围过大，请缩小到 62 天以内'); return; }
+  if (!ids.length) { ElMessage.warning('当前范围内没有可导出的账单'); return; }
+  if (ids.length > 200) { ElMessage.warning('一次最多导出 200 张，请缩小日期范围或取消部分勾选'); return; }
 
   exporting.value = true;
   try {
-    for (const day of days) {
-      const a = document.createElement('a');
-      a.href = `/api/bill/export-day?date=${day}`;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      await new Promise(r => setTimeout(r, 700));
+    const blob = await exportBills(ids);
+    // 后端报错时返回的是 JSON 而不是文件
+    if (blob?.type && blob.type.includes('application/json')) {
+      const text = await blob.text();
+      let msg = '导出失败';
+      try { msg = JSON.parse(text)?.message || msg; } catch { /* 忽略 */ }
+      ElMessage.error(msg);
+      return;
     }
-    ElMessage.success(days.length > 1 ? `已按天导出 ${days.length} 天（浏览器可能提示允许多文件下载）` : '导出已开始');
+    if (blob?.success === false) { ElMessage.error(blob.message || '导出失败'); return; }
+
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+    const name = ids.length === 1
+      ? `账单_${bills.value.find(b => b.billId === ids[0])?.billData?.billNo || ids[0]}.xlsx`
+      : `账单汇总_${stamp}_${ids.length}张.xlsx`;
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+
+    ElMessage.success(`已导出 ${ids.length} 张账单（同一个 Excel，从上往下排）`);
+  } catch (e) {
+    // 请求层（utils/request）已统一弹过中文错误提示，这里只记日志，避免重复弹窗
+    console.error('导出账单失败:', e);
   } finally {
     exporting.value = false;
   }
@@ -1072,6 +1167,7 @@ const handleExport = async () => {
 onMounted(() => {
   applyRange();
   loadData();
+  loadCustomerBalances();
   window.addEventListener('resize', onRangeResize);
 });
 
@@ -1179,6 +1275,27 @@ onBeforeUnmount(() => {
 .cap-item { color: #909399; }
 .cap-spacer { flex: 1; }
 
+/* ⭐ 导出勾选 */
+.export-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  background: #f7f9fc;
+  border: 1px solid #e4e9f2;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #606266;
+}
+.export-count b { color: #303133; font-family: Consolas, Monaco, monospace; }
+.export-tip { color: #a0a6b0; font-size: 12px; }
+.bill-check { margin-right: -4px; }
+/* 未勾选的账单淡一点，一眼看出不导出 */
+.bill-block.is-unchecked { opacity: .55; }
+.bill-block.is-unchecked:hover { opacity: .8; }
+
 /* ===== 收款操作条 ===== */
 .receipt-bar {
   display: flex; align-items: center; justify-content: space-between;
@@ -1192,6 +1309,15 @@ onBeforeUnmount(() => {
 .rb-left b.actual { color: #1f9254; }
 .rb-left b.offset { color: #1d63c9; }
 .rb-left b.warn { color: #d64545; }
+/* ⭐ 可用来款余额：抵扣的钱从这里扣 */
+.rb-left .avail { color: #6b3fb5; }
+.rb-left .avail b { color: #6b3fb5; }
+.rb-left .avail.low { color: #d64545; }
+.rb-left .avail.low b { color: #d64545; }
+.rb-left .avail em {
+  font-style: normal; font-size: 11px; margin-left: 4px;
+  background: #fdecec; border: 1px solid #f5c2c2; border-radius: 3px; padding: 0 3px;
+}
 .rb-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rb-tip { font-size: 12px; }
 .rb-tip.tip-pending { color: #d98600; }
@@ -1273,4 +1399,9 @@ onBeforeUnmount(() => {
 .is-range-full .rb-left { gap: 12px; }
 .is-range-full .reject-alert { margin: 0 0 4px; }
 .fs-count { font-size: 12px; opacity: 0.85; }
+.empty-tip {
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #909399;
+}
 </style>

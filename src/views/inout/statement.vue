@@ -3,7 +3,7 @@
   <div class="page-container">
     <div class="page-header">
       <div class="header-left">
-        <h2>供应商对账单</h2>
+        <h2>往来单位对账单</h2>
         <span class="sub-tip">
           欠料 = 上期欠料 + 本期来料折足重 − 付足料 − 结价料重；欠款 = 期初欠款 + 本期应付 − 结价金额 − 本期付款
         </span>
@@ -567,7 +567,7 @@ function exportCsv() {
   const p = detail.value.period || emptyParty();
   const o = detail.value.open || emptyParty();
 
-  lines.push(`供应商对账单,${detail.value.partyName || ''}`);
+  lines.push(`往来单位对账单,${detail.value.partyName || ''}`);
   lines.push(`本期,${periodText.value},期初截止,${openUntil.value || ''}`);
   lines.push('');
 
@@ -609,7 +609,7 @@ function exportCsv() {
   const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `供应商对账单_${detail.value.partyName || ''}_${query.startDate || '全部'}.csv`;
+  a.download = `往来单位对账单_${detail.value.partyName || ''}_${query.startDate || '全部'}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
   ElMessage.success('已导出 CSV');

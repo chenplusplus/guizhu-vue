@@ -10,6 +10,10 @@
         <span v-if="mode === 'audit'" class="audit-hint">
           订单审核完成之后请到历史订单中查看，同时会自动生成账单，您可去【生成账单】页面编辑或者提交账单审核
         </span>
+        <!-- ⭐ 订单编辑：制作完成的入口与去向说明（原来放在编辑页，改到列表更好找） -->
+        <span v-if="mode === 'edit'" class="edit-hint">
+          订单制作完成后，点列表操作列的【制作完成】，状态更新为「制作完成」，订单自动进入【待审核】等待提交
+        </span>
       </div>
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <!-- ⭐ 批量接单：只在"待接单"tab 显示 -->
@@ -117,6 +121,13 @@
     <div v-show="!isFullscreen && activeTab === 'factoryProcessing'" class="sub-tabs-wrapper">
       <el-radio-group v-model="subStatus" @change="onSubStatusChange">
         <el-radio-button value="">全部节点</el-radio-button>
+        <!-- ⭐ 已报废：不混在正常工序里，单独一个筛选；点进去可一键继续生产 -->
+        <el-radio-button value="scrapped">
+          🚫 已报废
+          <span v-if="getSubStatusCount('scrapped') > 0" class="sub-count scrap-count">
+            {{ getSubStatusCount('scrapped') }}
+          </span>
+        </el-radio-button>
         <el-radio-button
           v-for="item in productionStatuses"
           :key="item.value"
@@ -315,6 +326,15 @@
             <span class="paused-bars"><i></i><i></i></span>
             <span class="paused-text">已暂停</span>
           </span>
+          <span
+            v-else-if="normalizeStatus(row.flowStatus) === 'scrapped'"
+            class="scrap-status"
+            :title="`${row.scrappedAt ? '已于 ' + formatShortTime(row.scrappedAt) + ' 报废' : '已报废'}${row.scrapOriginStatusText ? `（报废前：${row.scrapOriginStatusText}）` : ''}，点击继续生产`"
+            @click.stop="onStatusClick(row)"
+          >
+            <span class="scrap-text">已报废</span>
+            <span class="scrap-tip">点击继续</span>
+          </span>
           <el-tag
             v-else
             :type="getStatusType(row.flowStatus)"
@@ -495,7 +515,7 @@
       </template>
 
       <!-- 操作列 -->
-      <el-table-column v-if="showActionColumn && (!isFullscreen || mode === 'audit')" label="操作" :width="mode === 'edit' ? 160 : (mode === 'audit' ? 232 : 96)" fixed="right" align="center">
+      <el-table-column v-if="showActionColumn && (!isFullscreen || mode === 'audit')" label="操作" :width="mode === 'edit' ? 252 : (mode === 'audit' ? 232 : 96)" fixed="right" align="center">
         <template #default="{ row }">
           <div v-if="mode === 'edit' || mode === 'audit'" class="edit-row-actions">
             <template v-if="mode === 'edit'">
@@ -506,6 +526,15 @@
                 plain
                 @click.stop="goFactoryEdit(row.orderId)"
               >编辑</el-button>
+              <!-- ⭐ 列表直接标「制作完成」：更新后订单进【待审核】等待提交 -->
+              <el-button
+                v-if="canMarkProductionCompleted(row)"
+                size="small"
+                type="success"
+                plain
+                :loading="completingOrderId === row.orderId"
+                @click.stop="handleMarkProductionCompleted(row)"
+              >制作完成</el-button>
               <el-button
                 v-if="allow('repair')"
                 size="small"
@@ -566,9 +595,9 @@
                 >接单</el-dropdown-item>
 
                 <el-dropdown-item
-                  v-if="allow('status') && (isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit')"
+                  v-if="allow('status') && (isInProduction(row.flowStatus) || normalizeStatus(row.flowStatus) === 'factory_edit' || normalizeStatus(row.flowStatus) === 'scrapped')"
                   command="status"
-                >更新状态</el-dropdown-item>
+                >{{ normalizeStatus(row.flowStatus) === 'scrapped' ? '继续生产' : '更新状态' }}</el-dropdown-item>
 
                 <el-dropdown-item v-if="allow('repair')" command="repair">维修单</el-dropdown-item>
 
@@ -630,46 +659,79 @@
         </p>
       </div>
 
-      <!-- ⭐ 大号暂停 / 恢复：暂停 = 临时停下，随时可恢复到暂停前的工序 -->
+      <!-- ⭐ 大号快捷操作：暂停 / 恢复 / 报废 / 继续生产 -->
       <div class="pause-quick">
-        <el-button
-          v-if="normalizeStatus(currentOrder?.flowStatus) !== 'paused'"
-          type="warning"
-          size="large"
-          class="pause-big-btn"
-          :loading="statusLoading"
-          :disabled="currentOrder?.pauseReqStatus === 'pendingAudit'"
-          @click="handleQuickPause"
-        >
-          ⏸ 暂停订单
-        </el-button>
-        <template v-else>
-          <!-- ⭐ 客户申请的暂停：工厂不能自行恢复，必须等客户方申请恢复后由客户审核员批准 -->
+        <!-- ⭐ 报废单：与暂停同款，一键回到报废前的工序继续做 -->
+        <template v-if="normalizeStatus(currentOrder?.flowStatus) === 'scrapped'">
           <el-button
-            v-if="currentOrder?.pauseOwner === 'customer'"
-            type="info"
-            size="large"
-            class="pause-big-btn"
-            disabled
-          >
-            ⏸ 客户申请暂停，等客户方恢复
-          </el-button>
-          <el-button
-            v-else
             type="success"
             size="large"
             class="pause-big-btn"
             :loading="statusLoading"
-            @click="handleQuickResume"
+            @click="handleQuickResumeScrap"
           >
-            ▶ 恢复生产（回到 {{ currentOrder?.pauseOriginStatusText || '暂停前工序' }}）
+            ▶ 继续生产（回到 {{ currentOrder?.scrapOriginStatusText || '报废前工序' }}）
           </el-button>
           <div class="pause-quick-hint">
-            暂停前工序：{{ currentOrder?.pauseOriginStatusText || currentOrder?.pauseOriginStatus || '—' }}
-            <span v-if="currentOrder?.pauseReason">　原因：{{ currentOrder.pauseReason }}</span>
-            <span v-if="currentOrder?.pauseOwner === 'customer'">
-              　客户暂停申请：{{ currentOrder?.pauseReqName || '客户' }}<template v-if="currentOrder?.pauseReqReason">（{{ currentOrder.pauseReqReason }}）</template>
-            </span>
+            <div>
+              报废前工序：{{ currentOrder?.scrapOriginStatusText || currentOrder?.scrapOriginStatus || '—' }}
+              <span v-if="currentOrder?.scrappedAt">　报废时间：{{ formatShortTime(currentOrder.scrappedAt) }}</span>
+            </div>
+            <div class="hint-sub">继续后按原工序接着做，不用重新下单。</div>
+          </div>
+        </template>
+        <template v-else>
+          <el-button
+            v-if="normalizeStatus(currentOrder?.flowStatus) !== 'paused'"
+            type="warning"
+            size="large"
+            class="pause-big-btn"
+            :loading="statusLoading"
+            :disabled="currentOrder?.pauseReqStatus === 'pendingAudit'"
+            @click="handleQuickPause"
+          >
+            ⏸ 暂停订单
+          </el-button>
+          <template v-else>
+            <!-- ⭐ 客户申请的暂停：工厂不能自行恢复，必须等客户方申请恢复后由客户审核员批准 -->
+            <el-button
+              v-if="currentOrder?.pauseOwner === 'customer'"
+              type="info"
+              size="large"
+              class="pause-big-btn"
+              disabled
+            >
+              ⏸ 客户申请暂停，等客户方恢复
+            </el-button>
+            <el-button
+              v-else
+              type="success"
+              size="large"
+              class="pause-big-btn"
+              :loading="statusLoading"
+              @click="handleQuickResume"
+            >
+              ▶ 恢复生产（回到 {{ currentOrder?.pauseOriginStatusText || '暂停前工序' }}）
+            </el-button>
+            <div class="pause-quick-hint">
+              暂停前工序：{{ currentOrder?.pauseOriginStatusText || currentOrder?.pauseOriginStatus || '—' }}
+              <span v-if="currentOrder?.pauseReason">　原因：{{ currentOrder.pauseReason }}</span>
+              <span v-if="currentOrder?.pauseOwner === 'customer'">
+                　客户暂停申请：{{ currentOrder?.pauseReqName || '客户' }}<template v-if="currentOrder?.pauseReqReason">（{{ currentOrder.pauseReqReason }}）</template>
+              </span>
+            </div>
+          </template>
+
+          <!-- ⭐ 报废：做坏了 / 客户不要了。报废后同样可以一键继续，不用重新下单 -->
+          <div class="scrap-line">
+            <span class="scrap-line-tip">做坏了要作废？报废后还能继续生产，不丢进度</span>
+            <el-button
+              type="danger"
+              plain
+              size="small"
+              :loading="statusLoading"
+              @click="handleQuickScrap"
+            >🚫 报废订单</el-button>
           </div>
         </template>
       </div>
@@ -760,7 +822,6 @@ import { Refresh, Search, RefreshRight, Tools, ArrowDown } from '@element-plus/i
 import { useUserStore } from '@/stores/user';
 import { getOrderList, acceptOrder, updateProduction, getOrderDetail, auditProduction, getOrderCost, confirmCancel, submitProductionAudit, withdrawProductionAudit, batchProductionAudit } from '@/api/order';
 import { autoCreateBill, generateMissingBills } from '@/api/bill';
-import { generateLr } from '@/api/lr';
 import { getCustomerList } from '@/api/customer';
 import { dictApi } from '@/api/dict';
 import { createBill } from '@/api/bill';
@@ -868,7 +929,7 @@ const MODE_MAP = {
   accept:    { tab: 'waitingFactory',    title: '🏭 待接单',     allow: ['accept'] },
   edit:      { tab: 'factoryProcessing', title: '✏️ 订单编辑',   allow: ['edit', 'repair', 'status', 'downloadPackage', 'pause'] },
   audit:     { tab: 'productionAudit',   title: '🔍 待审核',     allow: ['auditProduction', 'submitAudit', 'withdrawAudit', 'edit'] },
-  completed: { tab: 'completed',         title: '✅ 已完成订单', allow: ['bill', 'downloadPackage'] },
+  completed: { tab: 'completed',         title: '✅ 已完成订单', allow: ['bill', 'downloadPackage', 'status'] },
 };
 const route = useRoute();
 const mode = computed(() => String(route.meta?.mode || route.query.mode || ''));
@@ -928,8 +989,10 @@ const emptyText = computed(() => {
 
 // 状态穿透：编辑视图（或全部视图）下、处于制作阶段的订单，点状态标签可直接改状态
 const canChangeStatus = (row) => {
-  if (modeConf.value && mode.value !== 'edit') return false;
   const st = normalizeStatus(row.flowStatus);
+  // ⭐ 报废单：与暂停同款，可点状态「继续生产」（已完成页也放开）
+  if (st === 'scrapped') return allow('status');
+  if (modeConf.value && mode.value !== 'edit') return false;
   return st === 'factory_edit' || isInProduction(row.flowStatus);
 };
 const onStatusClick = (row) => {
@@ -980,7 +1043,8 @@ const updateSubStatusCounts = (list) => {
   const counts = {};
   list.forEach(x => {
     const st = normalizeStatus(x.flowStatus);
-    if (TAB_STATUS_MAP.factoryProcessing.includes(st)) {
+    // ⭐ 报废单单独计数（制作中页的「已报废」筛选要用）
+    if (TAB_STATUS_MAP.factoryProcessing.includes(st) || st === 'scrapped') {
       counts[st] = (counts[st] || 0) + 1;
     }
   });
@@ -1237,7 +1301,14 @@ const loadData = async () => {
     updateSubStatusCounts(list);
 
     // ⭐ 按 tab 过滤
-    let filtered = list.filter(x => matchTab(x, activeTab.value));
+    //    「已报废」是旁支状态，不在制作中主链里：只有子筛选切到它时才列出来，
+    //    避免报废单混进正常工序、也避免从「制作中」彻底找不到（订单编辑页没有已完成 tab）
+    let filtered;
+    if (activeTab.value === 'factoryProcessing' && subStatus.value === 'scrapped') {
+      filtered = list.filter(x => x.flowStatus === 'scrapped');
+    } else {
+      filtered = list.filter(x => matchTab(x, activeTab.value));
+    }
 
     // ⭐ 待审核视图：按「待提交 / 已提交待审核」筛选（审核员后端只返回已提交，无需筛选）
     if (mode.value === 'audit') {
@@ -1360,6 +1431,46 @@ const downloadOrderPackage = async (row) => {
 };
 
 // ============================================================
+// ⭐ 列表一键「制作完成」：更新为 productionCompleted 后进【待审核】
+// ============================================================
+const completingOrderId = ref(0);
+const canMarkProductionCompleted = (row) => {
+  if (mode.value !== 'edit' || !allow('status')) return false;
+  const st = normalizeStatus(row.flowStatus);
+  // 已制作完成 / 终态 / 报废单不给这个按钮（报废单要点状态「继续生产」）
+  if (['productionCompleted', 'completed', 'cancelled', 'scrapped', 'unqualifiedReturn'].includes(st)) return false;
+  return st === 'factory_edit' || isInProduction(row.flowStatus);
+};
+
+const handleMarkProductionCompleted = async (row) => {
+  if (completingOrderId.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `确认订单 ${row.orderNo || ''} 已经制作完成？\n更新后状态变为「制作完成」，订单会进入【待审核】页面等待提交审核。`,
+      '制作完成',
+      { type: 'warning', confirmButtonText: '确认完成', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  completingOrderId.value = row.orderId;
+  try {
+    const targetIdx = productionStatuses.value.findIndex(s => s.value === 'productionCompleted');
+    await updateProduction(row.orderId, {
+      status: 'productionCompleted',
+      step: targetIdx >= 0 ? targetIdx + 1 : 0,
+      remark: '工厂在列表标记制作完成'
+    });
+    ElMessage.success('已更新为【制作完成】，订单已进入【待审核】等待提交审核');
+    await loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '更新失败');
+  } finally {
+    completingOrderId.value = 0;
+  }
+};
+
+// ============================================================
 // 打开状态更新弹窗
 // ============================================================
 const openStatusDialog = (row) => {
@@ -1443,6 +1554,67 @@ const handleQuickResume = async () => {
     loadData();
   } catch (error) {
     ElMessage.error(error.message || '恢复失败');
+  } finally {
+    statusLoading.value = false;
+  }
+};
+
+// ============================================================
+// ⭐ 报废 / 继续生产（与暂停同一套逻辑：报废时记住原工序，继续时回到原工序）
+// ============================================================
+const handleQuickScrap = async () => {
+  if (!currentOrder.value) return;
+  const cur = normalizeStatus(currentOrder.value.flowStatus);
+  const originText = cur === 'paused'
+    ? (currentOrder.value.pauseOriginStatusText || '暂停前工序')
+    : getStatusText(currentOrder.value.flowStatus);
+  try {
+    await ElMessageBox.confirm(
+      `确认把订单 ${currentOrder.value.orderNo} 标记为报废？\n\n`
+      + `报废后这张单不在「制作中」列表，也出不了账单；`
+      + `但随时可以在列表点「已报废」继续生产，直接回到「${originText}」，不用重新下单。`,
+      '报废确认',
+      { type: 'warning', confirmButtonText: '确认报废', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  statusLoading.value = true;
+  try {
+    await updateProduction(currentOrder.value.orderId, {
+      status: 'scrapped',
+      step: 0,
+      remark: statusRemark.value || '工厂报废'
+    });
+    ElMessage.success(`已报废（报废前工序：${originText}），需要时点状态即可继续生产`);
+    statusDialogVisible.value = false;
+    loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '报废失败');
+  } finally {
+    statusLoading.value = false;
+  }
+};
+
+const handleQuickResumeScrap = async () => {
+  if (!currentOrder.value) return;
+  const origin = currentOrder.value.scrapOriginStatus;
+  if (!origin) {
+    ElMessage.warning('没有记录到报废前的工序，请在下方「更新为」里手动选择要继续的工序');
+    return;
+  }
+  statusLoading.value = true;
+  try {
+    await updateProduction(currentOrder.value.orderId, {
+      status: origin,
+      step: 0,
+      remark: statusRemark.value || '报废后继续生产'
+    });
+    ElMessage.success(`已继续生产：${getStatusText(origin)}`);
+    statusDialogVisible.value = false;
+    loadData();
+  } catch (error) {
+    ElMessage.error(error.message || '继续生产失败');
   } finally {
     statusLoading.value = false;
   }
@@ -1636,30 +1808,19 @@ const AUDIT_PRODUCTION_TITLES = {
   reject: '驳回审核，订单将回到【工厂编辑】状态',
 };
 
-// ⭐ 制作完成「审核通过」后统一处理：自动生成账单 + LR 表
+// ⭐ 制作完成「审核通过」后统一处理：自动生成账单
 //    所有审核入口（单条 / 批量 / 预览弹窗）都必须调用，否则订单会漏出账
+//    ⭐ 2026-11-20 起：LR 不再在这里生成，改为「账单最终确认」时自动生成
 const afterProductionApproved = async (orderId, silent = false) => {
   try {
     const r = await autoCreateBill(orderId);
     const d = r?.data || r;
-    const billId = d?.billId;
 
     if (d?.skipped) {
       if (!silent) ElMessage.info('账单：' + (d.message || '没有待出账订单'));
     } else if (d?.billNo) {
       ElMessage.success('已自动生成账单 ' + d.billNo +
         (d.orderCount ? `（含 ${d.orderCount} 个订单）` : ''));
-    }
-
-    if (billId && !d?.skipped) {
-      try {
-        const lr = await generateLr({ billId });
-        if (lr?.success !== false) ElMessage.success('已自动生成 LR 表');
-        else ElMessage.warning('LR 表生成提示：' + (lr?.message || '请到 LR 表管理查看'));
-      } catch (e2) {
-        console.warn('自动生成 LR 失败:', e2);
-        ElMessage.warning('账单已生成，但 LR 表自动生成失败，可在 LR 表管理手动生成');
-      }
     }
     return d;
   } catch (e) {
@@ -1669,7 +1830,7 @@ const afterProductionApproved = async (orderId, silent = false) => {
   }
 };
 
-// ⭐ 批量通过后用「补齐」接口一次覆盖所有客户，再逐个账单生成 LR
+// ⭐ 批量通过后用「补齐」接口一次覆盖所有客户（LR 等账单确认后自动生成，这里不再处理）
 const afterBatchProductionApproved = async () => {
   try {
     const r = await generateMissingBills();
@@ -1677,13 +1838,6 @@ const afterBatchProductionApproved = async () => {
     const created = d.created || [];
     if (!created.length) return;
     ElMessage.success(`已自动生成 ${created.length} 张账单：${created.map(x => x.billNo).join('、')}`);
-    for (const b of created) {
-      try {
-        await generateLr({ billId: b.billId });
-      } catch (e) {
-        console.warn('LR 生成失败:', b.billNo, e);
-      }
-    }
   } catch (e) {
     console.warn('批量补齐账单失败:', e);
     ElMessage.warning('账单自动生成失败，请到「生成账单」页点「补齐未出账订单」');
@@ -1711,7 +1865,7 @@ const confirmAuditProduction = async (approved) => {
       auditProductionDialogVisible.value = false;
       loadData();
 
-      // ⭐ 审核通过后自动生成账单 + LR 表（LR 成本行取自订单编辑里录入的成本）
+      // ⭐ 审核通过后自动生成账单（LR 改为账单最终确认时生成）
       if (approved) await afterProductionApproved(orderId);
     } else {
       ElMessage.error(res.message || '操作失败');
@@ -1861,7 +2015,9 @@ onMounted(() => {
     productionStatuses.value = (res?.data || []).map(item => ({
       value: normalizeStatus(item.itemValue),
       label: item.itemLabel || item.itemValue,
-    }));
+    }))
+    // ⭐ 报废不再放在「更新为」下拉里：用弹窗里的「报废订单」按钮，避免和「已报废」筛选重复
+    .filter(item => item.value !== 'scrapped');
     loadData();
   }).catch(() => {
     ElMessage.error('加载制作状态字典失败');
@@ -1896,6 +2052,39 @@ watch(() => [route.query.submit, route.query.range], () => {
 .paused-bars i { display: block; width: 2px; height: 7px; background: #fff; border-radius: 1px; }
 .paused-text { color: #e6a23c; font-weight: 700; font-size: 13px; }
 
+/* ⭐ 已报废：可点「继续生产」，与暂停同款 */
+.scrap-status {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+.scrap-text {
+  color: #f56c6c;
+  background: #fef0f0;
+  border: 1px solid #fbc4c4;
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.scrap-tip { font-size: 10px; color: #909399; }
+.scrap-status:hover .scrap-tip { color: #f56c6c; text-decoration: underline; }
+
+/* ⭐ 弹窗里的报废入口（次级动作，不抢暂停/恢复的主按钮） */
+.scrap-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #f0c78a;
+}
+.scrap-line-tip { font-size: 12px; color: #909399; }
+
 /* ⭐ 弹窗里的大号暂停/恢复按钮 */
 .pause-quick {
   margin: 0 0 16px;
@@ -1916,6 +2105,7 @@ watch(() => [route.query.submit, route.query.range], () => {
   font-size: 12px;
   color: #a06a00;
 }
+.pause-quick-hint .hint-sub { margin-top: 3px; color: #909399; }
 .edit-row-actions { display: flex; justify-content: center; gap: 4px; }
 .no-action { color: #c0c4cc; }
 .customer-salesman { color: #606266; }
@@ -1932,6 +2122,15 @@ watch(() => [route.query.submit, route.query.range], () => {
 /* ⭐ 标题 + 小字提示（提示换行到标题下方，不挤右侧按钮） */
 .header-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .audit-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
+  border-left: 3px solid #dcdfe6;
+  padding-left: 6px;
+  max-width: 760px;
+}
+/* ⭐ 订单编辑：制作完成的操作说明 */
+.edit-hint {
   font-size: 12px;
   line-height: 1.5;
   color: #909399;
@@ -2136,7 +2335,9 @@ watch(() => [route.query.submit, route.query.range], () => {
 .page-container.is-fullscreen {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  /* ⚠️ 必须低于 Element Plus 弹层层级（初始 2000，首次弹出为 2001），
+     否则全屏时 ElMessageBox / ElMessage 会被整个全屏容器盖住，退出全屏才"冒出来" */
+  z-index: 1999;
   background: #fff;
   padding: 16px 20px;
   overflow: auto;

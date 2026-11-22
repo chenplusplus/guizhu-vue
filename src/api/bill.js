@@ -126,6 +126,17 @@ export const exportBill = (id) => {
   });
 };
 
+// ===== 勾选批量导出：多张账单合并在同一个 Excel，一张接一张往下排 =====
+export const exportBills = (billIds) => {
+  return request({
+    url: '/bill/export-batch',
+    method: 'post',
+    data: { billIds },
+    responseType: 'blob',
+    timeout: 180000,
+  });
+};
+
 // ⭐ 审批退回（工厂审核员）
 export const auditReturn = (id, data) => {
   return api.post(`/bill/${id}/return-audit`, data);

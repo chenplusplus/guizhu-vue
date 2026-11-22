@@ -117,7 +117,7 @@
             </template>
           </el-table-column>
           <el-table-column prop="productName" label="品名" min-width="140" show-overflow-tooltip />
-          <el-table-column label="金额" width="110" align="right">
+          <el-table-column label="金额" width="110" align="center">
             <template #default="{ row }">{{ row.totalAmount == null ? '-' : '¥' + Number(row.totalAmount).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="当前工序" width="110" align="center">

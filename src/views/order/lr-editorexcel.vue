@@ -294,7 +294,8 @@ const generateLrTable = async () => {
     }
   } catch (error) {
     console.error('生成失败:', error);
-    ElMessage.error('生成LR表失败');
+    // 后端原因（未最终确认等）已由请求拦截器提示，避免重复弹「生成LR表失败」
+    if (!error?.__msgShown) ElMessage.error('生成LR表失败');
   }
 };
 

@@ -13,6 +13,12 @@ export const getRepairByOrderId = (orderId, bringRepair) => {
     })
 }
 
+// ⭐ 从历史维修单带入费用（同客户 + 同品名优先，其次同客户最近一单）
+// 范围：工费 → CNC 费之间的每个字段，不含订单固定信息与备注
+export const getRepairHistoryBring = (params) => {
+    return request.get('/repair/history-bring', { params })
+}
+
 // 获取维修单详情
 export const getRepairDetail = (id) => {
     return request.get(`/repair/${id}`)

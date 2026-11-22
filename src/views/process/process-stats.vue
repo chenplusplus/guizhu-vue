@@ -401,7 +401,8 @@ const applyDateType = () => {
   if (dateType.value === 'today') {
     dateRange.value = [fmtDate(now), fmtDate(now)];
   } else if (dateType.value === 'month') {
-    dateRange.value = [fmtDate(new Date(now.getFullYear(), now.getMonth(), 1)), fmtDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))];
+    // ⭐ 本月 = 1 号 ~ 今天（与列表页口径一致，不再算到月末）
+    dateRange.value = [fmtDate(new Date(now.getFullYear(), now.getMonth(), 1)), fmtDate(now)];
   } else if (dateType.value === 'lastMonth') {
     dateRange.value = [fmtDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)), fmtDate(new Date(now.getFullYear(), now.getMonth(), 0))];
   } else {

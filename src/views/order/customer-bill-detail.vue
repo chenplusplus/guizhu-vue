@@ -52,39 +52,39 @@
       <el-table :data="allRecords" stripe border size="small" class="detail-table"
         :scrollbar-always-on="true"
       >
-        <el-table-column prop="recordDate" label="日期" width="110">
+        <el-table-column prop="recordDate" label="日期" width="110" align="center">
           <template #default="{row}">{{ fmtDate(row.recordDate) }}</template>
         </el-table-column>
-        <el-table-column label="类型" width="80">
+        <el-table-column label="类型" width="80" align="center">
           <template #default="{row}">
             <el-tag :type="row.type === 'bill' ? 'primary' : 'warning'" size="small">
               {{ row.type === 'bill' ? '账单' : '收款' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="billNo" label="单号/方式" min-width="150">
+        <el-table-column prop="billNo" label="单号/方式" min-width="150" align="center">
           <template #default="{row}">
             <span v-if="row.type === 'bill'">{{ row.billNo }}</span>
             <span v-else>{{ row.paymentMethod ? methodLabel(row.paymentMethod) : (row.billNo || '散收') }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="足金料(g)" align="right" width="120">
+        <el-table-column label="足金料(g)" align="center" width="120">
           <template #default="{row}">
             <span v-if="row.type === 'bill'" class="amount-bill">{{ fmtWeight(row.goldMaterial) }}</span>
             <span v-else class="amount-pay">{{ row.goldMaterial > 0 ? '-' + fmtWeight(row.goldMaterial) : '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="金额(元)" align="right" width="130">
+        <el-table-column label="金额(元)" align="center" width="130">
           <template #default="{row}">
             <span v-if="row.type === 'bill'" class="amount-bill">{{ fmtMoney(row.amount) }}</span>
             <span v-else class="amount-pay">{{ row.amount > 0 ? '-' + fmtMoney(row.amount) : '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="operatorName" label="经办人" width="90">
+        <el-table-column prop="operatorName" label="经办人" width="90" align="center">
           <template #default="{row}">{{ row.createdByName || row.operatorName || '-' }}</template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip />
-        <el-table-column label="操作" width="80" fixed="right">
+        <el-table-column prop="remark" label="备注" min-width="150" show-overflow-tooltip align="center" />
+        <el-table-column label="操作" width="80" fixed="right" align="center">
           <template #default="{row}">
             <el-button v-if="row.type === 'payment'" type="primary" link size="small" @click="openEditDialog(row)">编辑</el-button>
           </template>

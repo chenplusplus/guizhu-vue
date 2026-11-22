@@ -151,7 +151,7 @@
         class="bill-table"
         :scrollbar-always-on="true"
       >
-        <el-table-column prop="orderNo" label="流水单号" width="130" fixed="left">
+        <el-table-column prop="orderNo" label="流水单号" width="130" fixed="left" align="center">
           <template #default="{ row }">
             <span v-if="row.nodeType === 'detail'" class="order-no" @click.stop="goOrderDetail(row)">{{ row.orderNo }}</span>
           </template>
@@ -163,7 +163,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="productName" label="品名" min-width="140">
+        <el-table-column prop="productName" label="品名" min-width="140" align="center">
           <template #default="{ row }">
             <span v-if="row.nodeType === 'detail'">{{ row.productName }}</span>
             <span v-else-if="row.nodeType === 'subtotal'" class="subtotal-text">{{ row.salesName }}：{{ Number(row.totalAmount || 0).toFixed(2) }}元</span>
@@ -202,47 +202,47 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="totalWeight" label="总重" width="70" align="right">
+        <el-table-column prop="totalWeight" label="总重" width="70" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.totalWeight) }}</b>
             <span v-else>{{ fmtW(row.totalWeight) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="netWeight" label="净重" width="70" align="right">
+        <el-table-column prop="netWeight" label="净重" width="70" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.netWeight) }}</b>
             <span v-else>{{ fmtW(row.netWeight) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="lossRate" label="损耗" width="60" align="right">
+        <el-table-column prop="lossRate" label="损耗" width="60" align="center">
           <template #default="{ row }">
             <span v-if="row.nodeType === 'detail'">{{ fmtW(row.lossRate) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="addLossWeight" label="加耗重" width="75" align="right">
+        <el-table-column prop="addLossWeight" label="加耗重" width="75" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.addLossWeight) }}</b>
             <span v-else>{{ fmtW(row.addLossWeight) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="goldPrice" label="金价" width="70" align="right">
+        <el-table-column prop="goldPrice" label="金价" width="70" align="center">
           <template #default="{ row }">
             <span v-if="row.nodeType === 'detail'">{{ fmtM(row.goldPrice) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="goldMaterialFee" label="足金料金额" width="90" align="right">
+        <el-table-column prop="goldMaterialFee" label="足金料金额" width="90" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.goldMaterialFee) }}</b>
             <span v-else>{{ fmtM(row.goldMaterialFee) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="95" align="right">
+        <el-table-column prop="goldMaterialWeight" label="足金料(g)" width="95" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.goldMaterialWeight) }}</b>
             <span v-else>{{ fmtW(row.goldMaterialWeight) }}</span>
@@ -257,24 +257,24 @@
               <span v-else>{{ row.mainStoneQty || '' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="mainStoneWeight" label="石重(ct)" width="80" align="right">
+          <el-table-column prop="mainStoneWeight" label="石重(ct)" width="80" align="center">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.mainStoneWeight) }}</b>
               <span v-else>{{ fmtW(row.mainStoneWeight) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="mainStonePrice" label="单价(元)" width="80" align="right">
+          <el-table-column prop="mainStonePrice" label="单价(元)" width="80" align="center">
             <template #default="{ row }">
               <span v-if="row.nodeType === 'detail'">{{ fmtM(row.mainStonePrice) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="mainStoneAmount" label="金额(元)" width="85" align="right">
+          <el-table-column prop="mainStoneAmount" label="金额(元)" width="85" align="center">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.mainStoneAmount) }}</b>
               <span v-else>{{ fmtM(row.mainStoneAmount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="85" align="right">
+          <el-table-column prop="mainStoneSettingFee" label="镶石工费" width="85" align="center">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.mainStoneSettingFee) }}</b>
               <span v-else>{{ fmtM(row.mainStoneSettingFee) }}</span>
@@ -290,24 +290,24 @@
               <span v-else>{{ row.subStoneQty || '' }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="subStoneWeight" label="石重(ct)" width="84" align="right">
+          <el-table-column prop="subStoneWeight" label="石重(ct)" width="84" align="center">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtW(row.subStoneWeight) }}</b>
               <span v-else>{{ fmtW(row.subStoneWeight) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="subStonePrice" label="单价(元)" width="80" align="right">
+          <el-table-column prop="subStonePrice" label="单价(元)" width="80" align="center">
             <template #default="{ row }">
               <span v-if="row.nodeType === 'detail'">{{ fmtM(row.subStonePrice) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="right">
+          <el-table-column prop="subStoneAmount" label="金额(元)" width="85" align="center">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.subStoneAmount) }}</b>
               <span v-else>{{ fmtM(row.subStoneAmount) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="subStoneSettingFee" label="镶石工费" width="85" align="right">
+          <el-table-column prop="subStoneSettingFee" label="镶石工费" width="85" align="center">
             <template #default="{ row }">
               <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.subStoneSettingFee) }}</b>
               <span v-else>{{ fmtM(row.subStoneSettingFee) }}</span>
@@ -315,28 +315,28 @@
           </el-table-column>
         </el-table-column>
 
-        <el-table-column label="包装证书邮费" width="100" align="right">
+        <el-table-column label="包装证书邮费" width="100" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtM((row.packingFee||0) + (row.certificateFee||0) + (row.postageFee||0)) }}</b>
             <span v-else>{{ fmtM((row.packingFee||0) + (row.certificateFee||0) + (row.postageFee||0)) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="moldFee" label="版费" width="70" align="right">
+        <el-table-column prop="moldFee" label="版费" width="70" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.moldFee) }}</b>
             <span v-else>{{ fmtM(row.moldFee) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="laborFee" label="工费" width="70" align="right">
+        <el-table-column prop="laborFee" label="工费" width="70" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.laborFee) }}</b>
             <span v-else>{{ fmtM(row.laborFee) }}</span>
           </template>
         </el-table-column>
 
-        <el-table-column prop="totalAmount" label="应收金额" width="95" align="right">
+        <el-table-column prop="totalAmount" label="应收金额" width="95" align="center">
           <template #default="{ row }">
             <b v-if="row.nodeType !== 'detail'">{{ fmtM(row.totalAmount) }}</b>
             <span v-else>{{ fmtM(row.totalAmount) }}</span>
@@ -344,12 +344,12 @@
         </el-table-column>
 
         <!-- ⭐ 已付款 / 未付款（来款为账单级，仅合计行展示） -->
-        <el-table-column prop="paidAmount" label="已付款" width="90" align="right" fixed="right">
+        <el-table-column prop="paidAmount" label="已付款" width="90" align="center" fixed="right">
           <template #default="{ row }">
             <b v-if="row.nodeType === 'total'">{{ fmtMoney(row.paidAmount) }}</b>
           </template>
         </el-table-column>
-        <el-table-column prop="unpaidAmount" label="未付款" width="90" align="right" fixed="right">
+        <el-table-column prop="unpaidAmount" label="未付款" width="90" align="center" fixed="right">
           <template #default="{ row }">
             <b v-if="row.nodeType === 'total'">{{ fmtMoney(row.unpaidAmount) }}</b>
           </template>

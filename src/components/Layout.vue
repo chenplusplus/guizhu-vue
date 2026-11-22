@@ -284,19 +284,61 @@ const loadUserMenus = async () => {
   }
 }
 
+const addCachedView = (name) => {
+  if (!name) return
+  const cachedName = Array.isArray(name) ? name[0] : name
+  if (cachedName && !cachedViews.value.includes(cachedName)) {
+    cachedViews.value.push(cachedName)
+  }
+}
+
+// ⭐ 角色首页（工作台 / 经营看板）解析：拿标题和路由名
+const resolveHomeTab = () => {
+  const home = userStore.homePath
+  if (!home) return null
+  let r = null
+  try { r = router.resolve(home) } catch { r = null }
+  if (!r || !r.matched || r.matched.length === 0) return null
+  return {
+    title: r.meta?.title || '工作台',
+    path: home,
+    closable: false,
+    name: r.name || ''
+  }
+}
+
+// ⭐ 角色首页永远钉在第一个页签：不存在就补上，位置不对就挪到最前
+const pinHomeTab = () => {
+  const home = resolveHomeTab()
+  if (!home) return
+  const idx = tabs.value.findIndex(t => t.path === home.path)
+  let tab
+  if (idx === -1) {
+    tab = home
+    tabs.value.unshift(tab)
+  } else {
+    tab = { ...tabs.value[idx], closable: false, title: tabs.value[idx].title || home.title }
+    if (idx !== 0) {
+      tabs.value.splice(idx, 1)
+      tabs.value.unshift(tab)
+    } else {
+      tabs.value.splice(0, 1, tab)
+    }
+  }
+  addCachedView(tab.name)
+}
+
 const addTab = (to) => {
   const title = to.meta?.title || to.name || '页面'
   const path = to.path
   // 工作台（角色首页）常驻，不可关闭
-  const closable = !userStore.homePath || path !== userStore.homePath
-  if (tabs.value.find(t => t.path === path)) return
-  tabs.value.push({ title, path, closable, name: to.name })
-  if (to.name) {
-    const cachedName = Array.isArray(to.name) ? to.name[0] : to.name
-    if (!cachedViews.value.includes(cachedName)) {
-      cachedViews.value.push(cachedName)
-    }
+  const isHome = !!userStore.homePath && path === userStore.homePath
+  if (!tabs.value.find(t => t.path === path)) {
+    tabs.value.push({ title, path, closable: !isHome, name: to.name })
+    addCachedView(to.name)
   }
+  // 每次切页都校准一次，保证首页在第一格
+  pinHomeTab()
 }
 
 const switchTab = (tab) => {
@@ -322,17 +364,25 @@ const closeTab = (tab) => {
 }
 
 const closeAll = () => {
-  // 只保留角色首页标签（工作台），其余全部关闭
+  // 只保留角色首页标签（工作台 / 经营看板），其余全部关闭
   const home = userStore.homePath
+  tabs.value = []
   cachedViews.value = []
-  tabs.value = home ? tabs.value.filter(t => t.path === home) : []
+  pinHomeTab()
   if (home && currentPath.value !== home) router.push(home)
 }
 
 const closeOthers = () => {
+  // 关闭其他时，角色首页要保留在第一格，不被一起关掉
+  const home = userStore.homePath
   const current = tabs.value.find(t => t.path === currentPath.value)
-  tabs.value = current ? [current] : []
+  const keep = []
+  const homeTab = home ? tabs.value.find(t => t.path === home) : null
+  if (homeTab) keep.push({ ...homeTab, closable: false })
+  if (current && (!homeTab || current.path !== homeTab.path)) keep.push(current)
+  tabs.value = keep
   cachedViews.value = []
+  pinHomeTab()
 }
 
 const handleTabCommand = (cmd) => {
@@ -367,6 +417,8 @@ watch(route, (to) => {
 
 onMounted(async () => {
   await loadUserMenus()
+  // 角色首页固定在第一个页签（刷新 / 直接打开子页面时也补上）
+  pinHomeTab()
   if (tabs.value.length === 0 && route.path && route.path !== '/login') {
     addTab(route)
   }

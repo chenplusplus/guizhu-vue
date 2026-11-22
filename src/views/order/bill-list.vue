@@ -13,15 +13,15 @@
       </div>
       <div class="header-right">
         <el-radio-group v-model="statusFilter" size="default" @change="onFilterChange">
-          <el-radio-button value="">全部</el-radio-button>
-          <el-radio-button value="pending">待提交</el-radio-button>
-          <el-radio-button value="billPending">待审核</el-radio-button>
-          <el-radio-button value="billRejected">审核驳回</el-radio-button>
-          <el-radio-button value="billConfirmed">待客户审核</el-radio-button>
-          <el-radio-button value="customerApproved">待业务确认</el-radio-button>
-          <el-radio-button value="returned">已退回</el-radio-button>
-          <el-radio-button value="returnRequested">客户退回待处理</el-radio-button>
-          <el-radio-button value="returnPending">退回待审核</el-radio-button>
+          <el-radio-button
+            v-for="s in STATUS_FILTERS"
+            :key="s.value"
+            :value="s.value"
+          >
+            {{ s.label }}
+            <!-- ⭐ 红圈数量：当前日期 / 关键词范围内的全量，不随选中状态变化 -->
+            <span v-if="countOf(s.value) > 0" class="status-count">{{ countOf(s.value) }}</span>
+          </el-radio-button>
         </el-radio-group>
         <el-date-picker
           v-model="dateRange"
@@ -46,26 +46,21 @@
       </div>
     </div>
 
-    <!-- 汇总 -->
+    <!-- 汇总（各状态张数已挪到上方状态按钮的红圈里） -->
     <div class="summary-bar">
       <span>共 <b>{{ total }}</b> 张账单</span>
       <span>本页应收 <b class="money">¥{{ pageAmount.toFixed(2) }}</b></span>
-      <span>待提交 <b class="warn">{{ countByStatus('pending') }}</b></span>
-      <span>待审核 <b class="warn">{{ countByStatus('billPending') }}</b></span>
-      <span>待客户审核 <b class="warn">{{ countByStatus('billConfirmed') }}</b></span>
-      <span>待业务确认 <b class="ok">{{ countByStatus('customerApproved') }}</b></span>
-      <span class="tip">（状态按当前页统计）</span>
     </div>
 
     <el-table :data="rows" border stripe size="default" empty-text="暂无账单"
       :scrollbar-always-on="true"
     >
-      <el-table-column prop="billNo" label="账单号" width="160" fixed>
+      <el-table-column prop="billNo" label="账单号" width="160" fixed align="center">
         <template #default="{ row }">
           <span class="mono link" @click="goDetail(row)">{{ row.billNo }}</span>
         </template>
       </el-table-column>
-      <el-table-column prop="customerName" label="客户" min-width="150" show-overflow-tooltip />
+      <el-table-column prop="customerName" label="客户" min-width="150" show-overflow-tooltip align="center" />
       <el-table-column prop="operatorName" label="业务员" width="110" align="center">
         <template #default="{ row }">{{ row.operatorName || '—' }}</template>
       </el-table-column>
@@ -73,7 +68,7 @@
         <template #default="{ row }">{{ fmtDate(row.billDate) }}</template>
       </el-table-column>
       <el-table-column prop="orderCount" label="明细数" width="80" align="center" />
-      <el-table-column label="应收金额" width="130" align="right">
+      <el-table-column label="应收金额" width="130" align="center">
         <template #default="{ row }">
           <span class="money">¥{{ num(row.totalAmount).toFixed(2) }}</span>
         </template>
@@ -207,7 +202,25 @@ const receiptTag = (s) => ({
 const canEdit = (row) => ['pending', 'billRejected', 'returned'].includes(row.status);
 
 const pageAmount = computed(() => rows.value.reduce((s, r) => s + num(r.totalAmount), 0));
-const countByStatus = (s) => rows.value.filter(r => r.status === s).length;
+
+// ⭐ 状态筛选按钮（顺序即展示顺序）
+const STATUS_FILTERS = [
+  { value: '', label: '全部' },
+  { value: 'pending', label: '待提交' },
+  { value: 'billPending', label: '待审核' },
+  { value: 'billRejected', label: '审核驳回' },
+  { value: 'billConfirmed', label: '待客户审核' },
+  { value: 'customerApproved', label: '待业务确认' },
+  { value: 'returned', label: '已退回' },
+  { value: 'returnRequested', label: '客户退回待处理' },
+  { value: 'returnPending', label: '退回待审核' },
+];
+
+// 各状态数量：后端按「当前日期 / 关键词 / 权限」全量统计，不随选中状态变化
+const statusCounts = ref({});
+const allCount = computed(() =>
+  Object.values(statusCounts.value).reduce((s, v) => s + Number(v || 0), 0));
+const countOf = (v) => (v ? Number(statusCounts.value[v] || 0) : allCount.value);
 
 const onFilterChange = () => {
   page.value = 1;
@@ -231,6 +244,7 @@ const loadData = async () => {
     const res = await getBillList(params);
     rows.value = res?.data || [];
     total.value = res?.total || 0;
+    statusCounts.value = res?.statusCounts || {};
   } catch (e) {
     console.error('加载账单列表失败:', e);
     ElMessage.error(e?.response?.data?.message || '加载账单列表失败');
@@ -288,9 +302,25 @@ onMounted(loadData);
 }
 .summary-bar b { color: #303133; font-family: Consolas, Monaco, monospace; }
 .summary-bar .money { color: #c0392b; }
-.summary-bar .warn { color: #d98600; }
-.summary-bar .ok { color: #1f9254; }
-.summary-bar .tip { font-size: 12px; color: #c0c4cc; }
+
+/* ⭐ 状态按钮上的红圈数量 */
+.status-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 5px;
+  border-radius: 9px;
+  background: #f56c6c;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  font-family: Consolas, Monaco, monospace;
+  vertical-align: middle;
+}
 
 .mono { font-family: Consolas, Monaco, monospace; }
 .link { color: #409eff; cursor: pointer; }

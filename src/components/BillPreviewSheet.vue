@@ -97,7 +97,7 @@
         >
           <el-table-column prop="serialNo" :label="dense ? '单号' : '流水单号'" :width="dense ? 78 : 80" align="center" show-overflow-tooltip />
           <el-table-column prop="seqNo" label="序号" :width="dense ? 24 : 50" align="center" />
-          <el-table-column prop="productName" label="品名" :min-width="dense ? 50 : 130" align="left" show-overflow-tooltip />
+          <el-table-column prop="productName" label="品名" :min-width="dense ? 50 : 130" align="center" show-overflow-tooltip />
           <el-table-column prop="customerName" label="客户" :width="dense ? 44 : 100" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="customer-red">{{ row.customerName }}</span>
@@ -109,7 +109,7 @@
           </el-table-column>
           <el-table-column prop="quantity" label="件数" :width="dense ? 22 : 55" align="center" />
           <el-table-column prop="size" :label="dense ? '手寸' : '手寸/长度'" :width="dense ? 36 : 85" align="center" show-overflow-tooltip />
-          <el-table-column prop="totalWeight" label="总重" :width="dense ? 40 : 70" align="right">
+          <el-table-column prop="totalWeight" label="总重" :width="dense ? 40 : 70" align="center">
             <template #default="{ row }">{{ fmtNum(row.totalWeight) }}</template>
           </el-table-column>
 
@@ -130,19 +130,19 @@
             </template>
           </el-table-column>
 
-          <el-table-column prop="netWeight" label="净重" :width="dense ? 40 : 70" align="right" class-name="gi-col">
+          <el-table-column prop="netWeight" label="净重" :width="dense ? 40 : 70" align="center" class-name="gi-col">
             <template #default="{ row }">{{ fmtNum(gv(row, 'netWeight')) }}</template>
           </el-table-column>
-          <el-table-column prop="lossRate" label="损耗" :width="dense ? 30 : 60" align="right" class-name="gi-col">
+          <el-table-column prop="lossRate" label="损耗" :width="dense ? 30 : 60" align="center" class-name="gi-col">
             <template #default="{ row }">{{ fmtNum(gv(row, 'lossRate')) }}</template>
           </el-table-column>
-          <el-table-column prop="addedWeight" :label="dense ? '加耗' : '加耗重'" :width="dense ? 40 : 70" align="right" class-name="gi-col">
+          <el-table-column prop="addedWeight" :label="dense ? '加耗' : '加耗重'" :width="dense ? 40 : 70" align="center" class-name="gi-col">
             <template #default="{ row }">{{ fmtNum(gv(row, 'addedWeight')) }}</template>
           </el-table-column>
-          <el-table-column prop="goldPrice" label="金价" :width="dense ? 40 : 70" align="right" class-name="gi-col">
+          <el-table-column prop="goldPrice" label="金价" :width="dense ? 40 : 70" align="center" class-name="gi-col">
             <template #default="{ row }">{{ fmtNum(gv(row, 'goldPrice')) }}</template>
           </el-table-column>
-          <el-table-column prop="goldMaterialFee" :label="dense ? '料款' : '足金料金额'" :min-width="dense ? 50 : 80" align="right" show-overflow-tooltip class-name="gi-col">
+          <el-table-column prop="goldMaterialFee" :label="dense ? '料款' : '足金料金额'" :min-width="dense ? 50 : 80" align="center" show-overflow-tooltip class-name="gi-col">
             <template #default="{ row }">{{ fmtNum(gv(row, 'goldMaterialFee')) }}</template>
           </el-table-column>
 
@@ -151,7 +151,7 @@
             prop="goldMaterialWeight"
             :label="dense ? '料重(g)' : '足金料(g)'"
             :width="dense ? 44 : 100"
-            align="right"
+            align="center"
             class-name="gi-col"
           >
             <template #default="{ row }">
@@ -162,27 +162,27 @@
           <!-- 主石 -->
           <el-table-column label="主石" align="center">
             <el-table-column prop="mainStoneQty" label="粒数" :width="dense ? 24 : 55" align="center" />
-            <el-table-column prop="mainStoneWeight" :label="dense ? '石重' : '石重(ct)'" :width="dense ? 34 : 80" align="right">
+            <el-table-column prop="mainStoneWeight" :label="dense ? '石重' : '石重(ct)'" :width="dense ? 34 : 80" align="center">
               <template #default="{ row }">{{ fmtNum(row.mainStoneWeight) }}</template>
             </el-table-column>
-            <el-table-column prop="mainStonePrice" :label="dense ? '单价' : '单价(元)'" :width="dense ? 38 : 80" align="right" />
-            <el-table-column prop="mainStoneAmount" :label="dense ? '金额' : '金额(元)'" :min-width="dense ? 43 : 85" align="right" show-overflow-tooltip />
-            <el-table-column prop="mainStoneSettingFee" :label="dense ? '镶工' : '镶石工费'" :width="dense ? 44 : 85" align="right" />
+            <el-table-column prop="mainStonePrice" :label="dense ? '单价' : '单价(元)'" :width="dense ? 38 : 80" align="center" />
+            <el-table-column prop="mainStoneAmount" :label="dense ? '金额' : '金额(元)'" :min-width="dense ? 43 : 85" align="center" show-overflow-tooltip />
+            <el-table-column prop="mainStoneSettingFee" :label="dense ? '镶工' : '镶石工费'" :width="dense ? 44 : 85" align="center" />
           </el-table-column>
 
           <!-- 副石 -->
           <el-table-column label="副石" align="center">
             <el-table-column prop="subStoneQty" label="粒数" :width="dense ? 24 : 55" align="center" />
-            <el-table-column prop="subStoneWeight" :label="dense ? '石重' : '石重(ct)'" :width="dense ? 34 : 84" align="right">
+            <el-table-column prop="subStoneWeight" :label="dense ? '石重' : '石重(ct)'" :width="dense ? 34 : 84" align="center">
               <template #default="{ row }">{{ fmtNum(row.subStoneWeight) }}</template>
             </el-table-column>
-            <el-table-column prop="subStonePrice" :label="dense ? '单价' : '单价(元)'" :width="dense ? 38 : 80" align="right" />
-            <el-table-column prop="subStoneAmount" :label="dense ? '金额' : '金额(元)'" :min-width="dense ? 43 : 85" align="right" show-overflow-tooltip />
-            <el-table-column prop="subStoneSettingFee" :label="dense ? '镶工' : '镶石工费'" :width="dense ? 44 : 85" align="right" />
+            <el-table-column prop="subStonePrice" :label="dense ? '单价' : '单价(元)'" :width="dense ? 38 : 80" align="center" />
+            <el-table-column prop="subStoneAmount" :label="dense ? '金额' : '金额(元)'" :min-width="dense ? 43 : 85" align="center" show-overflow-tooltip />
+            <el-table-column prop="subStoneSettingFee" :label="dense ? '镶工' : '镶石工费'" :width="dense ? 44 : 85" align="center" />
           </el-table-column>
 
           <!-- 包装证书邮费 -->
-          <el-table-column :label="dense ? '包装邮费' : '包装证书邮费'" :width="dense ? 46 : 105" align="right">
+          <el-table-column :label="dense ? '包装邮费' : '包装证书邮费'" :width="dense ? 46 : 105" align="center">
             <template #default="{ row }">
               {{ row.rowType === 'detail'
                 ? ((row.packingFee || 0) + (row.certificateFee || 0) + (row.postageFee || 0)).toFixed(2)
@@ -191,20 +191,20 @@
           </el-table-column>
 
           <!-- 版费 -->
-          <el-table-column prop="moldFee" label="版费" :width="dense ? 32 : 65" align="right" />
+          <el-table-column prop="moldFee" label="版费" :width="dense ? 32 : 65" align="center" />
 
           <!-- 工费 -->
-          <el-table-column prop="laborFee" label="工费" :width="dense ? 32 : 70" align="right" />
+          <el-table-column prop="laborFee" label="工费" :width="dense ? 32 : 70" align="center" />
 
           <!-- 应收金额 -->
-          <el-table-column prop="totalAmount" :label="dense ? '应收' : '应收金额'" :min-width="dense ? 47 : 95" align="right" show-overflow-tooltip>
+          <el-table-column prop="totalAmount" :label="dense ? '应收' : '应收金额'" :min-width="dense ? 47 : 95" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="amount-red">{{ fmtYuan(row.totalAmount) }}</span>
             </template>
           </el-table-column>
 
           <!-- ⭐ 收款：实际收款（明细行可填，小计/合计行自动汇总） -->
-          <el-table-column v-if="receiptMode" :label="dense ? '实收' : '实际收款'" :min-width="dense ? 51 : 112" align="right">
+          <el-table-column v-if="receiptMode" :label="dense ? '实收' : '实际收款'" :min-width="dense ? 51 : 112" align="center">
             <template #default="{ row }">
               <template v-if="row.rowType === 'detail'">
                 <el-input
@@ -304,9 +304,16 @@
             <span class="f-label">本单应收款：</span>
             <span class="f-value highlight">¥{{ fmtYuan(billData.currentMoney) }}</span>
           </div>
-          <div class="footer-cell">
+          <div class="footer-cell cell-receive">
             <span class="f-label">来款金额：</span>
             <span class="f-value">¥{{ (billData.receivedMoney || 0).toFixed(2) }}</span>
+            <!-- ⭐ 抵扣结算：来款金额只记现金实收，抵扣另标（口径同上面「现金付款」）
+                 只在收款审核通过后显示，与 receivedMoney 的写回时机保持一致 -->
+            <span
+              v-if="billData.receiptStatus === 'approved' && (billData.receiptOffset || 0) > 0"
+              class="offset-tag"
+              :title="`本单收款有 ¥${Number(billData.receiptOffset || 0).toFixed(2)} 用客户来款余额抵扣，不计入实收现金；累计欠款已扣掉这部分`"
+            >抵扣 ¥{{ Number(billData.receiptOffset || 0).toFixed(2) }}</span>
           </div>
           <div class="footer-cell">
             <span class="f-label">累计欠款：</span>
@@ -1055,7 +1062,7 @@ function round3(v) { return Math.round(Number(v || 0) * 1000) / 1000; }
 }
 .rt-label { font-weight: 600; color: #303133; }
 .rt-input { width: 124px; }
-.rt-input :deep(.el-input__inner) { text-align: right; font-family: Consolas, Monaco, monospace; }
+.rt-input :deep(.el-input__inner) { text-align: center; font-family: Consolas, Monaco, monospace; }
 .rt-total { color: #c0392b; font-size: 14px; font-family: Consolas, Monaco, monospace; }
 .rt-item b { color: #303133; font-family: Consolas, Monaco, monospace; }
 .rt-item b.warn { color: #d64545; }
@@ -1140,7 +1147,7 @@ function round3(v) { return Math.round(Number(v || 0) * 1000) / 1000; }
   height: 22px;
   line-height: 22px;
   font-size: 12px;
-  text-align: right;
+  text-align: center;
   font-family: 'SimSun', '宋体', serif;
 }
 .receipt-value { color: #303133; }
@@ -1218,6 +1225,24 @@ function round3(v) { return Math.round(Number(v || 0) * 1000) / 1000; }
   font-size: 11px;
   line-height: 16px;
   white-space: nowrap;
+}
+/* ⭐ 抵扣标记：跟在「来款金额」后面，说明这笔钱不是现金到账而是余额抵扣 */
+.cell-receive {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.offset-tag {
+  flex: 0 0 auto;
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px solid #b9d0ef;
+  border-radius: 9px;
+  background: #eef4fd;
+  color: #1d63c9;
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  cursor: help;
 }
 
 .preview-actions {
@@ -1303,6 +1328,7 @@ function round3(v) { return Math.round(Number(v || 0) * 1000) / 1000; }
 .is-full .footer-row { font-size: 11px; }
 .is-full .footer-cell { padding: 3px 6px; min-height: 22px; }
 .is-full .cash-tag { font-size: 10px; line-height: 14px; padding: 0 5px; }
+.is-full .offset-tag { font-size: 10px; line-height: 14px; padding: 0 5px; }
 .is-full .preview-actions { display: none; }
 /* 全屏只上下滚：彻底关掉横向滚动（1px 取整也会冒出一条蓝条） */
 .is-full :deep(.el-table__body-wrapper .el-scrollbar__wrap) { overflow-x: hidden !important; }
