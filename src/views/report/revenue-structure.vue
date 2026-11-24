@@ -115,7 +115,7 @@
 
     <!-- 三项对比：一张卡一组，卡内「收入 / 对应支出」上下两行，差额单独收尾 -->
     <div class="compare-panel" v-loading="loading">
-      <div class="panel-title">够不够花 / 够不够付师傅 / 钻石赚多少</div>
+      <div class="panel-title">够不够花 / 够不够付师傅 / 钻石赚多少 / 赚金多少</div>
       <div class="cmp-grid">
         <div class="cmp-card" v-for="c in compares" :key="c.key" :class="'cmp-' + c.key">
           <div class="cc-head">
@@ -363,6 +363,10 @@ const compares = computed(() => {
   const diaNote = Number(s.diamondReturned || 0) > 0
     ? `收入：钻石料总数 ${fmt(s.diamondMaterialGross)} − 退货 ${fmt(s.diamondReturned)} = 净 ${fmt(s.diamondMaterial)}；支出：钻石入库 ${fmt(s.diamondPurchase)}`
     : `收入：纯钻石料 ${fmt(s.diamondMaterial)}（已剔除镶石工费）；支出：钻石入库 ${fmt(s.diamondPurchase)}`;
+  // ⭐ 赚金：与 LR 汇总同一个算法（销售行金料 − 成本行金料）
+  const goldNote = Number(s.goldLrCount || 0) > 0
+    ? `收入：金料净额 ${fmt(s.goldSaleFee)}；支出：LR 成本行金料 ${fmt(s.goldCostFee)}（${s.goldLrCount} 张 LR，算法同 LR 汇总）`
+    : '区间内还没有生成 LR 的账单，赚金暂按 0 计';
 
   return [
     {
@@ -397,6 +401,17 @@ const compares = computed(() => {
       okText: '有毛利',
       badText: '倒挂',
       note: diaNote
+    },
+    {
+      key: 'gold',
+      label: '赚金多少',
+      hint: '金料卖价 vs LR 成本金料（成本金价）',
+      income: s.goldSaleFee || 0,
+      cost: s.goldCostFee || 0,
+      diff: s.goldProfit || 0,
+      okText: '有毛利',
+      badText: '倒挂',
+      note: goldNote
     }
   ];
 });
@@ -612,7 +627,7 @@ onBeforeUnmount(() => {
 .panel-title { font-size: 14px; font-weight: 600; color: #303133; margin-bottom: 10px; }
 
 /* 对比卡：一组一张，卡内「收入 / 对应支出」上下两行，带同基准对比条 */
-.cmp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cmp-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .cmp-card {
   background: #fcfdfe; border: 1px solid #ebeef5; border-radius: 8px;
   padding: 12px 14px 14px; display: flex; flex-direction: column;
@@ -620,6 +635,7 @@ onBeforeUnmount(() => {
 .cmp-card.cmp-process { border-top: 3px solid #409eff; }
 .cmp-card.cmp-setting { border-top: 3px solid #e6a23c; }
 .cmp-card.cmp-diamond { border-top: 3px solid #67c23a; }
+.cmp-card.cmp-gold { border-top: 3px solid #b88230; }
 .cc-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .cc-title { font-size: 13px; font-weight: 600; color: #303133; }
 .cc-block { margin-bottom: 10px; }
@@ -647,6 +663,9 @@ onBeforeUnmount(() => {
   .k-value { font-size: 21px; }
 }
 /* 窄屏：四个汇总两列两行，对比卡单列，避免文字挤压 */
+@media (max-width: 1560px) {
+  .cmp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 1180px) {
   .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cmp-grid { grid-template-columns: 1fr; }
