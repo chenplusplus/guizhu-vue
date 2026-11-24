@@ -115,8 +115,8 @@ const reportShortcuts = [
   { label: '客户月度账单', path: '/order/customer-monthly-bill' },
   // ⭐ 原「往来单位汇总」（/transaction/counterpart-summary）已下线，统一走对账单
   { label: '往来单位对账单', path: '/inout/report/statement' },
-  // ⭐ 月度盘点：直接进盘点列表（新建盘点 / 盘点核算）
-  { label: '月度盘点', path: '/inventory/monthly-list' },
+  // ⭐ 月度经营报表：直接进月报列表（新建盘点 / 盘点核算）
+  { label: '月度经营报表', path: '/inventory/monthly-list' },
 ];
 
 // 卡片元数据：type → 名称 / 图标 / 跳转目标

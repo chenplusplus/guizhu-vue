@@ -1,15 +1,15 @@
-<!-- src/views/inventory/index.vue —— 月度盘点专版 -->
+<!-- src/views/inventory/index.vue —— 月度经营报表专版 -->
 <template>
   <div class="inventory-page">
     <!-- ===== 页面头部 ===== -->
     <div class="page-header">
-      <h2>📦 月度盘点</h2>
+      <h2>📦 月度经营报表</h2>
       <div class="header-actions">
         <el-button @click="loadData">
           <el-icon><Refresh /></el-icon> 刷新
         </el-button>
         <el-button type="primary" @click="goMonthlyList">
-          <el-icon><Search /></el-icon> 月度盘点列表
+          <el-icon><Search /></el-icon> 月度经营报表列表
         </el-button>
       </div>
     </div>
@@ -21,7 +21,7 @@
           <div class="nav-item nav-blue" @click="goMonthlyList">
             <div class="nav-icon">📅</div>
             <div class="nav-text">
-              <div class="nav-title">月度盘点</div>
+              <div class="nav-title">月度经营报表</div>
               <div class="nav-desc">按月份汇总对账</div>
             </div>
           </div>
@@ -30,7 +30,7 @@
           <div class="nav-item nav-orange" @click="goMonthlyDetail">
             <div class="nav-icon">👥</div>
             <div class="nav-text">
-              <div class="nav-title">月度盘点明细</div>
+              <div class="nav-title">月度经营报表明细</div>
               <div class="nav-desc">按客户维度查看</div>
             </div>
           </div>
@@ -47,11 +47,11 @@
       </el-row>
     </el-card>
 
-    <!-- ===== 月度盘点概览 ===== -->
+    <!-- ===== 月度经营报表概览 ===== -->
     <el-card class="overview-card" shadow="never" v-loading="loading">
       <template #header>
         <div class="card-header">
-          <span>月度盘点概览</span>
+          <span>月度经营报表概览</span>
           <span class="update-time" v-if="lastUpdated">更新时间：{{ lastUpdated }}</span>
         </div>
       </template>
@@ -147,7 +147,7 @@
       </el-table>
     </el-card>
 
-    <el-empty v-else-if="!loading" description="暂无已确认的月度盘点" :image-size="60" />
+    <el-empty v-else-if="!loading" description="暂无已确认的月度经营报表" :image-size="60" />
   </div>
 </template>
 
@@ -218,7 +218,7 @@ const viewDetailForCustomer = (yearMonth, customerId) => {
 
 const handleConfirm = async (row) => {
   try {
-    await ElMessageBox.confirm(`确认 ${row.yearMonth} 月度盘点？`, '确认盘点', { type: 'warning' });
+    await ElMessageBox.confirm(`确认 ${row.yearMonth} 月度经营报表？`, '确认盘点', { type: 'warning' });
     await confirmMonthly(row.yearMonth, {});
     ElMessage.success('已确认');
     loadData();

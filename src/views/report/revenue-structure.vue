@@ -1,5 +1,5 @@
 <!-- src/views/report/revenue-structure.vue
-     收入结构统计（2026-11-11 改口径）
+     销售成本对比（原「收入结构」统计，2026-11-11 改口径）
      —— 回答三个问题：「工费 VS 日常开销」「镶石工费 VS 师傅开销」「钻石赚了多少」
 
      口径（详见 docs/收入结构统计.md）：
@@ -12,7 +12,7 @@
 <template>
   <div class="page-container revenue-page">
     <div class="page-header">
-      <h2>💰 收入结构</h2>
+      <h2>💰 销售成本对比</h2>
       <div class="header-actions">
         <el-button size="small" :loading="loading" @click="loadAll">
           <el-icon><Refresh /></el-icon> 刷新
@@ -551,7 +551,7 @@ const exportCsv = () => {
   const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `收入结构_${range.value?.[0] || ''}_${range.value?.[1] || ''}.csv`;
+  a.download = `销售成本对比_${range.value?.[0] || ''}_${range.value?.[1] || ''}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 };

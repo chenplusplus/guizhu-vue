@@ -1,7 +1,7 @@
 <template>
   <div class="page-container">
     <div class="page-header">
-      <h2>📦 月度盘点</h2>
+      <h2>📦 月度经营报表</h2>
       <div>
         <el-date-picker
           v-model="newMonth"

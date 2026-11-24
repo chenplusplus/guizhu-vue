@@ -101,7 +101,7 @@ const routes = [
         path: 'inventory/monthly/:yearMonth',
         name: 'InventoryMonthlyDetail',
         component: () => import('@/views/inventory/monthly-detail.vue'),
-        meta: { title: '月度盘点详情', hidden: true }
+        meta: { title: '月度经营报表详情', hidden: true }
       },
       {
         path: 'inventory/monthly-report/:yearMonth?',
@@ -511,11 +511,11 @@ const routes = [
         meta: { title: '往来单位对账单', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
       {
-        // 收入结构：工费 / 镶石 / 钻石卖出（月度统计，老板视角）
+        // 销售成本对比（原收入结构）：工费 / 镶石 / 钻石卖出 vs 成本（月度统计，老板视角）
         path: 'report/revenue',
         name: 'RevenueStructure',
         component: () => import('@/views/report/revenue-structure.vue'),
-        meta: { title: '收入结构', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
+        meta: { title: '销售成本对比', roles: ['factoryOrder', 'factoryAudit', 'admin'] }
       },
 
       // ===== 总进出新模块（26分类×5维度矩阵） =====
