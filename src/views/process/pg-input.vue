@@ -208,7 +208,7 @@
             </el-col>
           </el-row>
           <div class="rate-hint" v-if="isLossySelected">
-            标准损耗 = <b>发出重量 × 损耗率</b>（有耗默认 1% = 0.01，可手填）；实损耗 = 发出 − 回收 − 报废回收（报废回收不记耗）
+            标准损耗 = <b>（发出 − 报废回收）× 损耗率</b>（有耗默认 1% = 0.01，可手填）；实损耗 = 发出 − 回收 − 报废回收（报废回收不记耗）
           </div>
           <div class="rate-hint" v-else-if="form.processDictId">
             {{ currentSubProcess === '布心抛光' ? '布心抛光' : '无耗抛光' }}不扣损耗，实损耗即应回金
@@ -240,7 +240,7 @@
           <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" show-word-limit /></el-form-item>
         </div>
 
-        <!-- 师傅累计（上单累计 → 本单 → 累计） -->
+        <!-- 师傅累计（上单 → 本单 → 累积） -->
         <div class="form-section master-section">
           <div class="section-title">
             👤 该师傅累计（截至 {{ form.businessDate || '今天' }}）
@@ -248,32 +248,32 @@
             <span class="master-name empty" v-else>未选师傅</span>
             <span class="master-count" v-if="form.masterName">已生效 {{ masterTotal.recordCount }} 单</span>
           </div>
-          <el-table :data="masterRows" border size="small" class="master-table" style="max-width: 820px;">
-            <el-table-column prop="label" label="指标" width="180">
+          <el-table :data="masterRows" border size="small" class="master-table" style="max-width: 860px;">
+            <el-table-column prop="label" label="指标" width="220">
               <template #default="{ row }">
                 <span class="row-label">{{ row.label }}</span>
                 <span class="row-sub">{{ row.sub }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="上单累计" align="right" width="200">
+            <el-table-column label="上单" align="right" width="195">
               <template #default="{ row }">{{ fmt3(row.prev) }}<span class="u">g</span></template>
             </el-table-column>
-            <el-table-column label="本单" align="right" width="200">
+            <el-table-column label="本单" align="right" width="195">
               <template #default="{ row }">
                 <span :class="{ 'cur-strong': row.cur !== 0 }">{{ fmt3(row.cur) }}</span><span class="u">g</span>
               </template>
             </el-table-column>
-            <el-table-column label="累计" align="right" width="220">
+            <el-table-column label="累积" align="right" width="220">
               <template #default="{ row }">
                 <b class="total-val" :class="row.cls">{{ fmt3(row.total) }}</b><span class="u">g</span>
               </template>
             </el-table-column>
           </el-table>
           <div class="master-hint">
-            <b>上单累计</b>：该师傅截至业务日期、已生效的抛光单合计（不含正在录入的这一单）。<br>
+            <b>上单</b>：该师傅截至业务日期、已生效的抛光单合计（不含正在录入的这一单）。<br>
             <b>本单</b>：上面填的发出 / 回收 / 报废回收重量实时算出的值，改一个数下面几行跟着变。<br>
-            <b>报废回收</b>：报废品交回来的金，不记耗，直接从实损耗里扣。<br>
-            <b>累计</b>：上单累计 + 本单。实损耗 = 发出 − 回收 − 报废回收；应回金 = 实损耗 − 标准损耗；标准损耗 = 发出重量 × 损耗率（只有「有耗抛光」才扣，默认 1% = 0.01）。<br>
+            <b>报废回收</b>：报废品交回来的金，不记耗，直接从实损耗和标准损耗基数里扣。<br>
+            <b>累积</b>：上单 + 本单。实损耗 = 发出 − 回收 − 报废回收；应回金 = 实损耗 − 标准损耗；标准损耗 =（发出 − 报废回收）× 损耗率（只有「有耗抛光」才扣，默认 1% = 0.01）。<br>
             <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
             老单没录会按全额未给算，累计数会偏大。
           </div>
@@ -379,9 +379,9 @@ const calcAuto = () => {
   const scrap = Number(form.extraFields.scrapRecoveryG) || 0;
   const ratePct = isLossySelected.value ? (Number(form.lossRatePct) || 0) : 0;
   // ⚠️ 与后端 CalcStandardLoss 完全一致，否则保存后数字会变：
-  //    实损耗 = 发出 − 回收 − 报废回收；标准损耗 = 发出 × 损耗率（无耗/布心为 0）；应回金 = 实损耗 − 标准损耗
+  //    实损耗 = 发出 − 回收 − 报废回收；标准损耗 =（发出 − 报废回收）× 损耗率（无耗/布心为 0）；应回金 = 实损耗 − 标准损耗
   form.actualLossG = round3(send - recycle - scrap);
-  form.standardLossG = round3(send * ratePct / 100);
+  form.standardLossG = round3(Math.max(0, send - scrap) * ratePct / 100);
   form.shouldRecycleG = round3(form.actualLossG - form.standardLossG);
 };
 
@@ -535,7 +535,7 @@ const masterRows = computed(() => {
     mk('回收重量', '师傅交回', 'recycleWeightG'),
     mk('报废回收', '报废品交回，不记耗', 'scrapRecoveryG', 'scrap-cls'),
     mk('实损耗', '发货 − 回收 − 报废回收', 'actualLossG', 'loss-cls'),
-    mk('标准损耗', '发出 × 损耗率（有耗才有）', 'standardLossG'),
+    mk('标准损耗', '（发出−报废回收）× 损耗率', 'standardLossG'),
     mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls'),
     mk('实际回金', '师傅已经交回', 'actualRecycleG', 'recycle-cls'),
     mk('未回金', '应回金 − 实际回金', 'unreturnedG', 'unreturned-cls')

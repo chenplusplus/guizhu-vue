@@ -148,8 +148,9 @@ const lossRate = computed(() => detail.value.sendWeightG > 0 ? ((detail.value.ac
 // 标准损耗的计算基数（与后端 CalcStandardLoss 对齐）
 const lossBaseText = computed(() => {
   const mp = detail.value.mainProcess;
-  if (mp === 'ZM') return '发出 − 余料水口';
+  if (mp === 'ZM') return '发出 − 报废回收 − 余料水口';
   if (mp === 'XS') return '发出 − 回收 − 钻石克重';
+  if (mp === 'PG') return '发出 − 报废回收';
   return '发出';
 });
 
