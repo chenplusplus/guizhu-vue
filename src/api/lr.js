@@ -63,6 +63,34 @@ export const exportLr = async (lrId) => {
 
   return response;
 };
+// ===== 批量导出：当前筛选范围全部 LR（一单一单排 + 末尾汇总） =====
+export const exportLrAll = async (params = {}) => {
+  const token = localStorage.getItem('token');
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== '') qs.append(k, v);
+  });
+
+  const response = await fetch(`/api/lr/export-all?${qs.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let msg = `导出失败：${response.status}`;
+    try {
+      const json = JSON.parse(text);
+      msg = json.message || msg;
+    } catch { /* 非 JSON，用默认提示 */ }
+    throw new Error(msg);
+  }
+
+  return response;
+};
+
 export const confirmLr = (id) => {
   return request({
     url: `/lr/${id}/confirm`,

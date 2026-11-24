@@ -77,6 +77,16 @@
           <el-button @click="resetSearch">
             <el-icon><RefreshRight /></el-icon> 重置
           </el-button>
+          <!-- ⭐ 下载：当前筛选范围的全部 LR，一单一单往下排，末尾带汇总 -->
+          <el-button
+            type="primary"
+            plain
+            :loading="downloading"
+            :disabled="!rows.length"
+            @click="handleDownload"
+          >
+            <el-icon><Download /></el-icon> 下载
+          </el-button>
           <!-- ⭐ 全屏查看：整页铺满屏幕、表格压到一屏宽（不用左右滚），Esc 退出 -->
           <el-button v-if="!isFull" :disabled="!rows.length" @click="enterFull">
             <el-icon><FullScreen /></el-icon> 全屏查看
@@ -215,8 +225,8 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
-import { Search, RefreshRight, InfoFilled, FullScreen, Close } from '@element-plus/icons-vue';
-import { getLrCustomers, getLrSheet } from '@/api/lr';
+import { Search, RefreshRight, InfoFilled, FullScreen, Close, Download } from '@element-plus/icons-vue';
+import { getLrCustomers, getLrSheet, exportLrAll } from '@/api/lr';
 
 const router = useRouter();
 
@@ -297,6 +307,44 @@ const search = reactive({
   dateType: 'today',
   color: '',
 });
+
+// ============================================================
+// ⭐ 下载：按当前筛选条件导出全部 LR 成一张 Excel
+//    - 一张单一个区块（标题 → 表头 → 销售/成本行 → 合计行），单与单之间空一行
+//    - 全部单之后再给总汇总（按成色 + 金料/钻石/镶石/工费利润）
+// ============================================================
+const downloading = ref(false);
+
+const handleDownload = async () => {
+  if (!rows.value.length) return;
+  downloading.value = true;
+  try {
+    const res = await exportLrAll({
+      customerId: search.customerId || '',
+      productName: search.productName || '',
+      color: search.color || '',
+      dateType: search.dateType,
+      startDate: search.dateType === 'custom' ? (dateRange.value?.[0] || '') : '',
+      endDate: search.dateType === 'custom' ? (dateRange.value?.[1] || '') : '',
+    });
+    const blob = await res.blob();
+    // 文件名优先取后端 content-disposition（中文走 RFC5987）
+    const cd = res.headers.get('content-disposition') || '';
+    const matched = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+    const fileName = matched ? decodeURIComponent(matched[1]) : '支出收入LR表_汇总.xlsx';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success(`已导出 ${lrCount.value} 份 LR`);
+  } catch (e) {
+    ElMessage.error(e?.message || '导出失败');
+  } finally {
+    downloading.value = false;
+  }
+};
 
 const colorOptions = ['18K', '14K', '9K', 'PT', '足金999', '银950', '银', '铜'];
 
