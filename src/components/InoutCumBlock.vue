@@ -17,7 +17,7 @@
       </el-col>
     </el-row>
 
-    <!-- 三段式：上单 / 本单 / 现在（不用箭头，客户一眼看三个字段） -->
+    <!-- 三段式：上单 / 本单 / 累积（不用箭头，客户一眼看三个字段） -->
     <div v-if="flowList.length" class="ic-flows">
       <div v-for="f in flowList" :key="f.label" class="ic-flow" :class="toneClass(f.tone)">
         <div class="ic-flow-head">
@@ -36,7 +36,7 @@
             <div class="ic-flow-hint">这一单的进/出</div>
           </div>
           <div class="ic-flow-cell ic-flow-end">
-            <div class="ic-flow-lbl">现在</div>
+            <div class="ic-flow-lbl">累积</div>
             <div class="ic-flow-val ic-flow-now">{{ f.now }}</div>
             <div class="ic-flow-hint">上单 + 本单</div>
           </div>
@@ -63,7 +63,7 @@ const props = defineProps({
   // 每张卡在 md/lg 下的栅格宽度（默认 6 = 一行 4 张）
   span: { type: Number, default: 6 },
   // 三段式字段：[{ label, last, delta, now, deltaTone, sub, tone }]
-  // 明确写成「上单 / 本单 / 现在」三个字段，不用箭头表达变化
+  // 明确写成「上单 / 本单 / 累积」三个字段，不用箭头表达变化
   flows: { type: Array, default: () => [] },
   // 旧写法兼容（{ label, from, to }），新代码请用 flows
   compares: { type: Array, default: () => [] },

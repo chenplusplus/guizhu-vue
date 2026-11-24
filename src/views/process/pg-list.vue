@@ -55,6 +55,10 @@
           <b class="ls-val">{{ fmt2(lossSummary.recycleWeightG) }}</b><span class="ls-unit">g</span>
         </div>
         <div class="ls-item">
+          <span class="ls-label">报废回收</span>
+          <b class="ls-val">{{ fmt2(lossSummary.scrapRecoveryG) }}</b><span class="ls-unit">g</span>
+        </div>
+        <div class="ls-item">
           <span class="ls-label">实损耗</span>
           <b class="ls-val loss">{{ fmt3(lossSummary.actualLossG) }}</b><span class="ls-unit">g</span>
         </div>

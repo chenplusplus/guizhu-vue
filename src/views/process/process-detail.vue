@@ -34,6 +34,10 @@
         <el-descriptions :column="3" border size="small">
           <el-descriptions-item label="发出重量">{{ detail.sendWeightG?.toFixed(2) }} g</el-descriptions-item>
           <el-descriptions-item label="回收重量">{{ detail.recycleWeightG?.toFixed(2) }} g</el-descriptions-item>
+          <el-descriptions-item v-if="detail.mainProcess === 'ZM' || detail.mainProcess === 'PG'" label="报废回收重量">
+            <span class="scrap">{{ (detail.scrapRecoveryG || 0).toFixed(2) }} g</span>
+            <span class="rate-base">（不记耗）</span>
+          </el-descriptions-item>
           <el-descriptions-item label="实损耗"><span class="loss">{{ detail.actualLossG?.toFixed(3) }} g</span></el-descriptions-item>
           <el-descriptions-item label="标准损耗">{{ detail.standardLossG?.toFixed(3) }} g</el-descriptions-item>
           <el-descriptions-item label="应回金"><span class="recycle">{{ detail.shouldRecycleG?.toFixed(3) }} g</span></el-descriptions-item>
@@ -44,7 +48,7 @@
           <el-descriptions-item label="损耗率">{{ lossRate }}%</el-descriptions-item>
           <el-descriptions-item label="标准损耗率" v-if="detail.extraFields?.lossRatePct != null">
             {{ Number(detail.extraFields.lossRatePct).toFixed(2) }}%
-            <span class="rate-base">（按{{ detail.mainProcess === 'ZM' ? '回收' : '发出' }}重量计）</span>
+            <span class="rate-base">（基数 = {{ lossBaseText }}）</span>
           </el-descriptions-item>
         </el-descriptions>
       </div>
@@ -141,6 +145,13 @@ const unreturnedG = computed(() => {
 });
 
 const lossRate = computed(() => detail.value.sendWeightG > 0 ? ((detail.value.actualLossG / detail.value.sendWeightG) * 100).toFixed(2) : '0.00');
+// 标准损耗的计算基数（与后端 CalcStandardLoss 对齐）
+const lossBaseText = computed(() => {
+  const mp = detail.value.mainProcess;
+  if (mp === 'ZM') return '发出 − 余料水口';
+  if (mp === 'XS') return '发出 − 回收 − 钻石克重';
+  return '发出';
+});
 
 const formatDate = (d) => d ? d.slice(0, 10) : '-';
 const formatDateTime = (d) => d ? d.slice(0, 19).replace('T', ' ') : '-';

@@ -225,7 +225,7 @@ const cumCards = computed(() => {
     { label: '累计净额（收入 − 支出）', value: fmtMoney(netAmt), tone: netTone(netAmt) }
   ]
 })
-// 三段式字段：上单 / 本单 / 现在（现在 = 上单 ± 本单）
+// 三段式字段：上单 / 本单 / 累积（累积 = 上单 ± 本单）
 const cumFlows = computed(() => {
   const all = !hasCp.value
   const base = all ? lastTotal.allNetAmount : lastTotal.lastTotalAmount
@@ -243,7 +243,7 @@ const cumFlows = computed(() => {
 const cumNotes = [
   '<b>上单</b>：截至业务日期、已生效记录的收支净额（不含正在录入的这一单）。',
   '<b>本单</b>：这一单的金额，收入为加、支出为减。',
-  '<b>现在</b>：上单 + 本单，也就是这笔录进去以后的累计净额。<b>累计收入/支出</b>分别统计进出总额，<b>累计净额</b>才是两者相抵。'
+  '<b>累积</b>：上单 + 本单，也就是这笔录进去以后的累计净额。<b>累计收入/支出</b>分别统计进出总额，<b>累计净额</b>才是两者相抵。'
 ]
 
 const loadFormOptions = async () => {

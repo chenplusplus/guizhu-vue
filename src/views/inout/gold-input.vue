@@ -514,7 +514,7 @@ const cumCards = computed(() => [
   { label: '累计未结金额', value: fmtMoneyCum(cumBase.value.unpaid), tone: 'in' }
 ])
 
-// 三段式字段：上单 / 本单 / 现在（现在 = 上单 ± 本单）
+// 三段式字段：上单 / 本单 / 累积（累积 = 上单 ± 本单）
 const thisUnpaid = computed(() => (Number(totalAmount.value) || 0) - (Number(form.paymentAmount) || 0))
 
 const fmtSigned = (v) => {
@@ -564,7 +564,7 @@ const cumFlows = computed(() => {
 const cumNotes = computed(() => [
   '<b>上单</b>：截至业务日期、已生效单据的累计（不含正在录入的这一单）；选了供应商算该供应商，没选算全部往来单位。',
   `<b>本单</b>：折足这一行是这一单的${foldLabel.value}${form.direction === 1 ? ' − 付足料（付足了本单就不加）' : ''}，入库为加、出库为减；金额这一行是<b>本单未结</b> = ${form.direction === 1 ? '应付 − 已付' : '应收 − 已收'}。`,
-  `<b>现在</b>：上单 + 本单。折足金 = 加耗总重 × 折算率；折算率不能相加，累计由重量反算。`
+  `<b>累积</b>：上单 + 本单。折足金 = 加耗总重 × 折算率；折算率不能相加，累计由重量反算。`
 ])
 
 // ==================== 加载数据 ====================

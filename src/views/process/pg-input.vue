@@ -119,21 +119,57 @@
           </div>
         </div>
 
-        <!-- 收发数据 -->
+        <!-- 收发数据：与执模同款大卡片（发出 / 回收 / 报废回收） -->
         <div class="form-section">
           <div class="section-title">⚖️ 收发数据</div>
-          <el-row :gutter="20">
-            <el-col :xs="24" :sm="8">
-              <el-form-item label="发出重量 (g)" prop="sendWeightG">
-                <el-input-number v-model="form.sendWeightG" :min="0" :precision="2" :controls="false" style="width:100%;" @change="calcAuto" />
-              </el-form-item>
-            </el-col>
-            <el-col :xs="24" :sm="8">
-              <el-form-item label="回收重量 (g)" prop="recycleWeightG">
-                <el-input-number v-model="form.recycleWeightG" :min="0" :precision="2" :controls="false" style="width:100%;" @change="calcAuto" />
-              </el-form-item>
-            </el-col>
-          </el-row>
+          <div class="io-cards">
+            <el-form-item prop="sendWeightG" class="io-form-item" label-width="0">
+              <div class="io-card io-out">
+                <div class="io-head">
+                  <span class="io-icon">📤</span>
+                  <span class="io-title">发出重量</span>
+                  <span class="io-sub">发给师傅</span>
+                </div>
+                <div class="io-field">
+                  <el-input-number
+                    v-model="form.sendWeightG" :min="0" :precision="2" :controls="false"
+                    class="io-number" placeholder="0.00" @change="calcAuto" />
+                  <span class="io-unit">g</span>
+                </div>
+              </div>
+            </el-form-item>
+            <el-form-item prop="recycleWeightG" class="io-form-item" label-width="0">
+              <div class="io-card io-in">
+                <div class="io-head">
+                  <span class="io-icon">📥</span>
+                  <span class="io-title">回收重量</span>
+                  <span class="io-sub">师傅交回</span>
+                </div>
+                <div class="io-field">
+                  <el-input-number
+                    v-model="form.recycleWeightG" :min="0" :precision="2" :controls="false"
+                    class="io-number" placeholder="0.00" @change="calcAuto" />
+                  <span class="io-unit">g</span>
+                </div>
+              </div>
+            </el-form-item>
+            <!-- ⭐ 报废回收：报废品交回来的金，不记耗，直接从实损耗里扣 -->
+            <el-form-item class="io-form-item" label-width="0">
+              <div class="io-card io-scrap">
+                <div class="io-head">
+                  <span class="io-icon">♻️</span>
+                  <span class="io-title">报废回收</span>
+                  <span class="io-sub">报废品交回，不记耗</span>
+                </div>
+                <div class="io-field">
+                  <el-input-number
+                    v-model="form.extraFields.scrapRecoveryG" :min="0" :precision="2" :controls="false"
+                    class="io-number" placeholder="0.00" @change="calcAuto" />
+                  <span class="io-unit">g</span>
+                </div>
+              </div>
+            </el-form-item>
+          </div>
         </div>
 
         <!-- 自动计算 -->
@@ -172,7 +208,7 @@
             </el-col>
           </el-row>
           <div class="rate-hint" v-if="isLossySelected">
-            标准损耗 = <b>发出重量 × 损耗率</b>（有耗默认 1% = 0.01，可手填）；实损耗 = 发出 − 回收
+            标准损耗 = <b>发出重量 × 损耗率</b>（有耗默认 1% = 0.01，可手填）；实损耗 = 发出 − 回收 − 报废回收（报废回收不记耗）
           </div>
           <div class="rate-hint" v-else-if="form.processDictId">
             {{ currentSubProcess === '布心抛光' ? '布心抛光' : '无耗抛光' }}不扣损耗，实损耗即应回金
@@ -235,8 +271,9 @@
           </el-table>
           <div class="master-hint">
             <b>上单累计</b>：该师傅截至业务日期、已生效的抛光单合计（不含正在录入的这一单）。<br>
-            <b>本单</b>：上面填的发货 / 回收重量实时算出的值，改一个数下面三行跟着变。<br>
-            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗；标准损耗 = 发出重量 × 损耗率（只有「有耗抛光」才扣，默认 1% = 0.01）。<br>
+            <b>本单</b>：上面填的发出 / 回收 / 报废回收重量实时算出的值，改一个数下面几行跟着变。<br>
+            <b>报废回收</b>：报废品交回来的金，不记耗，直接从实损耗里扣。<br>
+            <b>累计</b>：上单累计 + 本单。实损耗 = 发出 − 回收 − 报废回收；应回金 = 实损耗 − 标准损耗；标准损耗 = 发出重量 × 损耗率（只有「有耗抛光」才扣，默认 1% = 0.01）。<br>
             <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
             老单没录会按全额未给算，累计数会偏大。
           </div>
@@ -320,7 +357,7 @@ const form = reactive({
   standardLossG: 0,
   shouldRecycleG: 0,
   actualRecycleG: 0,               // 实际回金（师傅已交回）
-  extraFields: { clothCoreNote: '' },
+  extraFields: { clothCoreNote: '', scrapRecoveryG: 0 },
   masterName: '',
   productName: '',
   content: '',
@@ -338,10 +375,12 @@ const rules = {
 const calcAuto = () => {
   const send = form.sendWeightG || 0;
   const recycle = form.recycleWeightG || 0;
+  // ⭐ 报废回收：报废品交回来的金，不记耗（2026-11-24）
+  const scrap = Number(form.extraFields.scrapRecoveryG) || 0;
   const ratePct = isLossySelected.value ? (Number(form.lossRatePct) || 0) : 0;
   // ⚠️ 与后端 CalcStandardLoss 完全一致，否则保存后数字会变：
-  //    实损耗 = 发出 − 回收；标准损耗 = 发出 × 损耗率（无耗/布心为 0）；应回金 = 实损耗 − 标准损耗
-  form.actualLossG = round3(send - recycle);
+  //    实损耗 = 发出 − 回收 − 报废回收；标准损耗 = 发出 × 损耗率（无耗/布心为 0）；应回金 = 实损耗 − 标准损耗
+  form.actualLossG = round3(send - recycle - scrap);
   form.standardLossG = round3(send * ratePct / 100);
   form.shouldRecycleG = round3(form.actualLossG - form.standardLossG);
 };
@@ -390,19 +429,19 @@ const pickSubProcess = (p) => {
 };
 
 // 重量/子工序一变就重算，上方自动计算和下方本单/累计同时动
-watch(() => [form.sendWeightG, form.recycleWeightG, form.processDictId], () => {
+watch(() => [form.sendWeightG, form.recycleWeightG, form.extraFields.scrapRecoveryG, form.processDictId], () => {
   if (!lockCalc) calcAuto();
 });
 
 // ===== 师傅累计（上单累计 / 本单 / 累计）=====
 const masterTotal = reactive({
-  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0,
+  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, scrapRecoveryG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0,
   actualRecycleG: 0, unreturnedG: 0
 });
 
 const loadMasterTotal = async () => {
   if (!form.masterName) {
-    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
+    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, scrapRecoveryG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
     return;
   }
   try {
@@ -450,7 +489,10 @@ const loadDetail = async () => {
     form.productName = d.productName || '';
     form.content = d.content || '';
     form.remark = d.remark || '';
-    form.extraFields = { clothCoreNote: d.extraFields?.clothCoreNote || '' };
+    form.extraFields = {
+      clothCoreNote: d.extraFields?.clothCoreNote || '',
+      scrapRecoveryG: Number(d.extraFields?.scrapRecoveryG) || 0
+    };
     // 字典ID后端已按名称反查；查不到再按名称兜底匹配一次
     form.processDictId = d.processDictId || subProcesses.value.find(p => p.itemValue === d.subProcess)?.id || null;
     form.materialId = d.materialId || options.materials.find(m => m.itemValue === d.materialName)?.id || null;
@@ -474,6 +516,7 @@ const masterRows = computed(() => {
   const cur = {
     sendWeightG: form.sendWeightG || 0,
     recycleWeightG: form.recycleWeightG || 0,
+    scrapRecoveryG: Number(form.extraFields.scrapRecoveryG) || 0,
     actualLossG: form.actualLossG || 0,
     standardLossG: form.standardLossG || 0,
     shouldRecycleG: form.shouldRecycleG || 0,
@@ -490,7 +533,8 @@ const masterRows = computed(() => {
   return [
     mk('发货重量', '发出给师傅', 'sendWeightG'),
     mk('回收重量', '师傅交回', 'recycleWeightG'),
-    mk('实损耗', '发货 − 回收', 'actualLossG', 'loss-cls'),
+    mk('报废回收', '报废品交回，不记耗', 'scrapRecoveryG', 'scrap-cls'),
+    mk('实损耗', '发货 − 回收 − 报废回收', 'actualLossG', 'loss-cls'),
     mk('标准损耗', '发出 × 损耗率（有耗才有）', 'standardLossG'),
     mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls'),
     mk('实际回金', '师傅已经交回', 'actualRecycleG', 'recycle-cls'),
@@ -565,12 +609,12 @@ const handleReset = async () => {
   form.standardLossG = 0;
   form.shouldRecycleG = 0;
   form.actualRecycleG = 0;
-  form.extraFields = { clothCoreNote: '' };
+  form.extraFields = { clothCoreNote: '', scrapRecoveryG: 0 };
   form.masterName = '';
   form.productName = '';
   form.content = '';
   form.remark = '';
-  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
+  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, scrapRecoveryG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
 };
 
 // 保存后静默刷新「内容」下拉（后端会把新内容写进字典，重新取一次就能选到）
@@ -640,6 +684,69 @@ onMounted(async () => {
 .mp-side-txt { font-size: 12px; color: #a16207; margin-top: 2px; }
 .mp-side-empty { font-size: 12px; color: #c9a227; line-height: 1.5; }
 
+/* ===== 发出 / 回收：两种底色，一眼分清 ===== */
+.io-cards { display: flex; gap: 16px; flex-wrap: wrap; }
+.io-form-item { flex: 1 1 280px; max-width: 400px; margin-bottom: 0; }
+.io-form-item :deep(.el-form-item__content) { width: 100%; }
+.io-card {
+  position: relative; overflow: hidden; width: 100%;
+  border-radius: 14px; border: 2px solid transparent; padding: 14px 20px 16px;
+}
+.io-card::after {
+  content: ''; position: absolute; width: 140px; height: 140px; border-radius: 50%;
+  right: -46px; top: -56px; pointer-events: none;
+}
+/* 发出：暖橙（钱/料出去了）*/
+.io-out {
+  background: linear-gradient(135deg, #fff6ef 0%, #ffe3cf 100%);
+  border-color: #f7ab84; box-shadow: 0 6px 18px rgba(240, 120, 60, .14);
+}
+.io-out::after { background: radial-gradient(circle, rgba(240, 138, 59, .22), transparent 70%); }
+/* 报废回收：淡蓝灰（料也回来了，但走报废）*/
+.io-scrap {
+  background: linear-gradient(135deg, #f5f8fd 0%, #e3ecf9 100%);
+  border-color: #a9c4e4; box-shadow: 0 6px 18px rgba(60, 110, 190, .12);
+}
+.io-scrap::after { background: radial-gradient(circle, rgba(60, 110, 190, .18), transparent 70%); }
+.io-scrap .io-title { color: #2f6fd0; }
+.io-scrap .io-sub { color: #6b87a8; }
+.io-scrap .io-number :deep(.el-input__wrapper) { border-color: #a9c4e4; }
+.io-scrap .io-number :deep(.el-input__wrapper.is-focus) { border-color: #2f6fd0; box-shadow: 0 0 0 3px rgba(47, 111, 208, .15); }
+.io-scrap .io-number :deep(.el-input__inner) { color: #2f6fd0; }
+.io-scrap .io-unit { color: #2f6fd0; }
+/* 回收：青绿（料回来了）*/
+.io-in {
+  background: linear-gradient(135deg, #eefbf6 0%, #d3f2e5 100%);
+  border-color: #79d2b5; box-shadow: 0 6px 18px rgba(16, 150, 110, .14);
+}
+.io-in::after { background: radial-gradient(circle, rgba(16, 185, 129, .20), transparent 70%); }
+.io-head { position: relative; z-index: 1; display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px; }
+.io-icon { font-size: 20px; line-height: 1; }
+.io-title { font-size: 16px; font-weight: 800; letter-spacing: 1px; }
+.io-out .io-title { color: #c2410c; }
+.io-in .io-title { color: #0f766e; }
+.io-sub { font-size: 12px; }
+.io-out .io-sub { color: #b07a5c; }
+.io-in .io-sub { color: #5d8e80; }
+.io-field { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+.io-number { flex: 1; min-width: 0; }
+.io-number :deep(.el-input__wrapper) {
+  min-height: 52px; padding: 0 14px; border-radius: 10px;
+  background: #fff; box-shadow: none; border: 2px solid transparent;
+}
+.io-out .io-number :deep(.el-input__wrapper) { border-color: #f3b48f; }
+.io-in .io-number :deep(.el-input__wrapper) { border-color: #7ed0b4; }
+.io-out .io-number :deep(.el-input__wrapper.is-focus) { border-color: #e2611b; box-shadow: 0 0 0 3px rgba(226, 97, 27, .15); }
+.io-in .io-number :deep(.el-input__wrapper.is-focus) { border-color: #0f9c78; box-shadow: 0 0 0 3px rgba(15, 156, 120, .15); }
+.io-number :deep(.el-input__inner) {
+  font-size: 24px; font-weight: 800; text-align: right; letter-spacing: .5px;
+}
+.io-out .io-number :deep(.el-input__inner) { color: #c2410c; }
+.io-in .io-number :deep(.el-input__inner) { color: #0f766e; }
+.io-unit { font-size: 15px; font-weight: 800; }
+.io-out .io-unit { color: #c2410c; }
+.io-in .io-unit { color: #0f766e; }
+
 /* 内容下拉提示 */
 .content-hint { font-size: 12px; color: #909399; margin-top: 2px; }
 
@@ -655,6 +762,7 @@ onMounted(async () => {
 .row-sub { display: block; font-size: 11px; color: #a8abb2; }
 .total-val { font-size: 15px; color: #303133; }
 .total-val.loss-cls { color: #E6A23C; }
+.total-val.scrap-cls { color: #2f6fd0; }
 .total-val.recycle-cls { color: #2f6fd0; }
 /* 未回金：正数=师傅还欠（橙红） */
 .total-val.unreturned-cls { color: #d4380d; }

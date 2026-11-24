@@ -154,44 +154,6 @@
           </div>
         </div>
 
-        <!-- 师傅累计（上单累计 → 本单 → 累计） -->
-        <div class="form-section master-section">
-          <div class="section-title">
-            👤 该师傅累计（截至 {{ form.businessDate || '今天' }}）
-            <span class="master-name" v-if="form.masterName">{{ form.masterName }}</span>
-            <span class="master-name empty" v-else>未选师傅</span>
-            <span class="master-count" v-if="form.masterName">已生效 {{ masterTotal.recordCount }} 单</span>
-          </div>
-          <el-table :data="masterRows" border size="small" class="master-table" style="max-width: 820px;">
-            <el-table-column prop="label" label="指标" width="180">
-              <template #default="{ row }">
-                <span class="row-label">{{ row.label }}</span>
-                <span class="row-sub">{{ row.sub }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="上单累计" align="right" width="200">
-              <template #default="{ row }">{{ fmt3(row.prev) }}<span class="u">g</span></template>
-            </el-table-column>
-            <el-table-column label="本单" align="right" width="200">
-              <template #default="{ row }">
-                <span :class="{ 'cur-strong': row.cur !== 0 }">{{ fmt3(row.cur) }}</span><span class="u">g</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="累计" align="right" width="220">
-              <template #default="{ row }">
-                <b class="total-val" :class="row.cls">{{ fmt3(row.total) }}</b><span class="u">g</span>
-              </template>
-            </el-table-column>
-          </el-table>
-          <div class="master-hint">
-            <b>上单累计</b>：该师傅截至业务日期、已生效的镶石单合计（不含正在录入的这一单）。<br>
-            <b>本单</b>：上面填的发货 / 回收重量实时算出的值，改一个数下面三行跟着变。<br>
-            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗（标准损耗 =（发出−回收−钻石克重）× 损耗率）；
-            <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
-            老单没录会按全额未给算，累计数会偏大。
-          </div>
-        </div>
-
         <!-- 镶石专属：钻石字段（跟上面选的类型走，另一套数据仍保留、切回去还在） -->
         <div class="form-section">
           <div class="section-title">💎 {{ inlayTypeLabel }}钻石信息</div>
@@ -241,6 +203,45 @@
           <div class="section-title">📝 备注</div>
           <el-form-item label="备注"><el-input v-model="form.remark" type="textarea" :rows="2" maxlength="500" show-word-limit /></el-form-item>
         </div>
+
+        <!-- 师傅累计（上单 → 本单 → 累积）：放最下面，先填完钻石和备注再看统计 -->
+        <div class="form-section master-section">
+          <div class="section-title">
+            👤 该师傅累计（截至 {{ form.businessDate || '今天' }}）
+            <span class="master-name" v-if="form.masterName">{{ form.masterName }}</span>
+            <span class="master-name empty" v-else>未选师傅</span>
+            <span class="master-count" v-if="form.masterName">已生效 {{ masterTotal.recordCount }} 单</span>
+          </div>
+          <el-table :data="masterRows" border size="small" class="master-table" style="max-width: 820px;">
+            <el-table-column prop="label" label="指标" width="180">
+              <template #default="{ row }">
+                <span class="row-label">{{ row.label }}</span>
+                <span class="row-sub">{{ row.sub }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="上单累计" align="right" width="200">
+              <template #default="{ row }">{{ fmt3(row.prev) }}<span class="u">g</span></template>
+            </el-table-column>
+            <el-table-column label="本单" align="right" width="200">
+              <template #default="{ row }">
+                <span :class="{ 'cur-strong': row.cur !== 0 }">{{ fmt3(row.cur) }}</span><span class="u">g</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="累计" align="right" width="220">
+              <template #default="{ row }">
+                <b class="total-val" :class="row.cls">{{ fmt3(row.total) }}</b><span class="u">g</span>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="master-hint">
+            <b>上单累计</b>：该师傅截至业务日期、已生效的镶石单合计（不含正在录入的这一单）。<br>
+            <b>本单</b>：上面填的发货 / 回收重量实时算出的值，改一个数下面三行跟着变。<br>
+            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗（标准损耗 =（发出−回收−钻石克重）× 损耗率）；
+            <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
+            老单没录会按全额未给算，累计数会偏大。
+          </div>
+        </div>
+
       </el-form>
     </div>
   </div>

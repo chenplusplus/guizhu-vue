@@ -148,6 +148,22 @@
                 </div>
               </div>
             </el-form-item>
+            <!-- ⭐ 报废回收：报废品交回来的金，不记耗，直接从实损耗里扣 -->
+            <el-form-item class="io-form-item" label-width="0">
+              <div class="io-card io-scrap">
+                <div class="io-head">
+                  <span class="io-icon">♻️</span>
+                  <span class="io-title">报废回收</span>
+                  <span class="io-sub">报废品交回，不记耗</span>
+                </div>
+                <div class="io-field">
+                  <el-input-number
+                    v-model="form.extraFields.scrapRecoveryG" :min="0" :precision="2" :controls="false"
+                    class="io-number" placeholder="0.00" @change="calcAuto" />
+                  <span class="io-unit">g</span>
+                </div>
+              </div>
+            </el-form-item>
           </div>
           <!-- 无耗执模的余料发线：和收发重量放一起 -->
           <el-row :gutter="20" v-if="currentSubProcess === '无耗执模'" style="margin-top: 16px;">
@@ -203,7 +219,7 @@
             </el-col>
           </el-row>
           <div class="rate-hint" v-if="isLossySelected">
-            标准损耗 = <b>（发出 − 余料水口）× 损耗率</b>（损耗率默认 2.5% = 0.025，可手填）；实损耗 = 发出 − 回收
+            标准损耗 = <b>（发出 − 余料水口）× 损耗率</b>（损耗率默认 2.5% = 0.025，可手填）；实损耗 = 发出 − 回收 − 报废回收（报废回收不记耗）
           </div>
           <div class="rate-hint" v-else-if="form.processDictId">
             无耗执模不扣损耗，实损耗即应回金
@@ -254,8 +270,9 @@
           </el-table>
           <div class="master-hint">
             <b>上单累计</b>：该师傅截至业务日期、已生效单据的合计（不含正在录入的这一单）。<br>
-            <b>本单</b>：上面填的发货 / 回收重量实时算出的值，改一个数下面三行跟着变。<br>
-            <b>累计</b>：上单累计 + 本单。应回金 = 实损耗 − 标准损耗；标准损耗 =（发出 − 余料水口）× 损耗率。<br>
+            <b>本单</b>：上面填的发出 / 回收 / 报废回收重量实时算出的值，改一个数下面几行跟着变。<br>
+            <b>报废回收</b>：报废品交回来的金，不记耗，直接从实损耗里扣。<br>
+            <b>累计</b>：上单累计 + 本单。实损耗 = 发出 − 回收 − 报废回收；应回金 = 实损耗 − 标准损耗；标准损耗 =（发出 − 余料水口）× 损耗率。<br>
             <b>未回金</b> = 应回金 − 实际回金，正数就是这个师傅还欠的金；从本单起录「实际回金」，
             老单没录会按全额未给算，累计数会偏大。
           </div>
@@ -331,7 +348,7 @@ const form = reactive({
   standardLossG: 0,
   shouldRecycleG: 0,
   actualRecycleG: 0,               // 实际回金（师傅已交回）
-  extraFields: { residueWaterG: 0, residueWireG: 0 },
+  extraFields: { residueWaterG: 0, residueWireG: 0, scrapRecoveryG: 0 },
   masterName: '',
   productName: '',
   content: '',
@@ -349,12 +366,14 @@ const rules = {
 const calcAuto = () => {
   const send = form.sendWeightG || 0;
   const recycle = form.recycleWeightG || 0;
+  // ⭐ 报废回收：报废品交回来的金，不记耗（2026-11-24）
+  const scrap = Number(form.extraFields.scrapRecoveryG) || 0;
   const ratePct = isLossySelected.value ? (Number(form.lossRatePct) || 0) : 0;
   // ⚠️ 与后端 CalcStandardLoss 完全一致，否则保存后数字会变
-  //    执模标准损耗 =（发出 − 余料水口）× 损耗率；实损耗 = 发出 − 回收；应回金 = 实损耗 − 标准损耗
+  //    执模标准损耗 =（发出 − 余料水口）× 损耗率；实损耗 = 发出 − 回收 − 报废回收；应回金 = 实损耗 − 标准损耗
   const water = isLossySelected.value ? (Number(form.extraFields.residueWaterG) || 0) : 0;
   const net = Math.max(0, send - water);
-  form.actualLossG = round3(send - recycle);
+  form.actualLossG = round3(send - recycle - scrap);
   form.standardLossG = round3(net * ratePct / 100);
   form.shouldRecycleG = round3(form.actualLossG - form.standardLossG);
 };
@@ -399,20 +418,20 @@ const pickSubProcess = (p) => {
   onSubProcessChange();
 };
 
-// 重量/工序/水口一变就重算，上方自动计算和下方本单/累计同时动（不依赖 change 事件）
-watch(() => [form.sendWeightG, form.recycleWeightG, form.processDictId, form.extraFields.residueWaterG, form.lossRatePct], () => {
+// 重量/工序/水口/报废回收一变就重算，上方自动计算和下方本单/累计同时动（不依赖 change 事件）
+watch(() => [form.sendWeightG, form.recycleWeightG, form.processDictId, form.extraFields.residueWaterG, form.extraFields.scrapRecoveryG, form.lossRatePct], () => {
   if (!lockCalc) calcAuto();
 });
 
 // ===== 师傅累计（上单累计 / 本单 / 累计）=====
 const masterTotal = reactive({
-  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0,
+  recordCount: 0, sendWeightG: 0, recycleWeightG: 0, scrapRecoveryG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0,
   actualRecycleG: 0, unreturnedG: 0
 });
 
 const loadMasterTotal = async () => {
   if (!form.masterName) {
-    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
+    Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, scrapRecoveryG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
     return;
   }
   try {
@@ -453,7 +472,8 @@ const loadDetail = async () => {
     form.remark = d.remark || '';
     form.extraFields = {
       residueWaterG: Number(d.extraFields?.residueWaterG) || 0,
-      residueWireG: Number(d.extraFields?.residueWireG) || 0
+      residueWireG: Number(d.extraFields?.residueWireG) || 0,
+      scrapRecoveryG: Number(d.extraFields?.scrapRecoveryG) || 0
     };
     // ⭐ 标准损耗率：新单据存在 extraFields.lossRatePct；
     //    老单据没存（当年按旧口径算，回算出来的 20% 是错的），直接回到默认值
@@ -487,6 +507,7 @@ const masterRows = computed(() => {
   const cur = {
     sendWeightG: form.sendWeightG || 0,
     recycleWeightG: form.recycleWeightG || 0,
+    scrapRecoveryG: Number(form.extraFields.scrapRecoveryG) || 0,
     actualLossG: form.actualLossG || 0,
     standardLossG: form.standardLossG || 0,
     shouldRecycleG: form.shouldRecycleG || 0,
@@ -503,7 +524,8 @@ const masterRows = computed(() => {
   return [
     mk('发货重量', '发出给师傅', 'sendWeightG'),
     mk('回收重量', '师傅交回', 'recycleWeightG'),
-    mk('实损耗', '发货 − 回收', 'actualLossG', 'loss-cls'),
+    mk('报废回收', '报废品交回，不记耗', 'scrapRecoveryG', 'scrap-cls'),
+    mk('实损耗', '发货 − 回收 − 报废回收', 'actualLossG', 'loss-cls'),
     mk('标准损耗', '（发出−水口）×损耗率', 'standardLossG'),
     mk('应回金', '实损耗 − 标准损耗', 'shouldRecycleG', 'recycle-cls'),
     mk('实际回金', '师傅已经交回', 'actualRecycleG', 'recycle-cls'),
@@ -581,7 +603,7 @@ const handleReset = async () => {
   form.productName = '';
   form.content = '';
   form.remark = '';
-  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
+  Object.assign(masterTotal, { recordCount: 0, sendWeightG: 0, recycleWeightG: 0, scrapRecoveryG: 0, actualLossG: 0, standardLossG: 0, shouldRecycleG: 0, actualRecycleG: 0, unreturnedG: 0 });
 };
 
 const loadOptions = async () => {
@@ -648,6 +670,18 @@ onMounted(async () => {
   border-color: #f7ab84; box-shadow: 0 6px 18px rgba(240, 120, 60, .14);
 }
 .io-out::after { background: radial-gradient(circle, rgba(240, 138, 59, .22), transparent 70%); }
+/* 报废回收：淡蓝灰（料也回来了，但走报废）*/
+.io-scrap {
+  background: linear-gradient(135deg, #f5f8fd 0%, #e3ecf9 100%);
+  border-color: #a9c4e4; box-shadow: 0 6px 18px rgba(60, 110, 190, .12);
+}
+.io-scrap::after { background: radial-gradient(circle, rgba(60, 110, 190, .18), transparent 70%); }
+.io-scrap .io-title { color: #2f6fd0; }
+.io-scrap .io-sub { color: #6b87a8; }
+.io-scrap .io-number :deep(.el-input__wrapper) { border-color: #a9c4e4; }
+.io-scrap .io-number :deep(.el-input__wrapper.is-focus) { border-color: #2f6fd0; box-shadow: 0 0 0 3px rgba(47, 111, 208, .15); }
+.io-scrap .io-number :deep(.el-input__inner) { color: #2f6fd0; }
+.io-scrap .io-unit { color: #2f6fd0; }
 /* 回收：青绿（料回来了）*/
 .io-in {
   background: linear-gradient(135deg, #eefbf6 0%, #d3f2e5 100%);
@@ -776,6 +810,7 @@ onMounted(async () => {
 .row-sub { display: block; font-size: 11px; color: #a8abb2; }
 .total-val { font-size: 15px; color: #303133; }
 .total-val.loss-cls { color: #E6A23C; }
+.total-val.scrap-cls { color: #2f6fd0; }
 .total-val.recycle-cls { color: #2f6fd0; }
 /* 未回金：正数=师傅还欠（橙红） */
 .total-val.unreturned-cls { color: #d4380d; }
