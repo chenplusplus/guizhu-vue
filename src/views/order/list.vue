@@ -149,13 +149,15 @@
       <el-table-column label="标记" width="62" fixed align="center">
         <template #default="{ row }">
           <el-tooltip
-            v-if="row.warnFlag || row.alertReason || row.urgentFlag"
+            v-if="row.warnFlag || row.alertReason || row.urgentFlag || row.isRepair"
             :content="getFlagTooltip(row)"
             placement="top"
           >
             <span class="order-flags">
               <span v-if="row.warnFlag || row.alertReason" class="order-flag order-warning-flag">❗</span>
               <span v-if="row.urgentFlag" class="order-flag order-urgent-flag">🔥</span>
+              <!-- ⭐ 修理货：退货返修的单，一直保留标识 -->
+              <span v-if="row.isRepair" class="order-flag order-repair-flag">修</span>
             </span>
           </el-tooltip>
           <span v-else class="order-flag-placeholder">-</span>
@@ -185,6 +187,7 @@
           <el-tag v-else :type="getStatusType(row.flowStatus)" size="default" effect="light">
             {{ getStatusText(row.flowStatus) }}
           </el-tag>
+          <div v-if="row.isRepair" class="repair-tag" title="客户退货返修的单，修好后重新出账">修理货</div>
         </template>
       </el-table-column>
 
@@ -1204,6 +1207,7 @@ const getFlagTooltip = (row) => {
   const messages = [];
   if (row.warnFlag || row.alertReason) messages.push(`注意：${row.alertReason || '请关注该订单'}`);
   if (row.urgentFlag) messages.push('加急');
+  if (row.isRepair) messages.push('修理货：退货返修，修好后重新出账');
   return messages.join('；');
 };
 
@@ -1416,6 +1420,31 @@ onUnmounted(() => {
 }
 .order-flag-placeholder {
   color: #c0c4cc;
+}
+/* ⭐ 修理货：紫色「修」角标 + 状态下面的小标签，扫一眼就知道这单修过 */
+.order-repair-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #8b5cf6;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+}
+.repair-tag {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid #d8b4fe;
+  background: #f5f3ff;
+  color: #7c3aed;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
 }
 
 /* ⭐ 待处理修改申请：订单号闪烁 */

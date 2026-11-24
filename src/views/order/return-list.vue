@@ -53,8 +53,11 @@
           <el-select v-model="filterStatus" placeholder="全部状态" clearable style="width:170px;" @change="loadData">
             <el-option label="待工厂处理" value="requested" />
             <el-option label="待审核" value="pending" />
+            <el-option label="修理中" value="repairing" />
+            <el-option label="已修好（待出账）" value="repaired" />
+            <el-option label="修理过（已重新出账）" value="billed" />
             <el-option label="已驳回" value="rejected" />
-            <el-option label="已通过（归档）" value="archived" />
+            <el-option label="已归档（旧数据）" value="archived" />
           </el-select>
         </el-form-item>
         <el-form-item label="客户">
@@ -164,7 +167,8 @@
         show-icon
       >
         货到厂后在每行最前面勾选<b>「确认到货」</b>，然后去<b>退货处理</b>定退回方式、提交审核；
-        <b>审核通过后这条退货就不再显示</b>（需要查历史时用状态筛选「已通过（归档）」）。
+        <b>审核通过后这单转为「修理中」</b>，货回到订单继续修，修好（制作完成）变<b>已修好</b>，
+        重新出的账单确认后变<b>修理过</b>——按状态筛选就能查到这件货修没修、修到哪一步。
       </el-alert>
 
       <el-table
@@ -177,7 +181,10 @@
       >
         <el-table-column label="到货确认" width="136" align="center" fixed="left">
           <template #default="{ row }">
+            <!-- ⭐ 已进修理流程的：不再显示勾选框，直接标「已转修理」 -->
+            <span v-if="isRepairRow(row)" class="cell-sub">已转修理</span>
             <el-checkbox
+              v-else
               :model-value="!!row.receivedAt"
               :disabled="!canConfirmArrival(row) || row._arriving"
               size="large"
@@ -234,11 +241,19 @@
         <el-table-column prop="createdAt" label="退货时间" width="160">
           <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="210" align="center" fixed="right">
+        <el-table-column label="操作" width="240" align="center" fixed="right">
           <template #default="{ row }">
             <el-button size="small" type="primary" @click.stop="viewDetail(row.id)">查看</el-button>
+            <!-- ⭐ 修理中 / 已修好 / 修理过：直接去看订单修到哪了 -->
             <el-button
-              v-if="canGoHandle(row)"
+              v-if="isRepairRow(row) && row.orderId"
+              size="small"
+              type="warning"
+              plain
+              @click.stop="goOrder(row)"
+            >看订单</el-button>
+            <el-button
+              v-else-if="canGoHandle(row)"
               size="small"
               type="success"
               plain
@@ -314,6 +329,16 @@
         <el-descriptions-item label="退货原因" :span="2">{{ detailData?.returnReason }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detailData?.returnRemark || '-' }}</el-descriptions-item>
         <el-descriptions-item label="处理备注" :span="2">{{ detailData?.processRemark || '-' }}</el-descriptions-item>
+        <el-descriptions-item v-if="isRepairRow(detailData)" label="修理进度" :span="2">
+          <el-tag :type="rowStatus(detailData).type" size="small">{{ rowStatus(detailData).text }}</el-tag>
+          <span style="margin-left:8px;color:#909399;font-size:12px;">{{ repairStepText(detailData) }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="detailData?.repairedAt" label="修好时间">
+          {{ formatDate(detailData.repairedAt) }}
+        </el-descriptions-item>
+        <el-descriptions-item v-if="detailData?.billedAt" label="重新出账确认">
+          {{ formatDate(detailData.billedAt) }}
+        </el-descriptions-item>
         <el-descriptions-item label="退货时间" :span="2">{{ formatDate(detailData?.createdAt) }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
@@ -541,7 +566,7 @@ const pagination = reactive({
   total: 0,
 });
 
-const statusCount = reactive({ requested: 0, arrived: 0, pending: 0, rejected: 0, archived: 0 });
+const statusCount = reactive({ requested: 0, arrived: 0, pending: 0, rejected: 0, archived: 0, repairing: 0, repaired: 0, billed: 0 });
 
 // ===== 退货处理 =====
 const todoBills = ref([]);
@@ -596,8 +621,11 @@ const stats = computed(() => {
     },
     { n: statusCount.arrived || 0, label: '已到货待处理', color: '#E6A23C' },
     { n: statusCount.pending || 0, label: '待审核', color: '#409EFF' },
+    // ⭐ 修理三态：一眼看出有多少货在修、多少修好等出账、多少已重新出账
+    { n: statusCount.repairing || 0, label: '修理中', color: '#B37FEB' },
+    { n: statusCount.repaired || 0, label: '已修好（待出账）', color: '#7C3AED' },
+    { n: statusCount.billed || 0, label: '修理过（已出账）', color: '#52C41A' },
     { n: statusCount.rejected || 0, label: '已驳回', color: '#909399' },
-    { n: statusCount.archived || 0, label: '已通过（归档）', color: '#67C23A' },
   ];
 });
 
@@ -606,6 +634,10 @@ const statusMap = {
   pending: { text: '待审核', type: 'warning' },
   processed: { text: '已通过', type: 'success' },
   rejected: { text: '已驳回', type: 'danger' },
+  // ⭐ 退货返修三态（2026-11-24）：审核通过不再归档，而是进「修理中」→「已修好」→「修理过」
+  repairing: { text: '修理中', type: 'warning' },
+  repaired: { text: '已修好', type: 'primary' },
+  billed: { text: '修理过', type: 'success' },
 };
 const getStatusText = (s) => statusMap[s]?.text || s;
 const getStatusType = (s) => statusMap[s]?.type || 'info';
@@ -618,10 +650,20 @@ const rowStatus = (row) => {
   return { text: getStatusText(row?.status), type: getStatusType(row?.status) };
 };
 
+// 修理进度：修理中 / 已修好 / 修理过（列表和详情共用）
+const REPAIR_STEPS = { repairing: 1, repaired: 2, billed: 3 };
+const isRepairRow = (row) => !!REPAIR_STEPS[row?.status];
+const repairStepText = (row) => ({
+  repairing: '修理中 · 货在工厂修',
+  repaired: '已修好 · 等重新出账',
+  billed: '修理过 · 已重新出账',
+}[row?.status] || '');
+
 // 到货确认：工厂操作员 / 管理员，且还没确认过
 const canConfirmArrival = (row) => {
   if (!row || row.receivedAt) return false;
   if (row.status === 'processed') return false;
+  if (isRepairRow(row)) return false;   // 已经进修理流程的，不再确认到货
   const t = userStore.userType;
   return t === 'factoryOrder' || t === 'admin';
 };
@@ -654,6 +696,13 @@ const goReturnProcess = (row) => {
   detailVisible.value = false;
   if (row?.billNo) sessionStorage.setItem('returnOpenBillNo', row.billNo);
   router.push({ path: '/order/return-process' });
+};
+
+// 去看订单（修理中 / 已修好 / 修理过：核对这件货修到哪一步）
+const goOrder = (row) => {
+  detailVisible.value = false;
+  if (!row?.orderId) { ElMessage.warning('这条退货没有关联订单'); return; }
+  router.push({ name: 'OrderDetail', params: { id: row.orderId } });
 };
 
 const goBill = (row) => {

@@ -44,7 +44,10 @@
           <el-button v-if="userStore.isCustomerAudit || userStore.isAdmin" type="warning" @click="handleCustomerAudit" :loading="customerAuditing">
             <el-icon><Check /></el-icon> 审核通过
           </el-button>
-          <el-button type="danger" @click="openReturnDialog">
+          <el-button
+            type="danger"
+            :title="userStore.isCustomerAudit ? '核对有问题可直接退回工厂，不用先审核通过、也不用等业务员来退' : '退回工厂'"
+            @click="openReturnDialog">
             <el-icon><RefreshLeft /></el-icon> 退回
           </el-button>
           <el-tag v-if="userStore.isCustomer" type="info" effect="plain">
@@ -266,7 +269,13 @@
                 <el-link type="primary" @click="viewOrder(row.orderId)">{{ row.orderNo }}</el-link>
               </template>
             </el-table-column>
-            <el-table-column prop="productName" label="品名" min-width="120" align="center" />
+            <el-table-column prop="productName" label="品名" min-width="150" align="center">
+              <template #default="{ row }">
+                <span>{{ row.productName }}</span>
+                <!-- ⭐ 修理货：退货返修后重新出账的明细，一直带标识 -->
+                <el-tag v-if="row.isRepair" type="danger" effect="dark" size="small" class="repair-line-tag">修理货</el-tag>
+              </template>
+            </el-table-column>
             <el-table-column prop="customerName" label="客户" width="100" align="center" />
             <el-table-column prop="diamondLevel" label="钻石级别" width="100" align="center">
               <template #default="{ row }">{{ row.diamondLevel || '-' }}</template>
@@ -532,14 +541,29 @@
     <!-- ===== 退回弹窗（客户：只标注要退哪些，方式由工厂定） ===== -->
     <el-dialog v-model="returnDialogVisible" title="申请退回" width="820px" destroy-on-close>
       <el-alert
-        title="勾选要退回的明细，逐行写明原因。提交后由工厂确认退回方式并审核，审核通过才改账单金额。"
+        :title="returnDialogTitle"
         type="warning"
         :closable="false"
         show-icon
         style="margin-bottom:16px;"
       />
 
+      <!-- ⭐ 整单退回：审核员常见场景是「整张单都不对」，一行行勾太慢，
+           这里给个全选；勾完仍然可以自己取消掉个别行 -->
+      <div class="return-toolbar">
+        <el-button size="small" type="primary" plain @click="toggleReturnAll">
+          {{ returnAllSelected ? '取消全选' : '全选（整单退回）' }}
+        </el-button>
+        <span class="return-toolbar-tip">
+          已选 <b>{{ returnSelected.length }}</b> / {{ returnableDetails.length }} 行
+          <template v-if="returnSelected.length">
+            · 合计应收 <b style="color:#d64545;">¥{{ returnSelectedTotal.toFixed(2) }}</b>
+          </template>
+        </span>
+      </div>
+
       <el-table
+        ref="returnTableRef"
         :data="returnableDetails"
         border
         stripe
@@ -770,6 +794,30 @@ const returnableDetails = computed(() =>
   (billData.value?.details || []).filter(d => !d.isReturned)
 );
 
+// ⭐ 退回弹窗：审核员在自己那一段（billConfirmed）就能直接退，不用先通过再等业务员
+const returnTableRef = ref(null);
+const returnDialogTitle = computed(() => {
+  const auditorAtAuditStage = userStore.isCustomerAudit
+    && billData.value?.status === 'billConfirmed';
+  return auditorAtAuditStage
+    ? '核对有问题可以直接退回：勾选要退的明细、写明原因提交即可，由工厂确认退回方式并审核。不用先点「审核通过」，也不用等业务员来退。'
+    : '勾选要退回的明细，逐行写明原因。提交后由工厂确认退回方式并审核，审核通过才改账单金额。';
+});
+const returnAllSelected = computed(() =>
+  returnableDetails.value.length > 0 && returnSelected.value.length === returnableDetails.value.length
+);
+// 已选明细的应收合计：让审核员提交前能核对「这次退掉多少钱」
+const returnSelectedTotal = computed(() =>
+  returnSelected.value.reduce((s, d) => s + (Number(d.totalAmount) || 0), 0)
+);
+// 全选 / 取消全选（整单退回最常见的用法，一行行勾太慢）
+const toggleReturnAll = () => {
+  const table = returnTableRef.value;
+  if (!table) return;
+  const next = !returnAllSelected.value;
+  returnableDetails.value.forEach(row => table.toggleRowSelection(row, next));
+};
+
 // ⭐ 工厂处理退回
 const handleDialogVisible = ref(false);
 const handleRows = ref([]);
@@ -943,11 +991,12 @@ const handleCustomerAudit = async () => {
   }
 };
 
-// 当前角色能否退回：审核员退 billConfirmed，业务员退 customerApproved
+// 当前角色能否退回：审核员 billConfirmed / customerApproved 都能退，业务员退 customerApproved
+// ⭐ 2026-11-24：审核员通过后发现问题的单，也能直接退，不用等业务员来退
 const canCustomerReturn = computed(() => {
   const s = billData.value?.status;
   if (userStore.isAdmin) return s === 'billConfirmed' || s === 'customerApproved';
-  if (userStore.isCustomerAudit) return s === 'billConfirmed';
+  if (userStore.isCustomerAudit) return s === 'billConfirmed' || s === 'customerApproved';
   if (userStore.isCustomer) return s === 'customerApproved';
   return false;
 });
@@ -1617,6 +1666,20 @@ onMounted(async () => {
 .return-banner {
   margin-bottom: 14px;
 }
+/* 退回弹窗里的全选条：左边按钮、右边已选行数与合计 */
+.return-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.return-toolbar-tip {
+  font-size: 13px;
+  color: #606266;
+}
+.return-toolbar-tip b {
+  color: #303133;
+}
 .return-banner-body {
   display: flex;
   flex-wrap: wrap;
@@ -1690,4 +1753,7 @@ onMounted(async () => {
     gap: 8px;
   }
 }
+
+/* ⭐ 修理货明细标识 */
+.repair-line-tag { margin-left: 4px; }
 </style>

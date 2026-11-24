@@ -58,6 +58,21 @@
 
     <!-- ===== 内容区域 ===== -->
     <div class="content-body">
+      <!-- ===== 修理货提示（退货返修，重新走流程后出账） ===== -->
+      <el-alert
+        v-if="orderData?.isRepair"
+        type="error"
+        :closable="false"
+        show-icon
+        class="repair-banner"
+      >
+        <template #title>🔧 修理货 · 客户退货返修单</template>
+        <div>
+          这件货是客户退回返修的：修好后点「制作完成」继续走审核，重新出的账单会一直带「修理货」标识；
+          <b>退货不是取消订单</b>，这一单仍要完成交货。
+        </div>
+      </el-alert>
+
       <!-- ===== 工厂暂停中提示 ===== -->
       <el-alert
         v-if="orderData?.flowStatus === 'paused'"
@@ -104,9 +119,11 @@
           <el-table-column label="创建时间" min-width="170">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column label="状态" min-width="110" align="center">
+          <el-table-column label="状态" min-width="150" align="center">
             <template #default="{ row }">
               <el-tag :type="statusTagType" size="small">{{ statusText }}</el-tag>
+              <!-- ⭐ 修理货：退货返修的单，一直保留标识 -->
+              <el-tag v-if="row.isRepair" type="danger" effect="dark" size="small" class="repair-badge">修理货</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="网址" min-width="120">
@@ -1275,4 +1292,9 @@ onMounted(async () => {
   color: #909399;
   margin-right: 4px;
 }
+
+/* ⭐ 修理货标识 */
+.repair-badge { margin-left: 4px; }
+.repair-banner { margin-bottom: 12px; }
+.repair-banner b { color: #c45656; }
 </style>

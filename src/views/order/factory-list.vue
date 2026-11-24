@@ -346,6 +346,8 @@
           >
             {{ getStatusText(row.flowStatus) }}
           </el-tag>
+          <!-- ⭐ 修理货：退货返修的单，状态下面一直挂着标签 -->
+          <div v-if="row.isRepair" class="repair-tag" title="客户退货返修的单，修好后重新出账">修理货</div>
         </template>
       </el-table-column>
 
@@ -2393,5 +2395,19 @@ watch(() => [route.query.submit, route.query.range], () => {
 
 .table-fullscreen :deep(.el-link) {
   font-size: 16px !important;
+}
+
+/* ⭐ 修理货标签：退货返修的单一直挂着，避免当成正常新单 */
+.repair-tag {
+  display: inline-block;
+  margin-top: 2px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid #d8b4fe;
+  background: #f5f3ff;
+  color: #7c3aed;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
 }
 </style>
